@@ -110,7 +110,7 @@ def explain(rows: list[dict], client=None) -> str:
     from google import genai
     from google.genai import types
     try:
-        return _explain(rows, client or genai.Client(api_key=os.environ["GEMINI_API_KEY"]), types)
+        return _explain(rows, client or ai.client(), types)
     except Exception as e:
         ai.failed("forecast", e)
         return template(rows)

@@ -37,8 +37,7 @@ def normalise(p: ParsedMessage) -> ParsedMessage:
 
 
 def _client():
-    from google import genai
-    return genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    return ai.client()
 
 
 def parse(*, text: Optional[str] = None, media: Optional[bytes] = None,

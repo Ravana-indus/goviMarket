@@ -367,3 +367,11 @@ def test_gemini_outage_still_answers_text_and_seed_stays_offline(monkeypatch):
                    files={"file": ("p.jpg", b"\xff\xd8", "image/jpeg")})
     assert photo.status_code == 502
     assert c.get("/favicon.ico").status_code == 200
+
+
+def test_one_shared_gemini_client(monkeypatch):
+    from app import ai
+    monkeypatch.setenv("GEMINI_API_KEY", "x")
+    monkeypatch.setattr(ai, "_client", None)
+    assert parser._client() is parser._client()  # an inline throwaway client closes mid-call
+    monkeypatch.setattr(ai, "_client", None)

@@ -12,6 +12,19 @@ _offline: ContextVar[bool] = ContextVar("offline", default=False)
 last_error: dict = {}
 
 
+_client = None
+
+
+def client():
+    """One Gemini client for the whole process. A client made inline and dropped gets garbage
+    collected mid-call, which closes its connection ("client has been closed")."""
+    global _client
+    if _client is None:
+        from google import genai
+        _client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    return _client
+
+
 def enabled() -> bool:
     return bool(os.getenv("GEMINI_API_KEY")) and not _offline.get()
 

@@ -22,7 +22,7 @@ def write(purpose: str, facts: dict, lang: str, fallback: str, *, extra: str = "
     try:
         from google import genai
         from google.genai import types
-        client = client or genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+        client = client or ai.client()
         resp = client.models.generate_content(
             model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
             contents=f"Purpose: {purpose}\nFacts (JSON): {json.dumps(facts, default=str, ensure_ascii=False)}",

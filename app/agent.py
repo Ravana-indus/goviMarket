@@ -67,7 +67,7 @@ def explain(m: Match, *, party: str, lang: Lang, prices: dict[str, dict], client
     from google.genai import types
 
     _PRICES.clear(); _PRICES.update(prices)
-    client = client or genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    client = client or ai.client()
     facts = m.model_dump_json(exclude={"status", "farmer_ok", "buyer_ok", "solo_lane"})
     try:
         resp = client.models.generate_content(
