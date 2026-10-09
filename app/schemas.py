@@ -6,7 +6,8 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-Role = Literal["farmer", "buyer", "unknown"]
+Role = Literal["farmer", "buyer", "reporter", "unknown"]
+PriceKind = Literal["collector", "wholesale", "retail"]
 Lang = Literal["si", "ta", "en"]
 
 
@@ -15,11 +16,12 @@ class Item(BaseModel):
     qty_kg: float = Field(description="Quantity converted to kilograms. 1 sack (gona/uru) of carrot ~ 50 kg unless stated.")
     grade: Optional[str] = Field(description="Quality grade if stated (e.g. 'A', 'export'), else null.")
     price_lkr_per_kg: Optional[float] = Field(description="Price per kg if the sender named one, else null.")
+    price_kind: Optional[PriceKind] = Field(description="For price reporters: 'collector' (farm gate), 'wholesale' (economic centre) or 'retail'. Else null.")
 
 
 class ParsedMessage(BaseModel):
     """What Gemini returns for any inbound order or harvest message."""
-    role: Role = Field(description="'farmer' if offering harvest, 'buyer' if placing an order.")
+    role: Role = Field(description="'farmer' if offering harvest, 'buyer' if placing an order, 'reporter' if reporting today's market prices.")
     language: Lang = Field(description="Language the sender wrote or spoke in.")
     sender_name: Optional[str] = Field(description="Business or person name if visible, else null.")
     location: Optional[str] = Field(description="Town or district in English, e.g. 'Nuwara Eliya', 'Colombo 03'.")
