@@ -34,6 +34,7 @@ class ParsedMessage(BaseModel):
 
 class Listing(BaseModel):
     id: str
+    phone: Optional[str] = None
     farmer: str
     location: str
     crop: str
@@ -44,6 +45,7 @@ class Listing(BaseModel):
 
 class Order(BaseModel):
     id: str
+    phone: Optional[str] = None
     buyer: str
     location: str
     crop: str

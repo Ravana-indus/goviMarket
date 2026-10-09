@@ -92,6 +92,7 @@ REPORTER_JSON = """{"role":"reporter","language":"si","sender_name":"Kamal","loc
 
 
 def _fake_gemini(monkeypatch, *payloads):
+    monkeypatch.setenv("GEMINI_API_KEY", "test")
     it = iter(payloads)
     monkeypatch.setattr(parser, "_client", lambda: SimpleNamespace(
         models=SimpleNamespace(generate_content=lambda **kw: SimpleNamespace(text=next(it)))))
@@ -128,3 +129,14 @@ def test_whatsapp_signature(monkeypatch):
     sig = "sha256=" + hmac.new(b"s", b"{}", hashlib.sha256).hexdigest()
     assert whatsapp.verify_signature(b"{}", sig)
     assert not whatsapp.verify_signature(b"{}", "sha256=bad")
+
+
+def test_demo_seed_runs_offline_and_pages_serve(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    c = TestClient(app)
+    plan = c.post("/demo/seed").json()
+    assert plan["impact"]["kg_matched"] > 0 and plan["surplus"]
+    assert c.get("/api/prices").json()[0]["farmer_fair"] > 0
+    sunil = c.get("/api/track", params={"phone": "94770000002"}).json()
+    assert sunil["listings"][0]["matched_kg"] == 200
+    assert c.get("/").status_code == 200 and c.get("/admin").status_code == 200

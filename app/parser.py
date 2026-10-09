@@ -13,6 +13,7 @@ farmers directly with restaurants, hotels, retailers and exporters.
 Messages arrive as photos of handwritten orders, voice notes, or text, in Sinhala, Tamil,
 English or a mix (including Singlish/Tanglish written in Latin letters).
 Farmers offer harvest ("carrots 200kg ready Thursday"). Buyers place orders.
+Messages typed in the Govi web app start with a hint tag: [order] or [harvest].
 Rules:
 - Convert every quantity to kilograms. State any unit assumption in `unclear`.
 - Use lowercase singular English crop names.
@@ -30,10 +31,13 @@ def _client():
 def parse(*, text: Optional[str] = None, media: Optional[bytes] = None,
           mime_type: Optional[str] = None, today: str, client=None) -> ParsedMessage:
     """Parse one inbound message. Pass `client` in tests to avoid the network."""
-    from google.genai import types
-
     if not text and not media:
         raise ValueError("need text or media")
+    if client is None and not os.getenv("GEMINI_API_KEY"):
+        from . import demo_parser
+        return demo_parser.parse(text=text, media=media, today=today)
+
+    from google.genai import types
     parts: list = []
     if media:
         parts.append(types.Part.from_bytes(data=media, mime_type=mime_type or "image/jpeg"))

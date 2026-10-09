@@ -84,11 +84,11 @@ def record(parsed: ParsedMessage, *, default_date: date, sender: str = "",
     for item in parsed.items:
         rid = uuid.uuid4().hex[:8]
         if parsed.role == "farmer" and parsed.location:
-            doc = Listing(id=rid, farmer=who, location=parsed.location, crop=item.crop,
+            doc = Listing(id=rid, phone=sender or None, farmer=who, location=parsed.location, crop=item.crop,
                           qty_kg=item.qty_kg, ready_on=when, remaining_kg=item.qty_kg)
             DB.put("listings", rid, doc.model_dump(mode="json"))
         elif parsed.role == "buyer":
-            doc = Order(id=rid, buyer=who, location=parsed.location or default_buyer_location,
+            doc = Order(id=rid, phone=sender or None, buyer=who, location=parsed.location or default_buyer_location,
                         crop=item.crop, qty_kg=item.qty_kg, needed_by=when, remaining_kg=item.qty_kg)
             DB.put("orders", rid, doc.model_dump(mode="json"))
         elif parsed.role == "reporter" and item.price_lkr_per_kg and item.price_kind:
@@ -101,3 +101,12 @@ def record(parsed: ParsedMessage, *, default_date: date, sender: str = "",
     DB.put("inbox", uuid.uuid4().hex[:8], {"at": now, "sender": sender,
                                            "parsed": parsed.model_dump(mode="json"), "created": ids})
     return ids
+
+
+def save_plan(plan: dict) -> None:
+    DB.put("plans", "latest", plan)
+
+
+def latest_plan() -> dict | None:
+    rows = DB.all("plans")
+    return rows[0] if rows else None

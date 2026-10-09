@@ -3,19 +3,24 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 from . import parser, replies, store, whatsapp
 from .lanes import load_lanes
 from .matcher import impact, match
+from .pricing import split
 
 log = logging.getLogger("govi")
 app = FastAPI(title="Govi Market")
 LANES = load_lanes()
+WEB = Path(__file__).resolve().parent.parent / "web"
+app.mount("/static", StaticFiles(directory=WEB), name="static")
 
 
 def handle(*, text: Optional[str], media: Optional[bytes], mime_type: Optional[str],
@@ -30,7 +35,18 @@ def handle(*, text: Optional[str], media: Optional[bytes], mime_type: Optional[s
 
 @app.get("/healthz")
 def healthz():
-    return {"ok": True}
+    return {"ok": True, "gemini": bool(os.getenv("GEMINI_API_KEY")), "store": os.getenv("STORE", "memory"),
+            "whatsapp_number": os.getenv("WHATSAPP_DISPLAY_NUMBER", "")}
+
+
+@app.get("/")
+def user_app():
+    return FileResponse(WEB / "index.html")
+
+
+@app.get("/admin")
+def admin_app():
+    return FileResponse(WEB / "admin.html")
 
 
 @app.post("/intake")
@@ -80,7 +96,66 @@ async def whatsapp_inbound(request: Request, background: BackgroundTasks):
 def plan():
     """Match open listings to open orders and pick transport."""
     matches, surplus = match(store.listings(), store.orders(), LANES, store.prices())
-    return {"matches": matches, "surplus": surplus, "impact": impact(matches)}
+    out = {"matches": [m.model_dump(mode="json") for m in matches],
+           "surplus": [l.model_dump(mode="json") for l in surplus],
+           "impact": {**impact(matches), "surplus_kg": sum(l.remaining_kg for l in surplus)}}
+    store.save_plan(out)
+    return out
+
+
+@app.get("/api/plan")
+def latest_plan():
+    return store.latest_plan() or {"matches": [], "surplus": [], "impact": {}}
+
+
+@app.get("/api/prices")
+def price_board():
+    """What a farmer should get and a buyer should pay today, per crop."""
+    rows = []
+    for crop, p in sorted(store.prices().items()):
+        money = split(p, transport_lkr_per_kg=0)
+        rows.append({"crop": crop, "collector": p["collector"], "retail": p["retail"],
+                     "wholesale": p.get("wholesale"), "farmer_fair": money["farmer_gets"],
+                     "buyer_price": money["buyer_pays"], "source": p.get("source", "")})
+    return rows
+
+
+@app.get("/api/track")
+def track(phone: str):
+    """A sender's own listings and orders, with match status from the latest plan."""
+    plan = store.latest_plan() or {"matches": []}
+    def status(rid, key):
+        ms = [m for m in plan["matches"] if m[key] == rid]
+        return {"matched_kg": sum(m["qty_kg"] for m in ms), "matches": ms}
+    return {"listings": [{**l.model_dump(mode="json"), **status(l.id, "listing_id")}
+                         for l in store.listings() if l.phone == phone],
+            "orders": [{**o.model_dump(mode="json"), **status(o.id, "order_id")}
+                       for o in store.orders() if o.phone == phone]}
+
+
+DEMO_MESSAGES = [
+    ("94770000001", "Dambulla price today: carrot collector 150, beans collector 210, tomato collector 95, leeks collector 115"),
+    ("94770000002", "This is Sunil, carrot 280kg ready tomorrow, Nuwara Eliya"),
+    ("94770000003", "This is Kumari, leeks 150kg ready tomorrow, Nuwara Eliya"),
+    ("94770000004", "This is Nimal, beans 90kg and tomato 200kg ready tomorrow, Dambulla"),
+    ("94770000005", "This is Rasan, tomato 120kg ready tomorrow, Jaffna"),
+    ("94770000011", "Order from Lotus Kitchen: need carrot 200kg and beans 40kg by {day}, Colombo"),
+    ("94770000012", "Order from Green Spoon Hotel: need tomato 150kg and leeks 60kg by {day}, Colombo"),
+    ("94770000013", "Order from Ceylon Fresh Exports: need leeks 80kg by {day}, Colombo"),
+]
+
+
+@app.post("/demo/seed")
+def demo_seed():
+    """Reset the in-memory store and replay a realistic morning of messages."""
+    if os.getenv("STORE") == "firestore":
+        raise HTTPException(400, "demo seed only runs on the memory store")
+    store.reset()
+    today = date.today()
+    day = (today + timedelta(days=2)).strftime("%A")
+    for phone, text in DEMO_MESSAGES:
+        handle(text=text.format(day=day), media=None, mime_type=None, sender=phone, today=today)
+    return plan()
 
 
 @app.get("/state")

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Govi Market</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;550;600;650;700&family=Noto+Sans+Sinhala:wght@400;600;700&family=Noto+Sans+Tamil:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+<style>
+  .wrap { max-width: 560px; margin: 0 auto; padding: 0 16px 96px; }
+  .bar { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+  .logo i { width: 30px; height: 30px; border-radius: 9px; background: var(--leaf); display: grid; place-items: center; color: var(--leaf-ink); font-style: normal; }
+  .langs { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 2px; }
+  .langs button { border: 0; background: none; padding: 5px 9px; border-radius: 8px; font-size: 13px; cursor: pointer; color: var(--muted); }
+  .langs button.on { background: var(--leaf-soft); color: var(--leaf); font-weight: 650; }
+  .hero { padding: 18px 0 8px; }
+  .hero h1 { font-size: 28px; line-height: 1.15; font-weight: 750; }
+  .hero p { color: var(--muted); margin: 8px 0 16px; }
+  .wa { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; padding: 14px; border-radius: 14px; background: var(--leaf); color: var(--leaf-ink); font-weight: 650; font-size: 16px; text-decoration: none; }
+  .wa small { font-weight: 500; opacity: .85; }
+  .or { text-align: center; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
+  .tabs { display: flex; gap: 6px; margin: 18px 0 12px; position: sticky; top: 0; background: var(--bg); padding: 8px 0; z-index: 2; }
+  .tabs button { flex: 1; border: 1px solid var(--line); background: var(--surface); padding: 10px 6px; border-radius: 12px; font-weight: 600; font-size: 14px; cursor: pointer; color: var(--muted); }
+  .tabs button.on { border-color: var(--leaf); color: var(--leaf); background: var(--leaf-soft); }
+  .pane { display: none; } .pane.on { display: grid; gap: 10px; }
+  .price { padding: 14px 16px; display: grid; gap: 2px; }
+  .price .head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .price .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .price .stats .num { font-weight: 650; }
+  .price .crop { font-weight: 650; font-size: 16px; text-transform: capitalize; }
+  .price .big { font-size: 22px; font-weight: 750; color: var(--leaf); letter-spacing: -.02em; }
+  .price .sub { font-size: 13px; color: var(--muted); }
+  .seg { display: flex; gap: 6px; }
+  .seg button { flex: 1; padding: 12px; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; font-weight: 600; cursor: pointer; }
+  .seg button.on { border-color: var(--leaf); background: var(--leaf-soft); color: var(--leaf); }
+  .attach { display: flex; gap: 8px; }
+  .attach label { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 12px; border: 1px dashed var(--line); border-radius: 12px; cursor: pointer; font-weight: 550; background: var(--surface); }
+  .reply { padding: 14px 16px; border-left: 4px solid var(--leaf); white-space: pre-line; }
+  .item { padding: 14px 16px; display: grid; gap: 6px; }
+  .item .row { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+  .item .title { font-weight: 650; }
+  .steps { display: flex; gap: 4px; }
+  .steps span { flex: 1; height: 5px; border-radius: 4px; background: var(--line); }
+  .steps span.on { background: var(--leaf); }
+  .ship { font-size: 13px; color: var(--muted); }
+  .big-btn { width: 100%; padding: 14px; font-size: 16px; border-radius: 14px; }
+  .note { font-size: 12px; color: var(--muted); text-align: center; margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar">
+    <div class="logo"><i>G</i>Govi Market</div>
+    <div class="langs" id="langs"><button data-l="si">සිං</button><button data-l="ta">தமி</button><button data-l="en">EN</button></div>
+  </div>
+
+  <section class="hero">
+    <h1 data-t="hero"></h1>
+    <p data-t="sub"></p>
+    <a class="wa" id="wa" href="#" target="_blank" rel="noopener"><span>💬</span><span data-t="wa"></span></a>
+    <div class="or" data-t="or"></div>
+  </section>
+
+  <nav class="tabs">
+    <button data-tab="prices" class="on" data-t="t_prices"></button>
+    <button data-tab="send" data-t="t_send"></button>
+    <button data-tab="track" data-t="t_track"></button>
+  </nav>
+
+  <section class="pane on" id="prices"></section>
+
+  <section class="pane" id="send">
+    <div class="seg" id="who"><button data-r="farmer" class="on" data-t="i_farmer"></button><button data-r="buyer" data-t="i_buyer"></button></div>
+    <textarea id="text" rows="4"></textarea>
+    <div class="attach">
+      <label>📷 <span data-t="photo"></span><input type="file" id="photo" accept="image/*" capture="environment" hidden></label>
+      <label>🎙️ <span data-t="voice"></span><input type="file" id="voice" accept="audio/*" capture hidden></label>
+    </div>
+    <div id="picked" class="small muted"></div>
+    <input type="tel" id="phone" data-tp="phone_ph">
+    <button class="btn primary big-btn" id="go" data-t="send"></button>
+    <div id="reply"></div>
+  </section>
+
+  <section class="pane" id="track">
+    <input type="tel" id="tphone" data-tp="phone_ph">
+    <button class="btn primary big-btn" id="tgo" data-t="track"></button>
+    <div id="mine" style="display:grid;gap:10px"></div>
+  </section>
+
+  <p class="note" data-t="note"></p>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>

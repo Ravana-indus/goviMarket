@@ -10,7 +10,14 @@ Built for the AI Builder Cup 2026 (Sustainability & Social Impact).
 3. `POST /plan` runs the matcher (`app/matcher.py`). It fills the earliest deadlines first, from the farm that nets the farmer the most after transport. The lane picker (`app/lanes.py`) uses the cheapest public transport that lands by 08:00 on the needed-by day.
 4. Leftover stock comes back as `surplus`, ready to route to processors or exporters.
 
-## Run locally
+## Preview locally (no keys needed)
+```bash
+pip install -r requirements.txt
+uvicorn app.main:app --port 8000
+```
+Open http://localhost:8000/admin and click **Load demo morning**, then **Run matching**. The farmer and buyer web app is at http://localhost:8000/. Without `GEMINI_API_KEY` a keyword demo parser reads simple English text; photos and voice notes need the key.
+
+## Run locally with Gemini
 ```bash
 pip install -r requirements.txt
 cp .env.example .env   # add GEMINI_API_KEY

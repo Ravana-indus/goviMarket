@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Govi Market Ops</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;550;600;650;700&family=Noto+Sans+Sinhala:wght@400;600&family=Noto+Sans+Tamil:wght@400;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+<style>
+  .top { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+  .top .in { max-width: 1320px; margin: 0 auto; padding: 12px 20px; display: flex; align-items: center; gap: 12px; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }
+  .logo i { width: 28px; height: 28px; border-radius: 8px; background: var(--leaf); display: grid; place-items: center; color: var(--leaf-ink); font-style: normal; font-size: 15px; }
+  .spacer { flex: 1; }
+  main { max-width: 1320px; margin: 0 auto; padding: 20px; display: grid; gap: 16px; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .kpi { padding: 16px; }
+  .kpi .label { font-size: 13px; color: var(--muted); }
+  .kpi .value { font-size: 28px; font-weight: 700; margin-top: 4px; letter-spacing: -.02em; }
+  .kpi .hint { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .grid { display: grid; grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr); gap: 16px; align-items: start; }
+  .col { display: grid; gap: 16px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .route { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+  .route .arrow { color: var(--muted); font-weight: 400; }
+  .lane { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); margin-top: 3px; }
+  .delta { font-size: 12px; }
+  .msg { padding: 12px 16px; border-bottom: 1px solid var(--line); display: grid; gap: 6px; }
+  .msg:last-child { border-bottom: 0; }
+  .msg .meta { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); }
+  .msg .items { display: flex; flex-wrap: wrap; gap: 6px; }
+  .conf { height: 4px; background: var(--line); border-radius: 4px; overflow: hidden; width: 64px; }
+  .conf > span { display: block; height: 100%; background: var(--leaf); }
+  .feed { max-height: 520px; overflow-y: auto; }
+  .sim { display: grid; gap: 8px; }
+  .sim .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .badge { font-size: 12px; padding: 4px 10px; border-radius: 999px; background: var(--sun-soft); color: var(--sun); font-weight: 600; }
+  .badge.live { background: var(--leaf-soft); color: var(--leaf); }
+  .bar { height: 6px; background: var(--line); border-radius: 6px; overflow: hidden; margin-top: 4px; min-width: 80px; }
+  .bar > span { display: block; height: 100%; background: var(--leaf); }
+  @media (max-width: 1000px) { .grid, .two { grid-template-columns: 1fr; } .kpis { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 520px) { main { padding: 16px; } .top .in { padding: 10px 16px; flex-wrap: wrap; } .kpi .value { font-size: 22px; } }
+</style>
+</head>
+<body>
+<div class="top"><div class="in">
+  <div class="logo"><i>G</i>Govi Market <span class="muted" style="font-weight:500">Ops</span></div>
+  <span id="mode" class="badge">…</span>
+  <div class="spacer"></div>
+  <button class="btn" id="seed">Load demo morning</button>
+  <button class="btn primary" id="run">Run matching</button>
+</div></div>
+
+<main>
+  <section class="kpis">
+    <div class="card kpi"><div class="label">Matched today</div><div class="value num" id="k-kg">0 kg</div><div class="hint" id="k-matches">0 matches</div></div>
+    <div class="card kpi"><div class="label">Extra to farmers</div><div class="value num up" id="k-farmer">Rs 0</div><div class="hint">vs village collector price</div></div>
+    <div class="card kpi"><div class="label">Saved by buyers</div><div class="value num" id="k-buyer">Rs 0</div><div class="hint">vs Colombo retail</div></div>
+    <div class="card kpi"><div class="label">Surplus to reroute</div><div class="value num" id="k-surplus" style="color:var(--sun)">0 kg</div><div class="hint">offered to processors and exporters</div></div>
+  </section>
+
+  <div class="grid">
+    <div class="col">
+      <section class="card">
+        <header><h2>Matches and transport</h2><span class="muted small" id="plan-note"></span></header>
+        <div class="scroll-x"><table>
+          <thead><tr><th>Farmer → buyer</th><th>Crop</th><th>Kg</th><th>Farmer gets</th><th>Buyer pays</th></tr></thead>
+          <tbody id="matches"></tbody>
+        </table></div>
+      </section>
+      <div class="two">
+        <section class="card"><header><h2>Supply</h2><span class="chip farmer" id="supply-n">0</span></header>
+          <table><thead><tr><th>Farmer</th><th>Crop</th><th>Kg · matched</th><th>Ready</th></tr></thead><tbody id="supply"></tbody></table></section>
+        <section class="card"><header><h2>Demand</h2><span class="chip buyer" id="demand-n">0</span></header>
+          <table><thead><tr><th>Buyer</th><th>Crop</th><th>Kg</th><th>Needed by</th></tr></thead><tbody id="demand"></tbody></table></section>
+      </div>
+      <div class="two">
+        <section class="card"><header><h2>Today's prices</h2><span class="muted small">Rs per kg</span></header>
+          <table><thead><tr><th>Crop</th><th>Collector</th><th>Retail</th><th>Fair to farmer</th></tr></thead><tbody id="prices"></tbody></table></section>
+        <section class="card"><header><h2>Surplus</h2><span class="chip warn">reroute</span></header>
+          <table><thead><tr><th>Farmer</th><th>Crop</th><th>Kg left</th></tr></thead><tbody id="surplus"></tbody></table></section>
+      </div>
+    </div>
+
+    <div class="col">
+      <section class="card">
+        <header><h2>Send a test message</h2><span class="muted small">same pipeline as WhatsApp</span></header>
+        <div class="body sim">
+          <textarea id="sim-text" rows="3" placeholder="e.g. This is Sunil, carrot 280kg ready tomorrow, Nuwara Eliya"></textarea>
+          <div class="row">
+            <input type="tel" id="sim-phone" placeholder="Phone (optional)" style="flex:1;min-width:140px">
+            <label class="btn small" style="padding:7px 10px">Photo / voice<input type="file" id="sim-file" accept="image/*,audio/*" hidden></label>
+            <button class="btn primary" id="sim-send">Send</button>
+          </div>
+          <div id="sim-out" class="small muted"></div>
+        </div>
+      </section>
+      <section class="card">
+        <header><h2>Inbox</h2><span class="muted small">what Gemini understood</span></header>
+        <div class="feed" id="inbox"></div>
+      </section>
+    </div>
+  </div>
+</main>
+<script src="/static/admin.js"></script>
+</body>
+</html>
