@@ -35,6 +35,7 @@ class ParsedMessage(BaseModel):
 class Listing(BaseModel):
     id: str
     phone: Optional[str] = None
+    lang: Lang = "en"
     farmer: str
     location: str
     crop: str
@@ -46,6 +47,7 @@ class Listing(BaseModel):
 class Order(BaseModel):
     id: str
     phone: Optional[str] = None
+    lang: Lang = "en"
     buyer: str
     location: str
     crop: str
@@ -67,6 +69,10 @@ class Lane(BaseModel):
 
 
 class Match(BaseModel):
+    id: str = ""
+    status: Literal["proposed", "confirmed", "declined"] = "proposed"
+    farmer_ok: bool = False
+    buyer_ok: bool = False
     listing_id: str
     order_id: str
     farmer: str

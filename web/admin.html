@@ -96,8 +96,12 @@
         </div>
       </section>
       <section class="card">
-        <header><h2>Inbox</h2><span class="muted small">what Gemini understood</span></header>
+        <header><h2>Inbox</h2><span class="muted small" id="inbox-note">what the parser understood</span></header>
         <div class="feed" id="inbox"></div>
+      </section>
+      <section class="card">
+        <header><h2>Sent</h2><span class="muted small" id="sent-note">match messages</span></header>
+        <div class="feed" id="outbox" style="max-height:360px"></div>
       </section>
     </div>
   </div>

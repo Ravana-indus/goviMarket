@@ -140,3 +140,47 @@ def test_demo_seed_runs_offline_and_pages_serve(monkeypatch):
     sunil = c.get("/api/track", params={"phone": "94770000002"}).json()
     assert sunil["listings"][0]["matched_kg"] == 200
     assert c.get("/").status_code == 200 and c.get("/admin").status_code == 200
+
+
+def test_both_sides_confirm_and_stock_is_held(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    c = TestClient(app)
+    plan = c.post("/demo/seed").json()
+    m = next(x for x in plan["matches"] if x["farmer"] == "Sunil")
+    sent = c.get("/state").json()["outbox"]
+    assert any(o["to"] == "94770000002" and "YES" in o["body"] for o in sent)  # farmer notified
+    assert c.post("/intake", data={"text": "ඔව්", "sender": "94770000002"}).json()["reply"].startswith("Thanks")
+    assert c.post("/intake", data={"text": "yes", "sender": "94770000011"}).json()["reply"].startswith("Confirmed")
+    s = c.get("/state").json()
+    sunil = next(l for l in s["listings"] if l["id"] == m["listing_id"])
+    assert sunil["remaining_kg"] == 80
+    # Re-running matching keeps confirmed and pending deals and does not double-allocate.
+    again = c.post("/plan").json()
+    assert sum(x["qty_kg"] for x in again["matches"] if x["listing_id"] == m["listing_id"]) <= 280
+    assert again["impact"]["confirmed"] == 1
+
+
+def test_decline_frees_the_match(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    c = TestClient(app)
+    c.post("/demo/seed")
+    assert c.post("/intake", data={"text": "no", "sender": "94770000002"}).json()["reply"].startswith("Declined")
+    live = c.post("/plan").json()["matches"]
+    declined = [m for m in __import__("app.store", fromlist=["x"]).matches() if m.status == "declined"]
+    assert declined and declined[0].farmer == "Sunil"
+    assert declined[0].id not in {x["id"] for x in live}
+    assert not any(x["listing_id"] == declined[0].listing_id and x["order_id"] == declined[0].order_id for x in live)
+
+
+def test_agent_passes_tools_and_language():
+    from app import agent
+    from app.schemas import Match
+    calls = []
+    fake = SimpleNamespace(models=SimpleNamespace(generate_content=lambda **kw: calls.append(kw) or SimpleNamespace(text="ok")))
+    m = Match(id="x", listing_id="L", order_id="O", farmer="Sunil", buyer="Cafe", crop="carrot", qty_kg=200,
+              lane=None, transport_lkr_per_kg=0, farmer_gets_lkr_per_kg=250, buyer_pays_lkr_per_kg=280,
+              collector_pays_lkr_per_kg=150, market_retail_lkr_per_kg=320)
+    assert agent.explain(m, party="farmer", lang="si", prices=PRICES, client=fake) == "ok"
+    cfg = calls[0]["config"]
+    assert "Sinhala" in cfg.system_instruction and agent.get_price_board in cfg.tools
+    assert agent.get_price_board("carrot")["collector"] == PRICES["carrot"]["collector"]

@@ -11,14 +11,11 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-from . import parser, replies, store, whatsapp
-from .lanes import load_lanes
-from .matcher import impact, match
+from . import deals, parser, replies, store, whatsapp
 from .pricing import split
 
 log = logging.getLogger("govi")
 app = FastAPI(title="Govi Market")
-LANES = load_lanes()
 WEB = Path(__file__).resolve().parent.parent / "web"
 app.mount("/static", StaticFiles(directory=WEB), name="static")
 
@@ -26,6 +23,10 @@ app.mount("/static", StaticFiles(directory=WEB), name="static")
 def handle(*, text: Optional[str], media: Optional[bytes], mime_type: Optional[str],
            sender: str, today: date) -> dict:
     """One pipeline for every channel: parse, store, build a reply."""
+    if text and not media:
+        confirmed = deals.answer(sender, text)
+        if confirmed:
+            return {"parsed": None, "created": [], "needs_clarification": False, "reply": confirmed}
     parsed = parser.parse(text=text, media=media, mime_type=mime_type, today=today.isoformat())
     created = store.record(parsed, default_date=today, sender=sender)
     needs_clarification = parsed.confidence < 0.7 or (parsed.role == "farmer" and not parsed.location)
@@ -94,18 +95,18 @@ async def whatsapp_inbound(request: Request, background: BackgroundTasks):
 
 @app.post("/plan")
 def plan():
-    """Match open listings to open orders and pick transport."""
-    matches, surplus = match(store.listings(), store.orders(), LANES, store.prices())
-    out = {"matches": [m.model_dump(mode="json") for m in matches],
-           "surplus": [l.model_dump(mode="json") for l in surplus],
-           "impact": {**impact(matches), "surplus_kg": sum(l.remaining_kg for l in surplus)}}
-    store.save_plan(out)
-    return out
+    """Match open listings to open orders, pick transport, and message both sides."""
+    return deals.plan()
 
 
 @app.get("/api/plan")
 def latest_plan():
-    return store.latest_plan() or {"matches": [], "surplus": [], "impact": {}}
+    """Last matching run, with each match's current confirmation status."""
+    plan = store.latest_plan() or {"surplus": [], "impact": {}}
+    live = [m for m in store.matches() if m.status != "declined"]
+    plan["matches"] = [m.model_dump(mode="json") for m in live]
+    plan["impact"] = {**plan.get("impact", {}), "confirmed": sum(m.status == "confirmed" for m in live)}
+    return plan
 
 
 @app.get("/api/prices")
@@ -161,4 +162,4 @@ def demo_seed():
 @app.get("/state")
 def state():
     return {"listings": store.listings(), "orders": store.orders(), "inbox": store.inbox(),
-            "prices": store.prices()}
+            "prices": store.prices(), "outbox": store.sent()}

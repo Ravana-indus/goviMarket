@@ -7,7 +7,7 @@ from datetime import date, datetime, timezone
 from typing import Protocol
 
 from .pricing import load_prices
-from .schemas import Listing, Order, ParsedMessage
+from .schemas import Listing, Match, Order, ParsedMessage
 
 
 class Backend(Protocol):
@@ -84,11 +84,11 @@ def record(parsed: ParsedMessage, *, default_date: date, sender: str = "",
     for item in parsed.items:
         rid = uuid.uuid4().hex[:8]
         if parsed.role == "farmer" and parsed.location:
-            doc = Listing(id=rid, phone=sender or None, farmer=who, location=parsed.location, crop=item.crop,
+            doc = Listing(id=rid, phone=sender or None, lang=parsed.language, farmer=who, location=parsed.location, crop=item.crop,
                           qty_kg=item.qty_kg, ready_on=when, remaining_kg=item.qty_kg)
             DB.put("listings", rid, doc.model_dump(mode="json"))
         elif parsed.role == "buyer":
-            doc = Order(id=rid, phone=sender or None, buyer=who, location=parsed.location or default_buyer_location,
+            doc = Order(id=rid, phone=sender or None, lang=parsed.language, buyer=who, location=parsed.location or default_buyer_location,
                         crop=item.crop, qty_kg=item.qty_kg, needed_by=when, remaining_kg=item.qty_kg)
             DB.put("orders", rid, doc.model_dump(mode="json"))
         elif parsed.role == "reporter" and item.price_lkr_per_kg and item.price_kind:
@@ -110,3 +110,28 @@ def save_plan(plan: dict) -> None:
 def latest_plan() -> dict | None:
     rows = DB.all("plans")
     return rows[0] if rows else None
+
+
+def matches() -> list[Match]:
+    return [Match(**d) for d in DB.all("matches")]
+
+
+def put_match(m: Match) -> None:
+    DB.put("matches", m.id, m.model_dump(mode="json"))
+
+
+def get(kind: str, rid: str) -> dict | None:
+    return next((d for d in DB.all(kind) if d["id"] == rid), None)
+
+
+def put(kind: str, doc: dict) -> None:
+    DB.put(kind, doc["id"], doc)
+
+
+def outbox(to: str, body: str, match_id: str = "") -> None:
+    DB.put("outbox", uuid.uuid4().hex[:8], {"at": datetime.now(timezone.utc).isoformat(),
+                                            "to": to, "body": body, "match_id": match_id})
+
+
+def sent() -> list[dict]:
+    return sorted(DB.all("outbox"), key=lambda d: d["at"])

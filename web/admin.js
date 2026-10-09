@@ -11,6 +11,12 @@ async function api(path, opts) {
   return r.json();
 }
 
+function statusChip(m) {
+  if (m.status === "confirmed") return `<span class="chip farmer">confirmed</span>`;
+  const waiting = [!m.farmer_ok && "farmer", !m.buyer_ok && "buyer"].filter(Boolean).join(" + ");
+  return `<span class="chip reporter" title="waiting for YES">waiting: ${waiting}</span>`;
+}
+
 function empty(cols, text) { return `<tr><td colspan="${cols}" class="empty">${text}</td></tr>`; }
 
 function renderPlan(plan) {
@@ -27,7 +33,7 @@ function renderPlan(plan) {
     const up = m.farmer_gets_lkr_per_kg - m.collector_pays_lkr_per_kg;
     const down = m.market_retail_lkr_per_kg - m.buyer_pays_lkr_per_kg;
     return `<tr>
-      <td><div class="route">${esc(m.farmer)} <span class="arrow">→</span> ${esc(m.buyer)}</div>${lane}</td>
+      <td><div class="route">${esc(m.farmer)} <span class="arrow">→</span> ${esc(m.buyer)} ${statusChip(m)}</div>${lane}</td>
       <td>${esc(m.crop)}</td><td class="num">${kg(m.qty_kg)}</td>
       <td class="num">${rs(m.farmer_gets_lkr_per_kg)}<div class="delta up">+${rs(up)} vs collector</div></td>
       <td class="num">${rs(m.buyer_pays_lkr_per_kg)}<div class="delta muted">−${rs(down)} vs retail</div></td></tr>`;
@@ -66,6 +72,9 @@ function renderState(s, plan) {
       <div>${esc(p.summary_in_sender_language)}</div>
       <div class="items">${items}${unclear}</div></div>`;
   }).join("") : `<div class="empty">Messages from WhatsApp and the web app appear here.</div>`;
+  $("outbox").innerHTML = s.outbox.length ? [...s.outbox].reverse().map((o) =>
+    `<div class="msg"><div class="meta"><span class="chip">to ${esc(o.to)}</span></div><div style="white-space:pre-line">${esc(o.body)}</div></div>`
+  ).join("") : `<div class="empty">Match messages to farmers and buyers appear here.</div>`;
 }
 
 // Mirrors app/pricing.py split() with zero transport, for display only.
@@ -98,6 +107,8 @@ $("sim-send").onclick = (e) => busy(e.target, async () => {
 api("/healthz").then((h) => {
   $("mode").textContent = h.gemini ? "Gemini live" : "Demo mode · no Gemini key";
   $("mode").className = "badge" + (h.gemini ? " live" : "");
+  $("sent-note").textContent = h.gemini ? "written by the Gemini agent" : "templates (demo mode)";
+  $("inbox-note").textContent = h.gemini ? "what Gemini understood" : "keyword parser (demo mode)";
 });
 refresh();
 setInterval(refresh, 5000);

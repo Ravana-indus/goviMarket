@@ -11,9 +11,10 @@ from .schemas import Lane, Listing, Match, Order
 
 
 def match(listings: list[Listing], orders: list[Order], lanes: list[Lane],
-          prices: dict[str, dict]) -> tuple[list[Match], list[Listing]]:
+          prices: dict[str, dict], blocked: set[tuple[str, str]] = frozenset()) -> tuple[list[Match], list[Listing]]:
     """Fill earliest-deadline orders first from the listing that pays the farmer most.
 
+    `blocked` holds (listing_id, order_id) pairs a farmer or buyer already declined.
     Returns (matches, surplus listings with stock left over)."""
     listings = [l.model_copy() for l in listings]
     matches: list[Match] = []
@@ -25,7 +26,8 @@ def match(listings: list[Listing], orders: list[Order], lanes: list[Lane],
         while remaining > 0:
             best = None
             for l in listings:
-                if l.crop != order.crop or l.remaining_kg <= 0 or l.ready_on > order.needed_by:
+                if l.crop != order.crop or l.remaining_kg <= 0 or l.ready_on > order.needed_by \
+                        or (l.id, order.id) in blocked:
                     continue
                 kg = min(remaining, l.remaining_kg)
                 ship_on = max(l.ready_on, order.needed_by - timedelta(days=1))
