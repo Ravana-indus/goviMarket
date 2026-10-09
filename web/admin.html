@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Govi Market Ops</title>
+<title>Govi Market Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;550;600;650;700&family=Noto+Sans+Sinhala:wght@400;600&family=Noto+Sans+Tamil:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/style.css">
@@ -72,91 +72,211 @@
   @media (max-width: 1200px) { .kpis { grid-template-columns: repeat(3, 1fr); } }
   @media (max-width: 1000px) { .grid, .two { grid-template-columns: 1fr; } .kpis { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 520px) { main { padding: 16px; } .top .in { padding: 10px 16px; flex-wrap: wrap; } .kpi .value { font-size: 22px; } }
+  /* console shell */
+  :root { --c1: #2f7d4a; --c2: #2b5f9e; --c3: #b26a00; --c4: #8a4fb0; --c0: #b9bdb3; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --c1: #3fa862; --c2: #4f8fe0; --c3: #b87a1c; --c4: #a97fd0; --c0: #4a544b; } }
+  .shell { max-width: 1440px; margin: 0 auto; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 0; }
+  .side { position: sticky; top: 57px; align-self: start; height: calc(100vh - 57px); padding: 16px 10px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; }
+  .side .grp { font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 12px 10px 4px; }
+  .side a { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 9px; color: var(--ink); text-decoration: none; font-weight: 550; font-size: 14px; }
+  .side a:hover { background: var(--surface); }
+  .side a.on { background: var(--leaf-soft); color: var(--leaf); }
+  .side a .ico { width: 18px; text-align: center; }
+  .side a .n { margin-left: auto; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--clay-soft); color: var(--clay); }
+  .side a .n:empty { display: none; }
+  .side .foot { margin-top: auto; font-size: 12px; color: var(--muted); padding: 10px; }
+  main { align-content: start; }
+  .shell > *, .pane > *, main > * { min-width: 0; }
+  .pane { display: none; } .pane.on { display: grid; gap: 16px; align-content: start; }
+  .kpis { align-items: start; }
+  .chart.wide .hrow { grid-template-columns: 160px minmax(0, 1fr) 84px; }
+  .ptitle { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .ptitle h1 { font-size: 22px; font-weight: 700; }
+  .ptitle p { margin: 0; color: var(--muted); font-size: 14px; }
+  .attn { display: grid; }
+  .attn a { display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); color: var(--ink); text-decoration: none; }
+  .attn a:last-child { border-bottom: 0; }
+  .attn a:hover { background: var(--surface-2); }
+  .attn .k { font-size: 20px; font-weight: 700; min-width: 40px; text-align: right; font-variant-numeric: tabular-nums; }
+  .attn .go { margin-left: auto; color: var(--muted); }
+  /* analytics */
+  .agrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .hero { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .hero .kpi .value { font-size: 30px; }
+  .chart { padding: 12px 16px 14px; display: grid; gap: 10px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .hrow { display: grid; grid-template-columns: 110px minmax(0, 1fr) 84px; gap: 10px; align-items: center; font-size: 13px; }
+  .hrow .lbl { text-transform: capitalize; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hrow .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+  .hrow .val b { color: var(--ink); }
+  .track2 { display: grid; gap: 3px; }
+  .hb { height: 12px; border-radius: 0 4px 4px 0; min-width: 2px; }
+  .stack { display: flex; gap: 2px; height: 18px; }
+  .stack span { height: 100%; min-width: 2px; }
+  .stack span:last-child { border-radius: 0 4px 4px 0; }
+  .note { font-size: 12px; color: var(--muted); }
+  details.tbl summary { font-size: 12px; color: var(--muted); cursor: pointer; }
+  details.tbl table { margin-top: 6px; font-size: 13px; }
+  #tip { position: fixed; z-index: 50; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 12px; padding: 6px 9px; border-radius: 8px; max-width: 260px; display: none; box-shadow: 0 6px 18px rgba(0,0,0,.2); }
+  [data-tip] { cursor: default; }
+  [data-tip]:hover { filter: brightness(1.08); }
+  @media (max-width: 1100px) { .agrid { grid-template-columns: 1fr; } .hero { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 520px) { .hero .kpi .value { font-size: 24px; } .hrow, .chart.wide .hrow { grid-template-columns: 90px minmax(0, 1fr) 64px; } }
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: 1fr; }
+    .side { position: sticky; top: 57px; z-index: 4; height: auto; flex-direction: row; overflow-x: auto; padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--line); background: var(--bg); }
+    .side .grp, .side .foot { display: none; }
+    .side a { white-space: nowrap; padding: 7px 10px; }
+  }
 </style>
 </head>
 <body>
 <div class="top"><div class="in">
-  <div class="logo"><i>G</i>Govi Market <span class="muted" style="font-weight:500">Ops</span></div>
+  <div class="logo"><i>G</i>Govi Market <span class="muted" style="font-weight:500">Console</span></div>
   <span id="mode" class="badge">…</span>
   <div class="spacer"></div>
   <button class="btn" id="seed">Load demo morning</button>
   <button class="btn primary" id="run">Run matching</button>
 </div></div>
 
+<div class="shell">
+<nav class="side" id="side">
+  <span class="grp">Operate</span>
+  <a href="#overview" data-p="overview"><span class="ico">◧</span>Overview <span class="n" id="n-attn"></span></a>
+  <a href="#matches" data-p="matches"><span class="ico">⇄</span>Matches <span class="n" id="n-wait"></span></a>
+  <a href="#shipments" data-p="shipments"><span class="ico">🚚</span>Shipments</a>
+  <a href="#unsold" data-p="unsold"><span class="ico">♻</span>Unsold <span class="n" id="n-unsold"></span></a>
+  <a href="#market" data-p="market"><span class="ico">▤</span>Supply &amp; demand</a>
+  <span class="grp">Prices</span>
+  <a href="#prices" data-p="prices"><span class="ico">₨</span>Prices &amp; agents <span class="n" id="n-flag"></span></a>
+  <a href="#forecast" data-p="forecast"><span class="ico">↗</span>Forecast</a>
+  <span class="grp">Insight</span>
+  <a href="#analytics" data-p="analytics"><span class="ico">▥</span>Analytics</a>
+  <a href="#messages" data-p="messages"><span class="ico">✉</span>Messages</a>
+  <div class="foot">Demo data · prices are placeholders, lanes are estimates</div>
+</nav>
+
 <main>
-  <section class="kpis">
-    <div class="card kpi"><div class="label">Matched today</div><div class="value num" id="k-kg">0 kg</div><div class="hint" id="k-matches">0 matches</div></div>
-    <div class="card kpi"><div class="label">Extra to farmers</div><div class="value num up" id="k-farmer">Rs 0</div><div class="hint">vs village collector price</div></div>
-    <div class="card kpi"><div class="label">Saved by buyers</div><div class="value num" id="k-buyer">Rs 0</div><div class="hint">vs Colombo retail</div></div>
-    <div class="card kpi"><div class="label">Transport saved</div><div class="value num up" id="k-transport">Rs 0</div><div class="hint">by bundling loads</div></div>
-    <div class="card kpi"><div class="label">Unsold produce</div><div class="value num" id="k-surplus" style="color:var(--sun)">0 kg</div><div class="hint">offered to processors and cold stores</div></div>
+  <section class="pane" id="p-overview">
+    <div class="ptitle"><h1>Today</h1><p>Farm-gate to city, one morning at a glance.</p></div>
+    <section class="kpis">
+      <div class="card kpi"><div class="label">Matched today</div><div class="value num" id="k-kg">0 kg</div><div class="hint" id="k-matches">0 matches</div></div>
+      <div class="card kpi"><div class="label">Extra to farmers</div><div class="value num up" id="k-farmer">Rs 0</div><div class="hint">vs village collector price</div></div>
+      <div class="card kpi"><div class="label">Saved by buyers</div><div class="value num" id="k-buyer">Rs 0</div><div class="hint">vs Colombo retail</div></div>
+      <div class="card kpi"><div class="label">Transport saved</div><div class="value num up" id="k-transport">Rs 0</div><div class="hint">by bundling loads</div></div>
+      <div class="card kpi"><div class="label">Unsold produce</div><div class="value num" id="k-surplus" style="color:var(--sun)">0 kg</div><div class="hint">offered to processors and cold stores</div></div>
+    </section>
+    <div class="grid">
+      <section class="card"><header><h2>Needs attention</h2><span class="muted small">click to open</span></header><div class="attn" id="attn"></div></section>
+      <section class="card"><header><h2>Latest messages</h2><a class="small" href="#messages">all messages →</a></header><div class="feed" id="inbox-mini" style="max-height:340px"></div></section>
+    </div>
   </section>
 
-  <div class="grid">
-    <div class="col">
-      <section class="card">
-        <header><h2>Matches and transport</h2><span class="muted small" id="plan-note"></span></header>
-        <div class="scroll-x"><table>
-          <thead><tr><th>Farmer → buyer</th><th>Crop</th><th>Kg</th><th>Farmer gets<br><span style="font-weight:400">after transport</span></th><th>Buyer pays</th></tr></thead>
-          <tbody id="matches"></tbody>
-        </table></div>
-      </section>
-      <section class="card">
-        <header><h2>Shipments</h2><span class="muted small"><span id="ship-count"></span> · loads from one town share a bus, train, lorry or Post · rates are estimates</span>
-          <button class="btn small" id="advance-all" title="Demo: move every shipment one step">Simulate next step ▶</button></header>
-        <div id="shipments"></div>
-      </section>
-      <section class="card">
-        <header><h2>Price and demand forecast</h2><span class="muted small" id="fc-note">next 7 days</span></header>
-        <div class="body small" id="fc-summary" style="border-bottom:1px solid var(--line)"></div>
-        <div class="scroll-x"><table>
-          <thead><tr><th>Crop</th><th>Last 4 weeks → next week</th><th>Farm-gate next week</th><th>Supply vs demand</th><th>Advice to farmers</th></tr></thead>
-          <tbody id="forecast"></tbody>
-        </table></div>
-      </section>
-      <div class="two">
-        <section class="card"><header><h2>Supply</h2><span class="chip farmer" id="supply-n">0</span></header>
-          <table><thead><tr><th>Farmer</th><th>Crop</th><th>Kg · matched</th><th>Ready</th></tr></thead><tbody id="supply"></tbody></table></section>
-        <section class="card"><header><h2>Demand</h2><span class="chip buyer" id="demand-n">0</span></header>
-          <table><thead><tr><th>Buyer</th><th>Crop</th><th>Kg</th><th>Needed by</th></tr></thead><tbody id="demand"></tbody></table></section>
-      </div>
-      <div class="two">
-        <section class="card"><header><h2>Today's prices</h2><span class="muted small">Rs per kg</span></header>
-          <table><thead><tr><th>Crop</th><th>Collector</th><th>Retail</th><th>Fair to farmer</th></tr></thead><tbody id="prices"></tbody></table></section>
-        <section class="card"><header><h2>Unsold produce</h2><span class="muted small" id="rescued"></span>
-          <button class="btn small" id="sweep" title="Message every farmer whose harvest is nearly ready and still unsold">Send unsold alerts</button></header>
-          <table><thead><tr><th>Farmer</th><th>Crop</th><th>Kg left</th><th>Offer</th></tr></thead><tbody id="surplus"></tbody></table></section>
-      </div>
-      <section class="card">
-        <header><h2>Prices from market agents</h2><span class="muted small"><span id="rep-wait"></span> · big jumps wait for your check · <a href="/agent" target="_blank">agent app ↗</a></span></header>
-        <div class="scroll-x"><table><thead><tr><th>Crop</th><th>Kind</th><th>Price</th><th>Market</th><th>Agent</th><th>When</th><th></th></tr></thead><tbody id="reports"></tbody></table></div>
-      </section>
-    </div>
+  <section class="pane" id="p-matches">
+    <div class="ptitle"><h1>Matches</h1><p>Who sells to whom, at what price, by which transport.</p></div>
+    <section class="card">
+      <header><h2>Matches and transport</h2><span class="muted small" id="plan-note"></span></header>
+      <div class="scroll-x"><table>
+        <thead><tr><th>Farmer → buyer</th><th>Crop</th><th>Kg</th><th>Farmer gets<br><span style="font-weight:400">after transport</span></th><th>Buyer pays</th></tr></thead>
+        <tbody id="matches"></tbody>
+      </table></div>
+    </section>
+  </section>
 
-    <div class="col">
-      <section class="card">
-        <header><h2>Send a test message</h2><span class="muted small">same pipeline as WhatsApp</span></header>
-        <div class="body sim">
-          <textarea id="sim-text" rows="3" placeholder="e.g. This is Sunil, carrot 280kg ready tomorrow, Nuwara Eliya"></textarea>
-          <div class="row">
-            <input type="tel" id="sim-phone" placeholder="Phone (optional)" style="flex:1;min-width:140px">
-            <label class="btn small" style="padding:7px 10px">Photo / voice<input type="file" id="sim-file" accept="image/*,audio/*" hidden></label>
-            <button class="btn primary" id="sim-send">Send</button>
-          </div>
-          <div id="sim-out" class="small muted"></div>
-        </div>
-      </section>
-      <section class="card">
-        <header><h2>Inbox</h2><span class="muted small" id="inbox-note">what the parser understood</span></header>
-        <div class="feed" id="inbox"></div>
-      </section>
-      <section class="card">
-        <header><h2>Sent</h2><span class="muted small" id="sent-note">match messages</span></header>
-        <div class="feed" id="outbox" style="max-height:360px"></div>
-      </section>
+  <section class="pane" id="p-shipments">
+    <div class="ptitle"><h1>Shipments</h1><p>Bundled loads on buses, trains, lorries and Post, with a backup for each.</p></div>
+    <section class="card">
+      <header><h2>Shipments</h2><span class="muted small"><span id="ship-count"></span> · rates are estimates</span>
+        <button class="btn small" id="advance-all" title="Demo: move every shipment one step">Simulate next step ▶</button></header>
+      <div id="shipments"></div>
+    </section>
+  </section>
+
+  <section class="pane" id="p-unsold">
+    <div class="ptitle"><h1>Unsold produce</h1><p>Harvest with no buyer gets a processor, cold-store or keep offer before it spoils.</p></div>
+    <section class="card"><header><h2>Unsold produce</h2><span class="muted small" id="rescued"></span>
+      <button class="btn small" id="sweep" title="Message every farmer whose harvest is nearly ready and still unsold">Send unsold alerts</button></header>
+      <div class="scroll-x"><table><thead><tr><th>Farmer</th><th>Crop</th><th>Kg left</th><th>Offer</th></tr></thead><tbody id="surplus"></tbody></table></div></section>
+  </section>
+
+  <section class="pane" id="p-market">
+    <div class="ptitle"><h1>Supply &amp; demand</h1><p>Every harvest and order that came in, from any channel.</p></div>
+    <div class="two">
+      <section class="card"><header><h2>Supply</h2><span class="chip farmer" id="supply-n">0</span></header>
+        <div class="scroll-x"><table><thead><tr><th>Farmer</th><th>Crop</th><th>Kg · matched</th><th>Ready</th></tr></thead><tbody id="supply"></tbody></table></div></section>
+      <section class="card"><header><h2>Demand</h2><span class="chip buyer" id="demand-n">0</span></header>
+        <div class="scroll-x"><table><thead><tr><th>Buyer</th><th>Crop</th><th>Kg</th><th>Needed by</th></tr></thead><tbody id="demand"></tbody></table></div></section>
     </div>
-  </div>
+  </section>
+
+  <section class="pane" id="p-prices">
+    <div class="ptitle"><h1>Prices &amp; agents</h1><p>The board farmers and buyers see, and what market agents sent this morning.</p></div>
+    <section class="card"><header><h2>Today's prices</h2><span class="muted small">Rs per kg · median when several agents report</span></header>
+      <div class="scroll-x"><table><thead><tr><th>Crop</th><th>Collector</th><th>Retail</th><th>Fair to farmer</th></tr></thead><tbody id="prices"></tbody></table></div></section>
+    <section class="card">
+      <header><h2>Prices from market agents</h2><span class="muted small"><span id="rep-wait"></span> · big jumps wait for your check · <a href="/agent" target="_blank">agent app ↗</a></span></header>
+      <div class="scroll-x"><table><thead><tr><th>Crop</th><th>Kind</th><th>Price</th><th>Market</th><th>Agent</th><th>When</th><th></th></tr></thead><tbody id="reports"></tbody></table></div>
+    </section>
+  </section>
+
+  <section class="pane" id="p-forecast">
+    <div class="ptitle"><h1>Forecast</h1><p>Next week's farm-gate price per crop. Numbers come from code; Gemini only explains them.</p></div>
+    <section class="card">
+      <header><h2>Price and demand forecast</h2><span class="muted small" id="fc-note">next 7 days</span></header>
+      <div class="body small" id="fc-summary" style="border-bottom:1px solid var(--line)"></div>
+      <div class="scroll-x"><table>
+        <thead><tr><th>Crop</th><th>Last 4 weeks → next week</th><th>Farm-gate next week</th><th>Supply vs demand</th><th>Advice to farmers</th></tr></thead>
+        <tbody id="forecast"></tbody>
+      </table></div>
+    </section>
+  </section>
+
+  <section class="pane" id="p-analytics">
+    <div class="ptitle"><h1>Analytics</h1><p>Impact of today's plan. <span class="badge">Demo data</span></p></div>
+    <section class="hero" id="a-hero"></section>
+    <div class="agrid">
+      <section class="card"><header><h2>Farmer price per kg</h2><span class="muted small">village collector vs Govi, after transport</span></header><div class="chart" id="a-farmer"></div></section>
+      <section class="card"><header><h2>Where the retail rupee goes</h2><span class="muted small">per kg, weighted by matched kg</span></header><div class="chart" id="a-split"></div></section>
+      <section class="card"><header><h2>Kg moved by route</h2><span class="muted small">by transport mode</span></header><div class="chart wide" id="a-routes"></div></section>
+      <section class="card"><header><h2>From harvest to delivery</h2><span class="muted small">kg at each stage</span></header><div class="chart wide" id="a-funnel"></div></section>
+    </div>
+    <section class="card"><header><h2>Farmers earning the most extra</h2><span class="muted small">vs selling to the village collector</span></header><div class="scroll-x"><table><thead><tr><th>Farmer</th><th>Town</th><th>Kg sold</th><th>Extra earned</th><th>Uplift</th></tr></thead><tbody id="a-top"></tbody></table></div></section>
+  </section>
+
+  <section class="pane" id="p-messages">
+    <div class="ptitle"><h1>Messages</h1><p>Everything that came in and went out, from WhatsApp, the web and agents.</p></div>
+    <div class="grid">
+      <div class="col">
+        <section class="card">
+          <header><h2>Inbox</h2><span class="muted small" id="inbox-note">what the parser understood</span></header>
+          <div class="feed" id="inbox"></div>
+        </section>
+      </div>
+      <div class="col">
+        <section class="card">
+          <header><h2>Send a test message</h2><span class="muted small">same pipeline as WhatsApp</span></header>
+          <div class="body sim">
+            <textarea id="sim-text" rows="3" placeholder="e.g. This is Sunil, carrot 280kg ready tomorrow, Nuwara Eliya"></textarea>
+            <div class="row">
+              <input type="tel" id="sim-phone" placeholder="Phone (optional)" style="flex:1;min-width:140px">
+              <label class="btn small" style="padding:7px 10px">Photo / voice<input type="file" id="sim-file" accept="image/*,audio/*" hidden></label>
+              <button class="btn primary" id="sim-send">Send</button>
+            </div>
+            <div id="sim-out" class="small muted"></div>
+          </div>
+        </section>
+        <section class="card">
+          <header><h2>Sent</h2><span class="muted small" id="sent-note">match messages</span></header>
+          <div class="feed" id="outbox" style="max-height:420px"></div>
+        </section>
+      </div>
+    </div>
+  </section>
 </main>
+</div>
+<div id="tip"></div>
 <script src="/static/admin.js"></script>
+<script src="/static/analytics.js"></script>
 </body>
 </html>

@@ -171,6 +171,7 @@ async function loadForecast() {
 async function loadReports() {
   const rows = await api("/api/agent/reports?limit=15");
   const waiting = rows.filter((r) => r.flagged).length;
+  flagged = waiting;
   $("rep-wait").textContent = waiting ? `${waiting} to check` : "all live";
   $("reports").innerHTML = rows.length ? rows.map((r) => `<tr>
     <td>${esc(r.crop)}</td><td class="small">${esc(r.kind)}</td><td class="num">${rs(r.lkr_per_kg)}</td>
@@ -182,9 +183,46 @@ async function loadReports() {
     busy(b, async () => { await api(`/api/agent/reports/${b.dataset.rep}/${b.dataset.v}`, { method: "POST" }); refresh(); })));
 }
 
+// ---- console navigation
+const PANES = ["overview", "matches", "shipments", "unsold", "market", "prices", "forecast", "analytics", "messages"];
+function show(p) {
+  if (!PANES.includes(p)) p = "overview";
+  document.querySelectorAll(".pane").forEach((el) => el.classList.toggle("on", el.id === "p-" + p));
+  document.querySelectorAll("#side a").forEach((a) => a.classList.toggle("on", a.dataset.p === p));
+  window.scrollTo({ top: 0 });
+}
+window.addEventListener("hashchange", () => show(location.hash.slice(1)));
+show(location.hash.slice(1));
+
+let flagged = 0;
+function renderAttention(s, plan) {
+  const waiting = plan.matches.filter((m) => m.status === "proposed").length;
+  const openOffers = plan.surplus.filter((l) => l.offer && l.offer.status === "open").length;
+  const notAlerted = plan.surplus.filter((l) => !l.offer).length;
+  const noBackup = (plan.shipments || []).filter((x) => x.backup === "").length;
+  const unsure = s.inbox.filter((m) => m.parsed.confidence < 0.7).length;
+  const items = [
+    [waiting, "matches waiting for a YES", "farmers or buyers still have to confirm on WhatsApp", "matches"],
+    [notAlerted, "unsold loads not yet alerted", "send the farmer a processor or cold-store offer", "unsold"],
+    [openOffers, "unsold offers waiting for a reply", "farmers reply 1, 2 or 3", "unsold"],
+    [noBackup, "shipments with no later transport", "a miss means re-sourcing or a wholesale backup buy", "shipments"],
+    [flagged, "agent prices to check", "big jumps stay off the board until approved", "prices"],
+    [unsure, "messages the parser was unsure about", "check what was understood", "messages"],
+  ].filter((x) => x[0] > 0);
+  $("attn").innerHTML = items.length ? items.map(([n, what, why, p]) =>
+    `<a href="#${p}"><span class="k" style="color:var(--clay)">${n}</span><span><b>${what}</b><div class="small muted">${why}</div></span><span class="go">→</span></a>`).join("")
+    : `<div class="empty">Nothing needs you right now.</div>`;
+  $("n-attn").textContent = items.length || "";
+  $("n-wait").textContent = waiting || "";
+  $("n-unsold").textContent = notAlerted + openOffers || "";
+  $("n-flag").textContent = flagged || "";
+  $("inbox-mini").innerHTML = $("inbox").innerHTML;
+}
+
 async function refresh() {
   const [s, plan] = await Promise.all([api("/state"), api("/api/plan")]);
-  renderState(s, plan); renderPlan(plan); loadReports();
+  renderState(s, plan); renderPlan(plan); await loadReports(); renderAttention(s, plan);
+  window.renderAnalytics?.(s, plan);
   $("plan-note").textContent = plan.matches.length ? "from last matching run" : "";
 }
 
