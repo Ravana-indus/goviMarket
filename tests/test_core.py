@@ -275,11 +275,73 @@ def test_agent_prices_go_live_and_big_jumps_wait_for_check(monkeypatch):
     assert flags == {"carrot": False, "beans": True}
     live = c.get("/api/prices").json()
     live = {p["crop"]: p for p in (live if isinstance(live, list) else live.values())}
-    assert live["carrot"]["collector"] == carrot + 10 and live["beans"]["collector"] == beans
+    # same day as the seed reporter, so the board shows the median of the two agents
+    assert live["carrot"]["collector"] == carrot + 5 and live["beans"]["collector"] == beans
     rid = next(s["id"] for s in out["saved"] if s["flagged"])
     assert c.post(f"/api/agent/reports/{rid}/approve").status_code == 200
     b2 = {r["crop"]: r for r in c.get("/api/agent/board", params={"kind": "collector", "market": "Dambulla"}).json()["crops"]}
-    assert b2["beans"]["current"] == beans * 3 and b2["carrot"]["last_here"] == carrot + 10
+    assert b2["beans"]["current"] == beans * 2 and b2["carrot"]["last_here"] == carrot + 10
     assert c.post("/api/agent/prices", json={**body, "prices": [{"crop": "durian", "lkr_per_kg": 100}]}).status_code == 400
     assert len(c.get("/api/agent/reports", params={"phone": "94770000099"}).json()) == 2
     assert c.get("/agent").status_code == 200
+
+
+def _seeded(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    c = TestClient(app)
+    c.post("/demo/seed")
+    return c, c.get("/api/plan").json()
+
+
+def test_kandy_order_is_filled_from_the_nearest_town(monkeypatch):
+    c, plan = _seeded(monkeypatch)
+    kandy = [m for m in plan["matches"] if m["buyer"] == "Hill View Hotel"]
+    assert kandy and all(m["lane"]["origin"] == "Dambulla" and m["lane"]["dest"] == "Kandy" for m in kandy)
+
+
+def test_missed_departure_reroutes_when_a_later_one_is_on_time(monkeypatch):
+    c, plan = _seeded(monkeypatch)
+    x = next(s for s in plan["shipments"] if s["status"] in ("booked", "loaded") and s.get("backup"))
+    r = c.post(f"/shipments/{x['id']}/missed").json()
+    assert r["action"] == "rerouted"
+    after = c.get("/api/plan").json()
+    new = next(s for s in after["shipments"] if s["id"] == r["new_shipment"])
+    assert new["status"] == "booked" and new["lane"]["departs"] > x["lane"]["departs"]
+    moved = [m for m in after["matches"] if m["id"] in x["match_ids"]]
+    assert moved and all(m["shipment_id"] == new["id"] and m["status"] == "confirmed" for m in moved)
+    # farmer's price did not change; the extra freight is Govi's
+    before = {m["id"]: m["farmer_gets_lkr_per_kg"] for m in plan["matches"]}
+    assert all(m["farmer_gets_lkr_per_kg"] == before[m["id"]] for m in moved)
+    assert c.post(f"/shipments/{x['id']}/missed").status_code == 409
+
+
+def test_missed_last_departure_covers_every_buyer(monkeypatch):
+    c, plan = _seeded(monkeypatch)
+    x = next(s for s in plan["shipments"] if s["status"] in ("booked", "loaded") and s.get("backup") == "")
+    need = {}
+    for m in plan["matches"]:
+        if m["id"] in x["match_ids"]:
+            need[m["order_id"]] = need.get(m["order_id"], 0) + m["qty_kg"]
+    r = c.post(f"/shipments/{x['id']}/missed").json()
+    assert r["action"] in ("resourced", "backup", "resourced+backup")
+    after = c.get("/api/plan").json()
+    origin = x["origin"]
+    for oid, kg_ in need.items():
+        cover = [m for m in after["matches"] if m["order_id"] == oid and m.get("note", "").startswith("rescue")]
+        assert sum(m["qty_kg"] for m in cover) >= kg_
+        assert all(m["lane"] is None or m["lane"]["origin"] != origin for m in cover)
+    stranded = {m["listing_id"] for m in plan["matches"] if m["id"] in x["match_ids"]}
+    assert stranded & {s["id"] for s in after["surplus"]}
+
+
+def test_unsold_produce_gets_numbered_offers_and_a_reply_settles_it(monkeypatch):
+    c, plan = _seeded(monkeypatch)
+    offers = c.post("/surplus/sweep").json()
+    assert offers and c.post("/surplus/sweep").json() == []  # one offer per load
+    o = next(x for x in offers if x["options"][0]["kind"] == "processor" and x["phone"])
+    assert o["options"][-1]["kind"] == "keep" and "1." in o["message"]
+    r = c.post("/intake", data={"text": "1", "sender": o["phone"]}).json()
+    assert "Done" in r["reply"]
+    after = c.get("/api/plan").json()
+    assert after["impact"]["surplus_rescued_kg"] >= o["kg"]
+    assert o["listing_id"] not in {s["id"] for s in after["surplus"]}

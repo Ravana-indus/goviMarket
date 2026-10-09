@@ -23,6 +23,9 @@
   .ship .loads span:nth-child(2n) { background: color-mix(in srgb, var(--leaf) 70%, var(--surface)); }
   .ship .cost { display: flex; gap: 16px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
   .ship .cost b { color: var(--ink); }
+  .ship .rescue { font-size: 13px; padding: 8px 10px; border-radius: 10px; background: var(--clay-soft); color: var(--ink); }
+  .ship .rescue b { color: var(--clay); }
+  .btn.miss { color: var(--clay); }
   .steps { list-style: none; display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; margin: 2px 0 0; padding: 0; }
   .steps li { position: relative; padding-top: 16px; font-size: 12px; color: var(--muted); display: grid; }
   .steps li b { font-weight: 600; }
@@ -86,7 +89,7 @@
     <div class="card kpi"><div class="label">Extra to farmers</div><div class="value num up" id="k-farmer">Rs 0</div><div class="hint">vs village collector price</div></div>
     <div class="card kpi"><div class="label">Saved by buyers</div><div class="value num" id="k-buyer">Rs 0</div><div class="hint">vs Colombo retail</div></div>
     <div class="card kpi"><div class="label">Transport saved</div><div class="value num up" id="k-transport">Rs 0</div><div class="hint">by bundling loads</div></div>
-    <div class="card kpi"><div class="label">Surplus to reroute</div><div class="value num" id="k-surplus" style="color:var(--sun)">0 kg</div><div class="hint">offered to processors and exporters</div></div>
+    <div class="card kpi"><div class="label">Unsold produce</div><div class="value num" id="k-surplus" style="color:var(--sun)">0 kg</div><div class="hint">offered to processors and cold stores</div></div>
   </section>
 
   <div class="grid">
@@ -120,8 +123,9 @@
       <div class="two">
         <section class="card"><header><h2>Today's prices</h2><span class="muted small">Rs per kg</span></header>
           <table><thead><tr><th>Crop</th><th>Collector</th><th>Retail</th><th>Fair to farmer</th></tr></thead><tbody id="prices"></tbody></table></section>
-        <section class="card"><header><h2>Surplus</h2><span class="chip warn">reroute</span></header>
-          <table><thead><tr><th>Farmer</th><th>Crop</th><th>Kg left</th></tr></thead><tbody id="surplus"></tbody></table></section>
+        <section class="card"><header><h2>Unsold produce</h2><span class="muted small" id="rescued"></span>
+          <button class="btn small" id="sweep" title="Message every farmer whose harvest is nearly ready and still unsold">Send unsold alerts</button></header>
+          <table><thead><tr><th>Farmer</th><th>Crop</th><th>Kg left</th><th>Offer</th></tr></thead><tbody id="surplus"></tbody></table></section>
       </div>
       <section class="card">
         <header><h2>Prices from market agents</h2><span class="muted small"><span id="rep-wait"></span> · big jumps wait for your check · <a href="/agent" target="_blank">agent app ↗</a></span></header>

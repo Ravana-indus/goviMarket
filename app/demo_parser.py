@@ -10,7 +10,7 @@ from datetime import date, timedelta
 from .schemas import Item, ParsedMessage
 
 CROPS = ["carrot", "leeks", "beans", "tomato", "red onion", "green chilli"]
-PLACES = ["Nuwara Eliya", "Dambulla", "Jaffna", "Badulla", "Colombo"]
+PLACES = ["Nuwara Eliya", "Dambulla", "Jaffna", "Badulla", "Colombo", "Kandy"]
 DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 
 

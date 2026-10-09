@@ -116,5 +116,44 @@
   "handling_lkr": 300,
   "pickup": "Badulla post office",
   "door_delivery": true
+ },
+ {
+  "origin": "Dambulla",
+  "dest": "Kandy",
+  "mode": "night_bus",
+  "lkr_per_kg": 6,
+  "min_charge_lkr": 200,
+  "departs": "18:30",
+  "transit_hours": 2.5,
+  "max_kg": 300,
+  "source": "ESTIMATE",
+  "handling_lkr": 300,
+  "pickup": "Dambulla bus stand"
+ },
+ {
+  "origin": "Dambulla",
+  "dest": "Kandy",
+  "mode": "lorry",
+  "lkr_per_kg": 4,
+  "min_charge_lkr": 2000,
+  "departs": "21:00",
+  "transit_hours": 2.5,
+  "max_kg": 3000,
+  "source": "ESTIMATE (shared vegetable lorry)",
+  "handling_lkr": 300,
+  "pickup": "Dambulla Economic Centre"
+ },
+ {
+  "origin": "Nuwara Eliya",
+  "dest": "Kandy",
+  "mode": "night_bus",
+  "lkr_per_kg": 7,
+  "min_charge_lkr": 200,
+  "departs": "19:00",
+  "transit_hours": 3,
+  "max_kg": 300,
+  "source": "ESTIMATE",
+  "handling_lkr": 300,
+  "pickup": "Nuwara Eliya bus stand"
  }
 ]

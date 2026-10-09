@@ -1,0 +1,109 @@
+[
+ {
+  "id": "proc-tomato",
+  "kind": "processor",
+  "name": "Tomato paste processor (sample)",
+  "location": "Matale",
+  "serves": [
+   "Dambulla",
+   "Matale",
+   "Nuwara Eliya"
+  ],
+  "crops": [
+   "tomato",
+   "green chilli"
+  ],
+  "pay_pct": 0.7,
+  "collect_lkr_per_kg": 6,
+  "source": "SAMPLE - replace with a signed processor"
+ },
+ {
+  "id": "proc-dehydrate",
+  "kind": "processor",
+  "name": "Vegetable dehydration unit (sample)",
+  "location": "Dambulla",
+  "serves": [
+   "Dambulla",
+   "Nuwara Eliya",
+   "Badulla"
+  ],
+  "crops": [
+   "carrot",
+   "leeks",
+   "beans",
+   "green chilli",
+   "tomato"
+  ],
+  "pay_pct": 0.6,
+  "collect_lkr_per_kg": 4,
+  "source": "SAMPLE - replace with a signed processor"
+ },
+ {
+  "id": "proc-onion",
+  "kind": "processor",
+  "name": "Onion and chilli processor (sample)",
+  "location": "Jaffna",
+  "serves": [
+   "Jaffna"
+  ],
+  "crops": [
+   "red onion",
+   "green chilli",
+   "tomato"
+  ],
+  "pay_pct": 0.72,
+  "collect_lkr_per_kg": 3,
+  "source": "SAMPLE - replace with a signed processor"
+ },
+ {
+  "id": "cold-dambulla",
+  "kind": "cold_store",
+  "name": "Dambulla cold room (sample)",
+  "location": "Dambulla",
+  "serves": [
+   "Dambulla"
+  ],
+  "crops": [
+   "carrot",
+   "leeks",
+   "beans",
+   "tomato",
+   "green chilli"
+  ],
+  "fee_lkr_per_kg_day": 3,
+  "max_days": 7,
+  "source": "SAMPLE"
+ },
+ {
+  "id": "cold-ne",
+  "kind": "cold_store",
+  "name": "Nuwara Eliya cold room (sample)",
+  "location": "Nuwara Eliya",
+  "serves": [
+   "Nuwara Eliya"
+  ],
+  "crops": [
+   "carrot",
+   "leeks",
+   "beans"
+  ],
+  "fee_lkr_per_kg_day": 3,
+  "max_days": 10,
+  "source": "SAMPLE"
+ },
+ {
+  "id": "cold-jaffna",
+  "kind": "cold_store",
+  "name": "Jaffna onion store (sample)",
+  "location": "Jaffna",
+  "serves": [
+   "Jaffna"
+  ],
+  "crops": [
+   "red onion"
+  ],
+  "fee_lkr_per_kg_day": 1,
+  "max_days": 30,
+  "source": "SAMPLE"
+ }
+]

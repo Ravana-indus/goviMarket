@@ -27,7 +27,7 @@ def _send(to: str | None, body: str, match_id: str) -> None:
             log.exception("whatsapp send failed")
 
 
-def plan() -> dict:
+def plan(extra_blocked: set[tuple[str, str]] = frozenset()) -> dict:
     """Propose matches for stock not already held by a pending or confirmed match, and notify."""
     held = [m for m in store.matches() if m.status == "proposed"]
     listings, orders = store.listings(), store.orders()
@@ -39,13 +39,13 @@ def plan() -> dict:
             if x.id == m.order_id:
                 x.remaining_kg -= m.qty_kg
     prices = store.prices()
-    blocked = {(m.listing_id, m.order_id) for m in store.matches() if m.status == "declined"}
+    blocked = {(m.listing_id, m.order_id) for m in store.matches() if m.status in ("declined", "cancelled")} | set(extra_blocked)
     fresh, surplus = match(listings, orders, LANES, prices, blocked)
     by_id = {x.id: x for x in listings} | {x.id: x for x in orders}
     for m in fresh:
         m.id = uuid.uuid4().hex[:8]
         store.put_match(m)
-    live = [m for m in store.matches() if m.status != "declined"]
+    live = [m for m in store.matches() if m.status not in ("declined", "cancelled")]
     # Shipments already booked are locked; only loads still being planned get re-bundled.
     frozen = [x for x in store.shipments() if x.status != "planned"]
     for x in store.shipments():

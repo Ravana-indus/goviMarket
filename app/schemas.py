@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 Role = Literal["farmer", "buyer", "reporter", "unknown"]
 PriceKind = Literal["collector", "wholesale", "retail"]
-ShipStatus = Literal["planned", "booked", "loaded", "in_transit", "arrived", "delivered"]
+ShipStatus = Literal["planned", "booked", "loaded", "in_transit", "arrived", "delivered", "missed"]
 Lang = Literal["si", "ta", "en"]
 
 
@@ -74,7 +74,7 @@ class Lane(BaseModel):
 
 class Match(BaseModel):
     id: str = ""
-    status: Literal["proposed", "confirmed", "declined"] = "proposed"
+    status: Literal["proposed", "confirmed", "declined", "cancelled"] = "proposed"
     farmer_ok: bool = False
     buyer_ok: bool = False
     listing_id: str
@@ -94,6 +94,7 @@ class Match(BaseModel):
     buyer_pays_lkr_per_kg: float
     collector_pays_lkr_per_kg: float
     market_retail_lkr_per_kg: float
+    note: str = ""  # e.g. "rescue: backup buy" when a missed shipment was covered
 
 
 class Shipment(BaseModel):
@@ -115,3 +116,4 @@ class Shipment(BaseModel):
     schedule: dict[str, str] = {}  # status -> planned ISO time
     events: list[dict] = []  # {"status", "at", "note"} as each step happens
     ref: str = ""  # carrier booking reference
+    rescue: dict = {}  # what happened when this shipment missed its departure

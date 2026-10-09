@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-from . import deals, parser, portal, replies, reporters, store, whatsapp
+from . import deals, parser, portal, replies, reporters, rescue, shipping, store, surplus, whatsapp
 from .pricing import split
 
 log = logging.getLogger("govi")
@@ -26,7 +26,7 @@ def handle(*, text: Optional[str], media: Optional[bytes], mime_type: Optional[s
            sender: str, today: date) -> dict:
     """One pipeline for every channel: parse, store, build a reply."""
     if text and not media:
-        confirmed = deals.answer(sender, text)
+        confirmed = deals.answer(sender, text) or surplus.answer(sender, text)
         if confirmed:
             return {"parsed": None, "created": [], "needs_clarification": False, "reply": confirmed}
     parsed = parser.parse(text=text, media=media, mime_type=mime_type, today=today.isoformat())
@@ -113,14 +113,63 @@ def plan():
 
 @app.get("/api/plan")
 def latest_plan():
-    """Last matching run, with each match's current confirmation status."""
+    """Last matching run, with each match's current status, live surplus and rescue totals."""
     plan = store.latest_plan() or {"surplus": [], "impact": {}}
-    live = [m for m in store.matches() if m.status != "declined"]
+    live = [m for m in store.matches() if m.status not in ("declined", "cancelled")]
     plan["matches"] = [m.model_dump(mode="json") for m in live]
-    plan["impact"] = {**plan.get("impact", {}), "confirmed": sum(m.status == "confirmed" for m in live)}
-    plan["shipments"] = [x.model_dump(mode="json") for x in
-                         sorted(store.shipments(), key=lambda x: x.schedule.get("in_transit", ""))]
+    ships = sorted(store.shipments(), key=lambda x: x.schedule.get("in_transit", ""))
+    by_id = {m.id: m for m in live}
+    out = []
+    for x in ships:
+        row = x.model_dump(mode="json")
+        due = [by_id[i].needed_by for i in x.match_ids if i in by_id and by_id[i].needed_by]
+        if x.status in rescue.CAN_MISS + ("planned",) and due:
+            alt = shipping.backup_lanes(x, deals.LANES, min(due))
+            row["backup"] = f"{shipping.MODE_NAME[alt[0].mode]} {alt[0].departs}" if alt else ""
+        out.append(row)
+    plan["shipments"] = out
+    open_kg = surplus._open_kg()
+    offered = {o["listing_id"]: o for o in surplus.offers()}
+    plan["surplus"] = [{**l.model_dump(mode="json"), "remaining_kg": open_kg[l.id], "offer": offered.get(l.id)}
+                       for l in store.listings() if open_kg.get(l.id, 0) > 0]
+    missed = [x.rescue for x in ships if x.status == "missed"]
+    plan["impact"] = {**plan.get("impact", {}), "confirmed": sum(m.status == "confirmed" for m in live),
+                      "surplus_kg": sum(r["remaining_kg"] for r in plan["surplus"]),
+                      "surplus_rescued_kg": surplus.rescued_kg(), "rescues": len(missed),
+                      "rescue_cost_lkr": sum(r.get("extra_cost_lkr", 0) for r in missed)}
     return plan
+
+
+@app.post("/shipments/{sid}/missed")
+def shipment_missed(sid: str, reason: str = "missed the departure"):
+    """The load did not make its bus, train or lorry: re-route, re-source or backup-buy."""
+    try:
+        return rescue.missed(sid, reason=reason)
+    except KeyError:
+        raise HTTPException(404, "no such shipment")
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.post("/surplus/sweep")
+def surplus_sweep(today: Optional[date] = None):
+    """Tell every farmer whose harvest is nearly ready and still unsold, with numbered options."""
+    return surplus.sweep(today)
+
+
+@app.get("/api/offers")
+def surplus_offers():
+    return surplus.offers()
+
+
+@app.post("/api/offers/{oid}/accept/{n}")
+def surplus_accept(oid: str, n: int):
+    try:
+        return surplus.accept(oid, n)
+    except KeyError:
+        raise HTTPException(404, "no such offer")
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @app.post("/shipments/{sid}/advance")
@@ -140,7 +189,7 @@ def advance_all():
     moved = []
     for x in store.shipments():
         try:
-            if x.status != "delivered":
+            if x.status not in ("delivered", "missed"):
                 moved.append(deals.advance_shipment(x.id).id)
         except ValueError:
             pass
@@ -186,6 +235,7 @@ DEMO_MESSAGES = [
     ("94770000011", "Order from Lotus Kitchen: need carrot 200kg and beans 40kg and red onion 100kg by {day}, Colombo"),
     ("94770000012", "Order from Green Spoon Hotel: need tomato 150kg and leeks 60kg and green chilli 20kg by {day}, Colombo"),
     ("94770000013", "Order from Ceylon Fresh Exports: need leeks 80kg and tomato 200kg by {day}, Colombo"),
+    ("94770000015", "Order from Hill View Hotel: need tomato 100kg and beans 30kg by {day}, Kandy"),
     ("94770000014", "Order from Mango Tree Cafe: need carrot 120kg and beans 60kg by {day}, Colombo"),
 ]
 

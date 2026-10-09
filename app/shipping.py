@@ -9,6 +9,7 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 
 from . import store
+from .lanes import _norm, arrival, lane_cost
 from .schemas import Lane, Shipment
 
 STEPS = ["planned", "booked", "loaded", "in_transit", "arrived", "delivered"]
@@ -86,7 +87,7 @@ def advance(sid: str, send) -> Shipment:
     x = next((s for s in store.shipments() if s.id == sid), None)
     if x is None:
         raise KeyError(sid)
-    if x.status == "delivered":
+    if x.status in ("delivered", "missed"):
         return x
     if x.status == "planned":
         waiting = [m for m in store.matches() if m.id in x.match_ids and m.status != "confirmed"]
@@ -101,3 +102,18 @@ def advance(sid: str, send) -> Shipment:
     store.put_shipment(x)
     _notify(x, nxt, send)
     return x
+
+
+def departure(lane: Lane, ship_on) -> datetime:
+    hh, mm = (int(v) for v in lane.departs.split(":"))
+    return datetime(ship_on.year, ship_on.month, ship_on.day, hh, mm)
+
+
+def backup_lanes(x: Shipment, lanes: list[Lane], needed_by) -> list[Lane]:
+    """Later departures on the same route that still land by 08:00 on the deadline, cheapest first.
+    An empty list means a missed departure can only be covered from other stock."""
+    cutoff = datetime(needed_by.year, needed_by.month, needed_by.day, 8, 0)
+    gone = departure(x.lane, x.ship_on)
+    out = [l for l in lanes if _norm(l.origin) == _norm(x.origin) and _norm(l.dest) == _norm(x.dest)
+           and l.max_kg >= x.total_kg and departure(l, x.ship_on) > gone and arrival(l, x.ship_on) <= cutoff]
+    return sorted(out, key=lambda l: lane_cost(l, x.total_kg))

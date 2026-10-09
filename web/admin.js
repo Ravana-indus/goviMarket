@@ -15,9 +15,10 @@ async function api(path, opts) {
 }
 
 function statusChip(m) {
-  if (m.status === "confirmed") return `<span class="chip farmer">confirmed</span>`;
+  const note = m.note ? ` <span class="chip warn" title="${esc(m.note)}">${esc(m.note.replace("rescue: ", "rescue · "))}</span>` : "";
+  if (m.status === "confirmed") return `<span class="chip farmer">confirmed</span>${note}`; return `<span class="chip farmer">confirmed</span>`;
   const waiting = [!m.farmer_ok && "farmer", !m.buyer_ok && "buyer"].filter(Boolean).join(" + ");
-  return `<span class="chip reporter" title="waiting for YES">waiting: ${waiting}</span>`;
+  return `<span class="chip reporter" title="waiting for YES">waiting: ${waiting}</span>${note}`;
 }
 
 function empty(cols, text) { return `<tr><td colspan="${cols}" class="empty">${text}</td></tr>`; }
@@ -29,9 +30,12 @@ function renderPlan(plan) {
   $("k-farmer").textContent = rs(i.farmer_extra_lkr || 0);
   $("k-buyer").textContent = rs(i.buyer_saved_lkr || 0);
   $("k-surplus").textContent = kg(i.surplus_kg || 0);
+  $("rescued").textContent = i.surplus_rescued_kg ? `${kg(i.surplus_rescued_kg)} sent to processors` : "";
   $("k-transport").textContent = rs(i.transport_saved_lkr || 0);
   const ships = plan.shipments || [];
-  $("ship-count").textContent = ships.length ? `${ships.filter((x) => x.status === "delivered").length}/${ships.length} delivered` : "";
+  const resc = ships.filter((x) => x.status === "missed");
+  $("ship-count").textContent = (ships.length ? `${ships.filter((x) => x.status === "delivered").length}/${ships.length - resc.length} delivered` : "")
+    + (resc.length ? ` · ${resc.length} missed, all rescued · Govi covered ${rs(i.rescue_cost_lkr || 0)}` : "");
   $("shipments").innerHTML = ships.length ? ships.map((x) => {
     const loads = plan.matches.filter((m) => x.match_ids.includes(m.id));
     const bars = loads.map((m) => `<span style="flex:${m.qty_kg}" title="${esc(m.farmer)} → ${esc(m.buyer)}: ${kg(m.qty_kg)} ${esc(m.crop)}">${esc(m.farmer)} ${Math.round(m.qty_kg)}</span>`).join("");
@@ -44,7 +48,12 @@ function renderPlan(plan) {
       return `<li class="${done ? "done" : ""} ${now ? "now" : ""}"><span class="dot"></span><b>${STEP_NAME[st]}</b>
         <small>${when ? hm(when) : ""}${ev ? " ✓" : ""}</small></li>`;
     }).join("");
-    const action = x.status === "delivered" ? `<span class="chip farmer">delivered</span>`
+    const canMiss = x.status === "booked" || x.status === "loaded";
+    const backup = "backup" in x ? (x.backup ? `<span class="chip" title="if this departure is missed">backup: ${esc(x.backup)}</span>`
+      : `<span class="chip warn" title="no later transport arrives in time; a miss means other farmers or a wholesale backup buy">no later transport</span>`) : "";
+    const miss = canMiss ? `<button class="btn small miss" data-miss="${x.id}" title="Demo: the load did not make this departure">Missed ✕</button>` : "";
+    const action = x.status === "missed" ? `<span class="chip warn">missed · ${esc(x.rescue.action || "")}</span>`
+      : x.status === "delivered" ? `<span class="chip farmer">delivered</span>`
       : x.status === "planned" && waiting.length
         ? `<span class="chip reporter" title="${esc(waiting.map((m) => m.farmer + " / " + m.buyer).join(", "))}">waiting for YES (${waiting.length})</span>`
         : `<button class="btn small" data-advance="${x.id}">${x.status === "planned" ? "Book" : "Next: " + STEP_NAME[STEPS[at + 1]]} →</button>`;
@@ -53,7 +62,8 @@ function renderPlan(plan) {
         <span>${esc(x.origin)} → ${esc(x.dest)} · ${fmtDate(x.ship_on)} ${x.lane.departs}</span>
         <span class="chip">${kg(x.total_kg)} · ${x.farmers.length} farmer${x.farmers.length > 1 ? "s" : ""} → ${x.buyers.length} buyer${x.buyers.length > 1 ? "s" : ""}</span>
         ${x.ref ? `<span class="chip" title="carrier booking reference (demo)">${esc(x.ref)}</span>` : ""}
-        <span style="margin-left:auto">${action}</span></div>
+        ${backup}<span style="margin-left:auto;display:flex;gap:6px">${miss}${action}</span></div>
+      ${x.status === "missed" ? `<div class="rescue"><b>Missed the ${esc(x.rescue.missed)}.</b> ${esc(x.rescue.summary)}</div>` : ""}
       <ol class="steps">${steps}</ol>
       <div class="loads">${bars}</div>
       <div class="cost"><span>Drop-off: <b>${esc(x.lane.pickup || x.origin)}</b></span>
@@ -61,6 +71,9 @@ function renderPlan(plan) {
         ${x.saved_lkr > 0 ? `<span class="up">Bundling saved ${rs(x.saved_lkr)} vs ${rs(x.solo_cost_lkr)} separately</span>` : ""}
         ${x.lane.door_delivery ? "<span>Door delivery, no Colombo pickup</span>" : ""}</div></div>`;
   }).join("") : `<div class="empty">Run matching to plan shipments.</div>`;
+  document.querySelectorAll("[data-miss]").forEach((b) => (b.onclick = () => busy(b, async () => {
+    await api(`/shipments/${b.dataset.miss}/missed`, { method: "POST" }); await refresh();
+  })));
   document.querySelectorAll("[data-advance]").forEach((b) => (b.onclick = () => busy(b, async () => {
     await api(`/shipments/${b.dataset.advance}/advance`, { method: "POST" }); await refresh();
   })));
@@ -78,8 +91,17 @@ function renderPlan(plan) {
       <td class="num">${rs(m.buyer_pays_lkr_per_kg)}<div class="delta muted">−${rs(down)} vs retail</div></td></tr>`;
   }).join("") : empty(5, "No matches yet. Load the demo morning or send messages, then run matching.");
   $("surplus").innerHTML = plan.surplus.length
-    ? plan.surplus.map((l) => `<tr><td>${esc(l.farmer)}<div class="small muted">${esc(l.location)}</div></td><td>${esc(l.crop)}</td><td class="num">${kg(l.remaining_kg)}</td></tr>`).join("")
-    : empty(3, "Nothing left over.");
+    ? plan.surplus.map((l) => {
+      const o = l.offer;
+      const st = !o ? `<span class="muted small">not yet</span>`
+        : o.status === "open" ? `<div class="small">${o.options.map((q) => `<button class="btn small" data-offer="${o.id}" data-n="${q.n}" title="Simulate the farmer replying ${q.n}: ${esc(q.text)}">${q.n} · ${q.kind === "processor" ? "Processor Rs " + q.net_lkr_per_kg : q.kind === "cold_store" ? "Cold store" : "Keep"}</button>`).join(" ")}<div class="muted">sent, waiting for the farmer's reply</div></div>`
+        : `<span class="chip farmer" title="${esc(o.choice.text)}">${esc(o.choice.kind.replace("_", " "))}</span>`;
+      return `<tr><td>${esc(l.farmer)}<div class="small muted">${esc(l.location)}</div></td><td>${esc(l.crop)}</td><td class="num">${kg(l.remaining_kg)}</td><td>${st}</td></tr>`;
+    }).join("")
+    : empty(4, "Nothing left over.");
+  document.querySelectorAll("[data-offer]").forEach((b) => (b.onclick = () => busy(b, async () => {
+    await api(`/api/offers/${b.dataset.offer}/accept/${b.dataset.n}`, { method: "POST" }); await refresh();
+  })));
 }
 
 function renderState(s, plan) {
@@ -169,6 +191,7 @@ async function refresh() {
 async function busy(btn, fn) { btn.disabled = true; try { await fn(); } catch (e) { alert(e.message); } finally { btn.disabled = false; } }
 
 $("run").onclick = (e) => busy(e.target, async () => { await api("/plan", { method: "POST" }); await refresh(); });
+$("sweep").onclick = (e) => busy(e.target, async () => { await api("/surplus/sweep", { method: "POST" }); await refresh(); });
 $("advance-all").onclick = (e) => busy(e.target, async () => { await api("/demo/advance-all", { method: "POST" }); await refresh(); });
 $("seed").onclick = (e) => busy(e.target, async () => { await api("/demo/seed", { method: "POST" }); await refresh(); await loadForecast(); });
 $("sim-send").onclick = (e) => busy(e.target, async () => {

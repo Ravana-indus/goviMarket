@@ -72,14 +72,27 @@ def inbox() -> list[dict]:
 
 
 def prices() -> dict[str, dict]:
-    """Seed prices overlaid with whatever reporters sent most recently. Flagged jumps wait for approval."""
+    """Seed prices overlaid with agents' latest reports. Several agents on the same day: the median
+    counts, so one typo or one odd stall cannot move the board. Flagged jumps wait for approval."""
     out = load_prices()
-    for p in sorted(DB.all("prices"), key=lambda d: d["at"]):
+    latest: dict[tuple, list[dict]] = {}
+    for p in DB.all("prices"):
         if p.get("flagged"):
             continue
-        row = out.setdefault(p["crop"], {"crop": p["crop"]})
-        row[p["kind"]] = p["lkr_per_kg"]
-        row["source"] = f"reporter {p['reporter']} ({p['market']}) {p['date']}"
+        key = (p["crop"], p["kind"])
+        day = latest.get(key)
+        if day is None or p["date"] > day[0]["date"]:
+            latest[key] = [p]
+        elif p["date"] == day[0]["date"]:
+            day.append(p)
+    for (crop, kind), rows in latest.items():
+        vals = sorted(r["lkr_per_kg"] for r in rows)
+        mid = len(vals) // 2
+        row = out.setdefault(crop, {"crop": crop})
+        row[kind] = vals[mid] if len(vals) % 2 else (vals[mid - 1] + vals[mid]) / 2
+        who = rows[0]["reporter"] if len(rows) == 1 else f"median of {len(rows)} agents"
+        markets = ", ".join(sorted({r["market"] for r in rows}))
+        row["source"] = f"reporter {who} ({markets}) {rows[0]['date']}"
     return {c: r for c, r in out.items() if "collector" in r and "retail" in r}
 
 
