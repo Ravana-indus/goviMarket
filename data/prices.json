@@ -1,0 +1,6 @@
+[
+  {"crop": "carrot", "collector": 160, "wholesale": 230, "retail": 320, "date": "PLACEHOLDER", "source": "PLACEHOLDER - replace with HARTI daily price report"},
+  {"crop": "leeks", "collector": 120, "wholesale": 180, "retail": 260, "date": "PLACEHOLDER", "source": "PLACEHOLDER - replace with HARTI daily price report"},
+  {"crop": "beans", "collector": 200, "wholesale": 280, "retail": 380, "date": "PLACEHOLDER", "source": "PLACEHOLDER - replace with HARTI daily price report"},
+  {"crop": "tomato", "collector": 90, "wholesale": 150, "retail": 220, "date": "PLACEHOLDER", "source": "PLACEHOLDER - replace with HARTI daily price report"}
+]
