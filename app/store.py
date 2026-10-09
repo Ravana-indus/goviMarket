@@ -72,9 +72,11 @@ def inbox() -> list[dict]:
 
 
 def prices() -> dict[str, dict]:
-    """Seed prices overlaid with whatever reporters sent most recently."""
+    """Seed prices overlaid with whatever reporters sent most recently. Flagged jumps wait for approval."""
     out = load_prices()
     for p in sorted(DB.all("prices"), key=lambda d: d["at"]):
+        if p.get("flagged"):
+            continue
         row = out.setdefault(p["crop"], {"crop": p["crop"]})
         row[p["kind"]] = p["lkr_per_kg"]
         row["source"] = f"reporter {p['reporter']} ({p['market']}) {p['date']}"

@@ -260,3 +260,26 @@ def test_forecast_numbers_are_consistent():
     assert rows and all(r["low"] <= r["collector_next_week"] <= r["high"] for r in rows)
     assert all(r["source"] == "synthetic" for r in rows)
     assert "Synthetic" in forecast.explain(rows) or os.getenv("GEMINI_API_KEY")
+
+
+def test_agent_prices_go_live_and_big_jumps_wait_for_check(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    c = TestClient(app)
+    c.post("/demo/seed")
+    b = {r["crop"]: r for r in c.get("/api/agent/board", params={"kind": "collector"}).json()["crops"]}
+    carrot, beans = b["carrot"]["current"], b["beans"]["current"]
+    body = {"reporter": "Kumari", "phone": "94770000099", "market": "Dambulla", "kind": "collector",
+            "prices": [{"crop": "carrot", "lkr_per_kg": carrot + 10}, {"crop": "beans", "lkr_per_kg": beans * 3}]}
+    out = c.post("/api/agent/prices", json=body).json()
+    flags = {s["crop"]: s["flagged"] for s in out["saved"]}
+    assert flags == {"carrot": False, "beans": True}
+    live = c.get("/api/prices").json()
+    live = {p["crop"]: p for p in (live if isinstance(live, list) else live.values())}
+    assert live["carrot"]["collector"] == carrot + 10 and live["beans"]["collector"] == beans
+    rid = next(s["id"] for s in out["saved"] if s["flagged"])
+    assert c.post(f"/api/agent/reports/{rid}/approve").status_code == 200
+    b2 = {r["crop"]: r for r in c.get("/api/agent/board", params={"kind": "collector", "market": "Dambulla"}).json()["crops"]}
+    assert b2["beans"]["current"] == beans * 3 and b2["carrot"]["last_here"] == carrot + 10
+    assert c.post("/api/agent/prices", json={**body, "prices": [{"crop": "durian", "lkr_per_kg": 100}]}).status_code == 400
+    assert len(c.get("/api/agent/reports", params={"phone": "94770000099"}).json()) == 2
+    assert c.get("/agent").status_code == 200

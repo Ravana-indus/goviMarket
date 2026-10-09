@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2f7d4a">
+<title>Govi Market Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;550;600;650;700;750&family=Noto+Sans+Sinhala:wght@400;600;700&family=Noto+Sans+Tamil:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+<style>
+  body { -webkit-tap-highlight-color: transparent; }
+  .wrap { max-width: 520px; margin: 0 auto; padding: 0 14px 120px; }
+  .bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; gap: 10px; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }
+  .logo i { width: 30px; height: 30px; border-radius: 9px; background: var(--leaf); display: grid; place-items: center; color: var(--leaf-ink); font-style: normal; }
+  .logo small { font-weight: 500; color: var(--muted); }
+  .langs { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 2px; }
+  .langs button { border: 0; background: none; padding: 6px 10px; border-radius: 8px; font-size: 13px; cursor: pointer; color: var(--muted); min-height: 34px; }
+  .langs button.on { background: var(--leaf-soft); color: var(--leaf); font-weight: 650; }
+  .where { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; margin-bottom: 12px; }
+  .where b { font-size: 16px; display: block; }
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; }
+  .seg button { min-height: 52px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-weight: 650; font-size: 14px; color: var(--muted); cursor: pointer; line-height: 1.15; }
+  .seg button small { display: block; font-weight: 500; font-size: 11px; }
+  .seg button.on { border-color: var(--leaf); background: var(--leaf-soft); color: var(--leaf); }
+  .rows { display: grid; gap: 8px; }
+  .row { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 12px 12px 12px 14px; cursor: pointer; border-width: 1.5px; }
+  .row .nm { font-weight: 700; font-size: 17px; text-transform: capitalize; }
+  .row .hint { font-size: 12.5px; color: var(--muted); }
+  .row .val { min-width: 112px; min-height: 56px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); display: grid; place-items: center; font-size: 22px; font-weight: 750; font-variant-numeric: tabular-nums; }
+  .row .val.ghost { color: var(--muted); font-weight: 500; font-size: 15px; }
+  .row.set { border-color: var(--leaf); }
+  .row.set .val { background: var(--leaf-soft); color: var(--leaf); border-color: transparent; }
+  .row.check { border-color: var(--sun); }
+  .row.check .val { background: var(--sun-soft); color: var(--sun); border-color: transparent; }
+  .row .flag { font-size: 12.5px; color: var(--sun); font-weight: 600; }
+  .send { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 14px calc(12px + env(safe-area-inset-bottom)); background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-top: 1px solid var(--line); z-index: 5; }
+  .send .in { max-width: 520px; margin: 0 auto; display: flex; gap: 8px; }
+  .big { width: 100%; min-height: 54px; font-size: 17px; border-radius: 14px; }
+  .signin { padding: 18px; display: grid; gap: 14px; margin-top: 8px; }
+  .signin h1 { font-size: 22px; }
+  label.f { display: grid; gap: 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+  input[type=text], input[type=tel] { min-height: 50px; font-size: 16px; }
+  .markets { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .markets button { min-height: 48px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); font-weight: 600; cursor: pointer; text-align: left; padding: 8px 12px; }
+  .markets button.on { border-color: var(--leaf); background: var(--leaf-soft); color: var(--leaf); }
+  .done { padding: 16px; display: grid; gap: 8px; border-left: 4px solid var(--leaf); margin-bottom: 12px; }
+  .hist { margin-top: 18px; }
+  .hist h2 { margin: 0 0 8px; }
+  .hist .item { display: flex; justify-content: space-between; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .hist .item:last-child { border-bottom: 0; }
+  /* number pad sheet */
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 20; }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; background: var(--surface); border-radius: 20px 20px 0 0; padding: 14px 14px calc(14px + env(safe-area-inset-bottom)); box-shadow: 0 -8px 30px rgba(0,0,0,.18); }
+  .sheet .in { max-width: 520px; margin: 0 auto; display: grid; gap: 10px; }
+  .sheet .top { display: flex; justify-content: space-between; align-items: baseline; }
+  .sheet .crop { font-weight: 750; font-size: 19px; text-transform: capitalize; }
+  .sheet .disp { font-size: 40px; font-weight: 750; text-align: center; font-variant-numeric: tabular-nums; padding: 6px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); }
+  .sheet .disp small { font-size: 16px; color: var(--muted); font-weight: 500; }
+  .sheet .warn { text-align: center; font-size: 13px; color: var(--sun); font-weight: 600; min-height: 18px; }
+  .quick { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .quick button { min-height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); font-weight: 650; cursor: pointer; }
+  .keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .keys button { min-height: 58px; font-size: 24px; font-weight: 600; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; }
+  .keys button:active, .quick button:active { background: var(--leaf-soft); }
+  .sheet .acts { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar">
+    <div class="logo"><i>G</i><span>Govi <small data-t="agent">Market agent</small></span></div>
+    <div class="langs" id="langs"><button data-l="si">සිං</button><button data-l="ta">தமி</button><button data-l="en">EN</button></div>
+  </div>
+
+  <section class="card signin" id="signin" hidden>
+    <h1 data-t="si_title">Today's market prices</h1>
+    <p class="muted" style="margin:0" data-t="si_sub">Tell us who you are and which market you cover. You only do this once.</p>
+    <label class="f"><span data-t="name">Your name</span><input type="text" id="si-name" autocomplete="name"></label>
+    <label class="f"><span data-t="phone">WhatsApp number</span><input type="tel" id="si-phone" inputmode="tel" placeholder="94771234567"></label>
+    <div class="f"><span class="muted small" style="font-weight:600" data-t="market">Market</span><div class="markets" id="markets"></div></div>
+    <button class="btn primary big" id="si-go" data-t="start">Start</button>
+    <button class="btn" id="si-demo" data-t="demo">Use demo agent (Dambulla)</button>
+  </section>
+
+  <main id="main" hidden>
+    <div class="card where">
+      <div><b id="w-market"></b><span class="small muted" id="w-who"></span></div>
+      <a href="#" id="switch" class="small" data-t="switch">change</a>
+    </div>
+    <div id="done"></div>
+    <div class="seg" id="kinds">
+      <button data-k="collector"><span data-t="k_collector">Farm gate</span><small data-t="k_collector_s">collector pays</small></button>
+      <button data-k="wholesale"><span data-t="k_wholesale">Wholesale</span><small data-t="k_wholesale_s">economic centre</small></button>
+      <button data-k="retail"><span data-t="k_retail">Retail</span><small data-t="k_retail_s">shop price</small></button>
+    </div>
+    <div class="rows" id="rows"></div>
+    <div class="hist"><h2 data-t="sent_today">What you sent</h2><div class="card" id="hist"></div></div>
+  </main>
+</div>
+
+<div class="send" id="sendbar" hidden><div class="in">
+  <button class="btn primary big" id="send"></button>
+</div></div>
+
+<div id="pad" hidden>
+  <div class="scrim" id="scrim"></div>
+  <div class="sheet"><div class="in">
+    <div class="top"><span class="crop" id="p-crop"></span><span class="small muted" id="p-ref"></span></div>
+    <div class="disp"><small>Rs </small><span id="p-val">0</span><small> /kg</small></div>
+    <div class="warn" id="p-warn"></div>
+    <div class="quick" id="quick"></div>
+    <div class="keys" id="keys"></div>
+    <div class="acts"><button class="btn big" id="p-skip" data-t="skip">Skip</button><button class="btn primary big" id="p-next" data-t="next">Next ›</button></div>
+  </div></div>
+</div>
+<script src="/static/agent.js"></script>
+</body>
+</html>

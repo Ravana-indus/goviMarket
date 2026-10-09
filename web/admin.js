@@ -146,9 +146,23 @@ async function loadForecast() {
   }).join("");
 }
 
+async function loadReports() {
+  const rows = await api("/api/agent/reports?limit=15");
+  const waiting = rows.filter((r) => r.flagged).length;
+  $("rep-wait").textContent = waiting ? `${waiting} to check` : "all live";
+  $("reports").innerHTML = rows.length ? rows.map((r) => `<tr>
+    <td>${esc(r.crop)}</td><td class="small">${esc(r.kind)}</td><td class="num">${rs(r.lkr_per_kg)}</td>
+    <td class="small">${esc(r.market)}</td><td class="small">${esc(r.reporter)}</td>
+    <td class="small muted">${new Date(r.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td>
+    <td>${r.flagged ? `<span class="chip warn">big jump</span> <button class="btn small" data-rep="${r.id}" data-v="approve">Approve</button> <button class="btn small" data-rep="${r.id}" data-v="reject">Reject</button>` : `<span class="chip farmer">live</span>`}</td>
+  </tr>`).join("") : empty(7, "No agent reports yet. Open the agent app to send today's prices.");
+  $("reports").querySelectorAll("[data-rep]").forEach((b) => (b.onclick = () =>
+    busy(b, async () => { await api(`/api/agent/reports/${b.dataset.rep}/${b.dataset.v}`, { method: "POST" }); refresh(); })));
+}
+
 async function refresh() {
   const [s, plan] = await Promise.all([api("/state"), api("/api/plan")]);
-  renderState(s, plan); renderPlan(plan);
+  renderState(s, plan); renderPlan(plan); loadReports();
   $("plan-note").textContent = plan.matches.length ? "from last matching run" : "";
 }
 
