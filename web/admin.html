@@ -33,6 +33,13 @@
   .steps li.now .dot { box-shadow: 0 0 0 4px var(--leaf-soft); }
   .steps li.done b { color: var(--ink); }
   .btn.small { padding: 5px 10px; font-size: 13px; }
+  .spark { display: block; }
+  .spark .hist { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+  .spark .fut { fill: none; stroke: var(--leaf); stroke-width: 2; stroke-dasharray: 3 3; }
+  .spark .band { fill: var(--leaf-soft); }
+  .spark.rising .fut { stroke: var(--clay); } .spark.rising .band { fill: var(--clay-soft); }
+  .sd { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--line); width: 120px; margin-top: 4px; }
+  .sd .s { background: var(--leaf); } .sd .d { background: var(--sky); }
   .kpi { padding: 16px; }
   .kpi .label { font-size: 13px; color: var(--muted); }
   .kpi .value { font-size: 28px; font-weight: 700; margin-top: 4px; letter-spacing: -.02em; }
@@ -95,6 +102,14 @@
         <header><h2>Shipments</h2><span class="muted small"><span id="ship-count"></span> · loads from one town share a bus, train, lorry or Post · rates are estimates</span>
           <button class="btn small" id="advance-all" title="Demo: move every shipment one step">Simulate next step ▶</button></header>
         <div id="shipments"></div>
+      </section>
+      <section class="card">
+        <header><h2>Price and demand forecast</h2><span class="muted small" id="fc-note">next 7 days</span></header>
+        <div class="body small" id="fc-summary" style="border-bottom:1px solid var(--line)"></div>
+        <div class="scroll-x"><table>
+          <thead><tr><th>Crop</th><th>Last 4 weeks → next week</th><th>Farm-gate next week</th><th>Supply vs demand</th><th>Advice to farmers</th></tr></thead>
+          <tbody id="forecast"></tbody>
+        </table></div>
       </section>
       <div class="two">
         <section class="card"><header><h2>Supply</h2><span class="chip farmer" id="supply-n">0</span></header>

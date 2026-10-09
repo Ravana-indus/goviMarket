@@ -120,6 +120,32 @@ function renderState(s, plan) {
 const BUYER_DISCOUNT_SHARE = 0.25, GOVI_FEE = 0.05;
 function fair(p) { const buyer = p.retail - BUYER_DISCOUNT_SHARE * (p.retail - p.collector); return buyer * (1 - GOVI_FEE); }
 
+function spark(r) {
+  const W = 180, H = 44, pts = r.history.map((h) => h.collector);
+  const all = [...pts, r.low, r.high], min = Math.min(...all), max = Math.max(...all);
+  const n = pts.length + 7, x = (i) => (i / (n - 1)) * W, y = (v) => H - 4 - ((v - min) / (max - min || 1)) * (H - 8);
+  const hist = pts.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
+  const last = pts.length - 1, end = n - 1;
+  const band = `M${x(last)},${y(pts[last])} L${x(end)},${y(r.high)} L${x(end)},${y(r.low)} Z`;
+  return `<svg class="spark ${r.signal}" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(r.crop)} price trend">
+    <path class="band" d="${band}"/><path class="hist" d="${hist}"/>
+    <path class="fut" d="M${x(last)},${y(pts[last])} L${x(end)},${y(r.collector_next_week)}"/></svg>`;
+}
+
+async function loadForecast() {
+  const f = await api("/api/forecast");
+  $("fc-summary").textContent = f.summary;
+  $("fc-note").textContent = f.crops.some((c) => c.source === "synthetic") ? "next 7 days · demo price history" : "next 7 days";
+  $("forecast").innerHTML = f.crops.map((r) => {
+    const tot = r.supply_kg + r.demand_kg || 1;
+    return `<tr><td style="text-transform:capitalize">${esc(r.crop)}<div><span class="chip ${r.signal === "rising" ? "warn" : r.signal === "falling" ? "farmer" : ""}">${r.signal} ${r.change_pct > 0 ? "+" : ""}${r.change_pct}%</span></div></td>
+      <td>${spark(r)}</td>
+      <td class="num">${rs(r.collector_next_week)}<div class="small muted">range ${rs(r.low)}–${rs(r.high)} · now ${rs(r.collector_now)}</div></td>
+      <td class="small">${kg(r.supply_kg)} supply · ${kg(r.demand_kg)} demand<div class="sd"><span class="s" style="flex:${r.supply_kg}"></span><span class="d" style="flex:${r.demand_kg}"></span></div></td>
+      <td class="small">${esc(r.farmer_advice)}</td></tr>`;
+  }).join("");
+}
+
 async function refresh() {
   const [s, plan] = await Promise.all([api("/state"), api("/api/plan")]);
   renderState(s, plan); renderPlan(plan);
@@ -130,7 +156,7 @@ async function busy(btn, fn) { btn.disabled = true; try { await fn(); } catch (e
 
 $("run").onclick = (e) => busy(e.target, async () => { await api("/plan", { method: "POST" }); await refresh(); });
 $("advance-all").onclick = (e) => busy(e.target, async () => { await api("/demo/advance-all", { method: "POST" }); await refresh(); });
-$("seed").onclick = (e) => busy(e.target, async () => { await api("/demo/seed", { method: "POST" }); await refresh(); });
+$("seed").onclick = (e) => busy(e.target, async () => { await api("/demo/seed", { method: "POST" }); await refresh(); await loadForecast(); });
 $("sim-send").onclick = (e) => busy(e.target, async () => {
   const fd = new FormData();
   const text = $("sim-text").value.trim(), file = $("sim-file").files[0];
@@ -151,4 +177,6 @@ api("/healthz").then((h) => {
   $("inbox-note").textContent = h.gemini ? "what Gemini understood" : "keyword parser (demo mode)";
 });
 refresh();
+loadForecast();
 setInterval(refresh, 5000);
+setInterval(loadForecast, 30000);

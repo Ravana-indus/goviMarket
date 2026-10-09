@@ -11,13 +11,14 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-from . import deals, parser, replies, store, whatsapp
+from . import deals, parser, portal, replies, store, whatsapp
 from .pricing import split
 
 log = logging.getLogger("govi")
 app = FastAPI(title="Govi Market")
 WEB = Path(__file__).resolve().parent.parent / "web"
 app.mount("/static", StaticFiles(directory=WEB), name="static")
+app.include_router(portal.router)
 
 
 def handle(*, text: Optional[str], media: Optional[bytes], mime_type: Optional[str],
@@ -43,6 +44,11 @@ def healthz():
 @app.get("/")
 def user_app():
     return FileResponse(WEB / "index.html")
+
+
+@app.get("/business")
+def business_app():
+    return FileResponse(WEB / "business.html")
 
 
 @app.get("/admin")

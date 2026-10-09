@@ -1,3 +1,4 @@
+import os
 from datetime import date
 from types import SimpleNamespace
 
@@ -231,3 +232,31 @@ def test_shipment_moves_through_every_step_and_messages_both_sides(monkeypatch):
     assert any("Delivered" in o["body"] or "භාර" in o["body"] for o in sent)
     track = c.get("/api/track", params={"phone": "94770000011"}).json()
     assert any(m["shipment"] for o in track["orders"] for m in o["matches"])
+
+
+def test_business_order_matches_and_standing_order_repeats(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    c = TestClient(app)
+    c.post("/demo/seed")
+    cat = {r["crop"]: r for r in c.get("/api/catalogue").json()}
+    assert cat["carrot"]["price"] < cat["carrot"]["retail"] and cat["carrot"]["signal"]
+    need = (date.today() + __import__("datetime").timedelta(days=2)).isoformat()
+    body = {"phone": "94779999999", "business": "Test Bistro", "needed_by": need,
+            "items": [{"crop": "tomato", "qty_kg": 40}], "repeat_weekly": True}
+    out = c.post("/api/orders", json=body).json()
+    assert out["ordered_kg"] == 40 and out["matched_kg"] > 0
+    st = c.get("/api/standing", params={"phone": "94779999999"}).json()
+    assert len(st) == 1
+    again = c.post(f"/api/standing/{st[0]['id']}/run").json()
+    assert again["ordered_kg"] == 40
+    assert c.post("/api/orders", json={**body, "items": [{"crop": "durian", "qty_kg": 5}]}).status_code == 400
+    assert c.get("/business").status_code == 200
+
+
+def test_forecast_numbers_are_consistent():
+    from app import forecast
+    store.reset()
+    rows = forecast.outlook()
+    assert rows and all(r["low"] <= r["collector_next_week"] <= r["high"] for r in rows)
+    assert all(r["source"] == "synthetic" for r in rows)
+    assert "Synthetic" in forecast.explain(rows) or os.getenv("GEMINI_API_KEY")
