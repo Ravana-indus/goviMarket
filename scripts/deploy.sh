@@ -11,6 +11,9 @@ PROJECT_ID="${PROJECT_ID:?set PROJECT_ID}"
 REGION="${REGION:-asia-south1}"
 SERVICE="${SERVICE:-govi-market}"
 ALLOW_RESET="${ALLOW_RESET:-1}"   # 1 keeps the demo reset button; set 0 once real users arrive
+# Request-based billing (cheapest, fits the free tier). Real WhatsApp replies run after the webhook
+# returns, so they need CPU kept on: WHATSAPP=1 ./scripts/deploy.sh
+CPU_FLAG="--cpu-throttling"; [ "${WHATSAPP:-0}" = "1" ] && CPU_FLAG="--no-cpu-throttling"
 gc() { gcloud --project "$PROJECT_ID" "$@"; }
 
 echo "== APIs"
@@ -49,7 +52,7 @@ gc projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:$RUN_S
 echo "== Cloud Run"
 # max-instances=1: the store caches Firestore in memory, so a second instance would read stale data.
 gc run deploy "$SERVICE" --source . --region "$REGION" --allow-unauthenticated \
-  --max-instances=1 --min-instances=0 --no-cpu-throttling --memory=512Mi --timeout=120 \
+  --max-instances=1 --min-instances=0 "$CPU_FLAG" --memory=512Mi --timeout=120 \
   --set-env-vars "STORE=firestore,ALLOW_RESET=$ALLOW_RESET,GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}" \
   --set-secrets "GEMINI_API_KEY=GEMINI_API_KEY:latest,ADMIN_TOKEN=ADMIN_TOKEN:latest,AGENT_PIN=AGENT_PIN:latest"
 URL="$(gc run services describe "$SERVICE" --region "$REGION" --format='value(status.url)')"

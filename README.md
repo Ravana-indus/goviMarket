@@ -33,7 +33,7 @@ gcloud auth login
 PROJECT_ID=<your-project-id> ./scripts/deploy.sh
 ./scripts/smoke.sh https://<cloud-run-url>
 ```
-The script enables the APIs, creates Firestore, asks for the Gemini key (hidden input) and stores it in Secret Manager, generates the console token and agent PIN (printed once), deploys with `--max-instances=1 --no-cpu-throttling`, and schedules `POST /jobs/daily` at 06:00 Colombo time for standing orders and unsold-produce alerts.
+The script enables the APIs, creates Firestore, asks for the Gemini key (hidden input) and stores it in Secret Manager, generates the console token and agent PIN (printed once), deploys with `--max-instances=1 --min-instances=0` and request-based billing (add `WHATSAPP=1` for the real WhatsApp webhook, which needs CPU kept on after it replies), and schedules `POST /jobs/daily` at 06:00 Colombo time for standing orders and unsold-produce alerts.
 
 - One instance only: the Firestore store keeps a write-through cache in memory.
 - `ALLOW_RESET=1` keeps the demo reset button working. Deploy with `ALLOW_RESET=0` before real users arrive.
