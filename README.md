@@ -21,7 +21,7 @@ Built for the AI Builder Cup 2026 (Sustainability & Social Impact).
 
 ## Run locally (no keys needed)
 ```bash
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 uvicorn app.main:app --port 8000
 pytest -q
 ```
