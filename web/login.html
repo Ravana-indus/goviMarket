@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Govi Market Console sign-in</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;550;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+<style>
+  body { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+  form { width: min(380px, 100%); padding: 24px; display: grid; gap: 14px; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+  .logo i { width: 30px; height: 30px; border-radius: 9px; background: var(--leaf); display: grid; place-items: center; color: var(--leaf-ink); font-style: normal; }
+  input[type=password] { width: 100%; border: 1px solid var(--line); background: var(--surface-2); border-radius: 10px; padding: 12px; font-size: 16px; }
+  .err { color: var(--clay); font-size: 14px; }
+</style>
+</head>
+<body>
+<form class="card" method="post" action="/login">
+  <div class="logo"><i>G</i>Govi Market Console</div>
+  <p class="muted" style="margin:0">Operations staff only. Enter the console access token.</p>
+  <input type="password" name="token" autocomplete="current-password" placeholder="Access token" required autofocus>
+  <input type="hidden" name="next" id="next" value="/admin">
+  <div class="err" id="err" hidden>That token is not right.</div>
+  <button class="btn primary" style="padding:12px">Sign in</button>
+</form>
+<script>
+  const q = new URLSearchParams(location.search);
+  if (q.get("bad")) document.getElementById("err").hidden = false;
+  if (q.get("next")) document.getElementById("next").value = q.get("next");
+</script>
+</body>
+</html>

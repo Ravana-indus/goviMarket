@@ -77,7 +77,9 @@
     <h1 data-t="si_title">Today's market prices</h1>
     <p class="muted" style="margin:0" data-t="si_sub">Tell us who you are and which market you cover. You only do this once.</p>
     <label class="f"><span data-t="name">Your name</span><input type="text" id="si-name" autocomplete="name"></label>
-    <label class="f"><span data-t="phone">WhatsApp number</span><input type="tel" id="si-phone" inputmode="tel" placeholder="94771234567"></label>
+    <label class="f"><span data-t="phone">WhatsApp number</span><input type="tel" id="si-phone" inputmode="tel" placeholder="0771234567"></label>
+    <label class="f" id="pin-row" hidden><span data-t="pin">Agent PIN</span><input type="password" id="si-pin" inputmode="numeric" autocomplete="off"></label>
+    <div class="small" id="si-err" style="color:var(--clay)" hidden></div>
     <div class="f"><span class="muted small" style="font-weight:600" data-t="market">Market</span><div class="markets" id="markets"></div></div>
     <button class="btn primary big" id="si-go" data-t="start">Start</button>
     <button class="btn" id="si-demo" data-t="demo">Use demo agent (Dambulla)</button>

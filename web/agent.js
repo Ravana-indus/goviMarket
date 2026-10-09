@@ -5,7 +5,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<
 const CHECK = 0.35; // same threshold as the server
 const T = {
   en: {
-    agent: "Market agent", si_title: "Today's market prices", si_sub: "Tell us who you are and which market you cover. You only do this once.",
+    agent: "Market agent", pin: "Agent PIN", bad_pin: "That PIN is not right. Ask Govi for the agent PIN.", si_title: "Today's market prices", si_sub: "Tell us who you are and which market you cover. You only do this once.",
     name: "Your name", phone: "WhatsApp number", market: "Market", start: "Start", demo: "Use demo agent (Dambulla)", switch: "change",
     k_collector: "Farm gate", k_collector_s: "collector pays", k_wholesale: "Wholesale", k_wholesale_s: "economic centre", k_retail: "Retail", k_retail_s: "shop price",
     tap: "Tap to enter", board: "Board", last: "you sent", skip: "Skip", next: "Next ›", done_btn: "Done",
@@ -15,7 +15,7 @@ const T = {
     same: "Same", sending: "Sending…", live: "live", wait: "checking",
   },
   si: {
-    agent: "වෙළඳපොළ නියෝජිත", si_title: "අද වෙළඳපොළ මිල", si_sub: "ඔබ කවුද සහ ඔබ ආවරණය කරන වෙළඳපොළ කුමක්ද කියන්න. මෙය එක් වරක් පමණි.",
+    agent: "වෙළඳපොළ නියෝජිත", pin: "නියෝජිත PIN අංකය", bad_pin: "PIN අංකය වැරදියි. Govi වෙතින් අසන්න.", si_title: "අද වෙළඳපොළ මිල", si_sub: "ඔබ කවුද සහ ඔබ ආවරණය කරන වෙළඳපොළ කුමක්ද කියන්න. මෙය එක් වරක් පමණි.",
     name: "ඔබේ නම", phone: "WhatsApp අංකය", market: "වෙළඳපොළ", start: "අරඹන්න", demo: "ආදර්ශ නියෝජිත (දඹුල්ල)", switch: "වෙනස් කරන්න",
     k_collector: "ගොවිපල මිල", k_collector_s: "එකතු කරන්නා ගෙවන", k_wholesale: "තොග මිල", k_wholesale_s: "ආර්ථික මධ්‍යස්ථානය", k_retail: "සිල්ලර මිල", k_retail_s: "කඩේ මිල",
     tap: "මිල ඇතුළත් කරන්න", board: "පුවරුව", last: "ඔබ එවූ", skip: "මඟ හරින්න", next: "ඊළඟ ›", done_btn: "හරි",
@@ -25,7 +25,7 @@ const T = {
     same: "එසේම", sending: "යවමින්…", live: "සජීවී", wait: "පරීක්ෂාවට",
   },
   ta: {
-    agent: "சந்தை முகவர்", si_title: "இன்றைய சந்தை விலை", si_sub: "நீங்கள் யார், எந்தச் சந்தையைக் கவனிக்கிறீர்கள் என்று சொல்லுங்கள். ஒருமுறை மட்டுமே.",
+    agent: "சந்தை முகவர்", pin: "முகவர் PIN", bad_pin: "PIN தவறு. Govi இடம் கேளுங்கள்.", si_title: "இன்றைய சந்தை விலை", si_sub: "நீங்கள் யார், எந்தச் சந்தையைக் கவனிக்கிறீர்கள் என்று சொல்லுங்கள். ஒருமுறை மட்டுமே.",
     name: "உங்கள் பெயர்", phone: "WhatsApp எண்", market: "சந்தை", start: "தொடங்கு", demo: "மாதிரி முகவர் (தம்புள்ளை)", switch: "மாற்று",
     k_collector: "பண்ணை விலை", k_collector_s: "சேகரிப்பாளர் தருவது", k_wholesale: "மொத்த விலை", k_wholesale_s: "பொருளாதார மையம்", k_retail: "சில்லறை விலை", k_retail_s: "கடை விலை",
     tap: "விலையை உள்ளிடவும்", board: "பலகை", last: "நீங்கள் அனுப்பியது", skip: "தவிர்", next: "அடுத்து ›", done_btn: "சரி",
@@ -50,6 +50,8 @@ let kind = ls.get("agent_kind", "wholesale");
 let entries = { collector: {}, wholesale: {}, retail: {} };
 let board = [], markets = [], pick = null;
 let pad = { crop: null, val: "" };
+let locked = false;
+fetch("/healthz").then((r) => r.json()).then((h) => { locked = h.agent_locked; $("pin-row").hidden = !locked; });
 
 const t = (k, ...a) => { const v = (T[lang] || T.en)[k] ?? T.en[k]; return typeof v === "function" ? v(...a) : v; };
 const cname = (c) => (CROP[lang] || {})[c] || c;
@@ -57,10 +59,14 @@ const rs = (n) => Math.round(n).toLocaleString("en-LK");
 const ref = (r) => r.last_here ?? r.current;
 const big = (r, v) => r.current && Math.abs(v - r.current) / r.current > CHECK;
 
-async function api(path, opts) {
-  const r = await fetch(path, opts);
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { ...(opts.headers || {}), "X-Agent-Pin": me?.pin || "" } });
   const body = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(body.detail || r.statusText);
+  if (r.status === 401 && me) {  // wrong or changed PIN: back to sign-in
+    me = null; ls.set("agent", null); show();
+    $("si-err").hidden = false; $("si-err").textContent = t("bad_pin");
+  }
+  if (!r.ok) throw new Error(typeof body.detail === "string" ? body.detail : r.statusText);
   return body;
 }
 
@@ -79,11 +85,18 @@ function renderMarkets() {
 }
 function signIn(a) { me = a; ls.set("agent", a); show(); }
 $("si-go").onclick = () => {
-  const name = $("si-name").value.trim(), phone = $("si-phone").value.replace(/\D/g, "");
-  if (!name || !phone || !pick) return;
-  signIn({ name, phone, market: pick });
+  const name = $("si-name").value.trim();
+  let phone = $("si-phone").value.replace(/\D/g, "");
+  if (phone.length === 10 && phone.startsWith("0")) phone = "94" + phone.slice(1);
+  const err = !name ? t("name") : phone.length < 9 ? t("phone") : !pick ? t("market") : locked && !$("si-pin").value ? t("pin") : "";
+  $("si-err").hidden = !err; $("si-err").textContent = err ? "⚠ " + err : "";
+  if (err) return;
+  signIn({ name, phone, market: pick, pin: $("si-pin").value });
 };
-$("si-demo").onclick = () => signIn({ name: "Kumari", phone: "94770000099", market: "Dambulla" });
+$("si-demo").onclick = () => {
+  if (locked && !$("si-pin").value) { $("si-err").hidden = false; $("si-err").textContent = "⚠ " + t("pin"); return; }
+  signIn({ name: "Kumari", phone: "94770000099", market: "Dambulla", pin: $("si-pin").value });
+};
 $("switch").onclick = (e) => { e.preventDefault(); me = null; ls.set("agent", null); show(); };
 
 function show() {

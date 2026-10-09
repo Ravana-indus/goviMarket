@@ -5,10 +5,10 @@ import uuid
 from datetime import date, datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from . import store
+from . import security, store
 from .schemas import PriceKind
 
 router = APIRouter()
@@ -53,8 +53,12 @@ def board(kind: PriceKind = "wholesale", market: Optional[str] = None):
 
 
 @router.post("/api/agent/prices")
-def report(r: PriceReport):
+def report(r: PriceReport, request: Request):
     """Save today's prices from one agent. Big jumps are saved but flagged for the admin to check."""
+    if not security.is_agent(request):
+        raise HTTPException(401, "Wrong agent PIN.")
+    if r.market not in MARKETS:
+        raise HTTPException(400, "Pick a market from the list.")
     if not r.prices:
         raise HTTPException(400, "enter at least one price")
     cur = store.prices()
@@ -75,8 +79,10 @@ def report(r: PriceReport):
 
 
 @router.get("/api/agent/reports")
-def reports(phone: Optional[str] = None, limit: int = 50):
-    """Latest price reports, newest first. With phone, only that agent's."""
+def reports(request: Request, phone: Optional[str] = None, limit: int = 50):
+    """Latest price reports, newest first. With phone, only that agent's (needs the agent PIN)."""
+    if phone is not None and not security.is_agent(request):
+        raise HTTPException(401, "Wrong agent PIN.")
     rows = [p for p in store.DB.all("prices") if phone is None or p.get("phone") == phone]
     return sorted(rows, key=lambda d: d["at"], reverse=True)[:limit]
 

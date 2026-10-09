@@ -35,21 +35,41 @@ class Memory:
 
 
 class Firestore:
+    """Firestore with an in-process write-through cache.
+
+    Every write goes to Firestore first; reads come from memory after a collection's first load.
+    Run Cloud Run with --max-instances=1 so one process owns the cache (fine at pilot scale)."""
+    KINDS = ["listings", "orders", "inbox", "prices", "matches", "plans", "outbox", "shipments",
+             "standing", "offers", "chat"]
+
     def __init__(self):
         from google.cloud import firestore
         self.db = firestore.Client()
+        self.cache: dict[str, dict[str, dict]] = {}
+
+    def _load(self, kind):
+        if kind not in self.cache:
+            self.cache[kind] = {d.id: d.to_dict() for d in self.db.collection(kind).stream()}
+        return self.cache[kind]
 
     def put(self, kind, key, doc):
         self.db.collection(kind).document(key).set(doc)
+        self._load(kind)[key] = doc
 
     def all(self, kind):
-        return [d.to_dict() for d in self.db.collection(kind).stream()]
+        return list(self._load(kind).values())
 
     def clear(self):
-        raise RuntimeError("refusing to clear Firestore")
+        if os.getenv("ALLOW_RESET") != "1":
+            raise RuntimeError("reset is off; set ALLOW_RESET=1 for a demo deployment")
+        for kind in set(self.KINDS) | set(self.cache):
+            for d in self.db.collection(kind).list_documents():
+                d.delete()
+        self.cache.clear()
 
     def delete(self, kind, key):
         self.db.collection(kind).document(key).delete()
+        self._load(kind).pop(key, None)
 
 
 DB: Backend = Firestore() if os.getenv("STORE") == "firestore" else Memory()

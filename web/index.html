@@ -49,6 +49,18 @@
   .track span.on { border-top-color: var(--leaf); color: var(--leaf); font-weight: 650; }
   .big-btn { width: 100%; padding: 14px; font-size: 16px; border-radius: 14px; }
   .note { font-size: 12px; color: var(--muted); text-align: center; margin-top: 18px; }
+  .form { padding: 16px; display: grid; gap: 12px; }
+  .form h2 { font-size: 17px; }
+  label.f, div.f { display: grid; gap: 6px; font-size: 13px; color: var(--muted); font-weight: 600; }
+  .form input[type=text], .form input[type=tel], .form select { width: 100%; min-height: 46px; font-size: 16px; border: 1px solid var(--line); background: var(--surface-2); border-radius: 10px; padding: 10px 12px; color: var(--ink); }
+  .choice { display: flex; flex-wrap: wrap; gap: 6px; }
+  .choice button { min-height: 42px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; cursor: pointer; text-transform: capitalize; color: var(--ink); }
+  .choice button.on { border-color: var(--leaf); background: var(--leaf-soft); color: var(--leaf); }
+  .qty { display: flex; gap: 6px; align-items: center; }
+  .qty button { min-width: 56px; min-height: 46px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-weight: 650; cursor: pointer; color: var(--ink); }
+  .qty input { width: 110px; min-height: 46px; text-align: center; font-size: 18px; font-weight: 650; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--ink); }
+  .ok { padding: 12px 14px; border-left: 4px solid var(--leaf); background: var(--leaf-soft); border-radius: 10px; color: var(--ink); font-size: 14px; }
+  .bad { padding: 12px 14px; border-left: 4px solid var(--clay); background: var(--clay-soft); border-radius: 10px; color: var(--ink); font-size: 14px; }
 </style>
 </head>
 <body>
@@ -75,7 +87,25 @@
 
   <section class="pane" id="send">
     <div class="seg" id="who"><button data-r="farmer" class="on" data-t="i_farmer"></button><button data-r="buyer" data-t="i_buyer"></button></div>
-    <textarea id="text" rows="4"></textarea>
+    <div class="card form" id="hform">
+      <h2 data-t="h_title"></h2>
+      <label class="f"><span data-t="h_name"></span><input type="text" id="h-name" autocomplete="name"></label>
+      <label class="f"><span data-t="phone_ph"></span><input type="tel" id="h-phone" inputmode="tel" placeholder="0771234567"></label>
+      <div class="f"><span data-t="h_crop"></span><div class="choice" id="h-crops"></div></div>
+      <div class="f"><span data-t="h_kg"></span>
+        <div class="qty"><button type="button" data-d="-50">−50</button><input type="number" id="h-kg" inputmode="numeric" min="1" max="20000" value="100"><button type="button" data-d="50">+50</button><span class="muted">kg</span></div></div>
+      <div class="f"><span data-t="h_ready"></span><div class="choice" id="h-ready"></div></div>
+      <label class="f"><span data-t="h_town"></span><select id="h-town"></select></label>
+      <button class="btn primary big-btn" id="h-go" data-t="h_post"></button>
+      <div id="h-out"></div>
+    </div>
+    <div class="card form" id="bform" hidden>
+      <h2 data-t="b_title"></h2>
+      <p class="muted" style="margin:0" data-t="b_sub"></p>
+      <a class="btn primary big-btn" href="/business" style="text-align:center;text-decoration:none" data-t="b_go"></a>
+    </div>
+    <div class="or" data-t="h_or"></div>
+    <textarea id="text" rows="3"></textarea>
     <div class="attach">
       <label>📷 <span data-t="photo"></span><input type="file" id="photo" accept="image/*" capture="environment" hidden></label>
       <label>🎙️ <span data-t="voice"></span><input type="file" id="voice" accept="audio/*" capture hidden></label>

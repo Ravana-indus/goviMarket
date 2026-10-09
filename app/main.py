@@ -3,16 +3,22 @@ from __future__ import annotations
 
 import logging
 import os
-from datetime import date, timedelta
+from urllib.parse import quote
+import re
+import uuid
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-from . import deals, parser, portal, replies, reporters, rescue, shipping, store, surplus, whatsapp
+from pydantic import BaseModel, Field
+
+from . import deals, parser, portal, replies, reporters, rescue, security, shipping, store, surplus, vocab, whatsapp
 from .pricing import split
+from .schemas import Listing
 
 log = logging.getLogger("govi")
 app = FastAPI(title="Govi Market")
@@ -20,25 +26,50 @@ WEB = Path(__file__).resolve().parent.parent / "web"
 app.mount("/static", StaticFiles(directory=WEB), name="static")
 app.include_router(portal.router)
 app.include_router(reporters.router)
+app.middleware("http")(security.middleware)
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+
+MAX_UPLOAD = 10 * 1024 * 1024  # WhatsApp media is at most ~16 MB; photos and voice notes are far smaller
+MAX_TEXT = 2000
+MEDIA_TYPES = ("image/", "audio/")
+
+
+normalise_phone = vocab.phone
+
+
+def _chat(phone: str, direction: str, text: str, via: str, media: str | None = None) -> None:
+    store.DB.put("chat", uuid.uuid4().hex[:10], {"phone": phone, "dir": direction, "text": text, "media": media,
+                                                 "via": via, "at": datetime.now(timezone.utc).isoformat()})
 
 
 def handle(*, text: Optional[str], media: Optional[bytes], mime_type: Optional[str],
-           sender: str, today: date) -> dict:
-    """One pipeline for every channel: parse, store, build a reply."""
+           sender: str, today: date, via: str = "web", auto_plan: bool = True) -> dict:
+    """One pipeline for every channel: parse, store, match, build a reply."""
+    if sender.isdigit():
+        _chat(sender, "in", text or "", via, (mime_type or "").split("/")[0] or None)
+    reply_to = None
     if text and not media:
-        confirmed = deals.answer(sender, text) or surplus.answer(sender, text)
-        if confirmed:
-            return {"parsed": None, "created": [], "needs_clarification": False, "reply": confirmed}
-    parsed = parser.parse(text=text, media=media, mime_type=mime_type, today=today.isoformat())
-    created = store.record(parsed, default_date=today, sender=sender)
-    needs_clarification = parsed.confidence < 0.7 or (parsed.role == "farmer" and not parsed.location)
-    return {"parsed": parsed, "created": created, "needs_clarification": needs_clarification,
-            "reply": replies.build(parsed, store.prices())}
+        reply_to = deals.answer(sender, text) or surplus.answer(sender, text)
+    if reply_to:
+        out = {"parsed": None, "created": [], "needs_clarification": False, "reply": reply_to}
+    else:
+        parsed = parser.parse(text=text, media=media, mime_type=mime_type, today=today.isoformat())
+        created = store.record(parsed, default_date=today, sender=sender)
+        needs = parsed.confidence < 0.7 or (parsed.role == "farmer" and not parsed.location)
+        out = {"parsed": parsed, "created": created, "needs_clarification": needs,
+               "reply": replies.build(parsed, store.prices())}
+        if created and auto_plan and parsed.role in ("farmer", "buyer"):
+            deals.plan()  # match straight away; both sides get their YES/NO message
+    if sender.isdigit():
+        _chat(sender, "out", out["reply"], via)
+    return out
 
 
 @app.get("/healthz")
 def healthz():
     return {"ok": True, "gemini": bool(os.getenv("GEMINI_API_KEY")), "store": os.getenv("STORE", "memory"),
+            "admin_locked": bool(security.admin_token()), "agent_locked": bool(security.agent_pin()),
+            "whatsapp": bool(os.getenv("WHATSAPP_TOKEN")),
             "whatsapp_number": os.getenv("WHATSAPP_DISPLAY_NUMBER", "")}
 
 
@@ -62,15 +93,126 @@ def admin_app():
     return FileResponse(WEB / "admin.html")
 
 
+@app.get("/sim")
+@app.get("/smul")
+def simulator():
+    """WhatsApp simulator: the same pipeline as the real webhook, for demos and testing."""
+    return FileResponse(WEB / "sim.html")
+
+
+@app.get("/login")
+def login_page():
+    return FileResponse(WEB / "login.html")
+
+
+@app.post("/login")
+def login(token: str = Form(...), next: str = Form("/admin")):
+    dest = next if next.startswith("/") and not next.startswith("//") else "/admin"
+    if not security.admin_token() or not security._same(token, security.admin_token()):
+        return RedirectResponse("/login?bad=1&next=" + quote(dest), status_code=303)
+    resp = RedirectResponse(dest, status_code=303)
+    resp.set_cookie(security.COOKIE, token, max_age=7 * 86400, httponly=True, samesite="lax",
+                    secure=os.getenv("COOKIE_SECURE", "1") == "1")
+    return resp
+
+
+@app.post("/logout")
+def logout():
+    resp = RedirectResponse("/login", status_code=303)
+    resp.delete_cookie(security.COOKIE)
+    return resp
+
+
+@app.get("/api/towns")
+def towns():
+    """Towns with transport to the cities, for the harvest form."""
+    origins = sorted({l.origin for l in deals.LANES})
+    return {"origins": origins, "cities": sorted({l.dest for l in deals.LANES}),
+            "crops": sorted(store.prices())}
+
+
+class ListingIn(BaseModel):
+    farmer: str = Field(min_length=1, max_length=60)
+    phone: str
+    location: str = Field(min_length=2, max_length=60)
+    crop: str
+    qty_kg: float = Field(gt=0, le=20000)
+    ready_on: date
+    lang: str = "si"
+
+
+@app.post("/api/listings")
+def add_listing(x: ListingIn):
+    """Harvest posted from the farmer portal. Matching runs at once."""
+    phone = normalise_phone(x.phone)
+    if not phone:
+        raise HTTPException(400, "Enter a valid phone number.")
+    crop = vocab.crop(x.crop)
+    if crop not in store.prices():
+        raise HTTPException(400, f"We don't trade {x.crop} yet.")
+    if not date.today() - timedelta(days=1) <= x.ready_on <= date.today() + timedelta(days=30):
+        raise HTTPException(400, "Ready date must be within the next 30 days.")
+    rid = uuid.uuid4().hex[:8]
+    store.put("listings", Listing(id=rid, phone=phone, lang=x.lang if x.lang in ("si", "ta", "en") else "si",
+                                  farmer=x.farmer.strip(), location=vocab.town(x.location), crop=crop,
+                                  qty_kg=x.qty_kg, ready_on=x.ready_on, remaining_kg=x.qty_kg).model_dump(mode="json"))
+    deals.plan()
+    mine = [m.model_dump(mode="json") for m in store.matches() if m.listing_id == rid]
+    return {"id": rid, "matches": mine, "matched_kg": sum(m["qty_kg"] for m in mine)}
+
+
+@app.get("/api/sim/thread")
+def sim_thread(phone: str):
+    """Everything sent to and from one simulator phone, oldest first."""
+    p = normalise_phone(phone)
+    chat = [c for c in store.DB.all("chat") if c["phone"] == p]
+    if not p or not any(c["via"] == "sim" for c in chat):
+        return []
+    out = [{"dir": c["dir"], "text": c["text"], "media": c.get("media"), "at": c["at"]} for c in chat]
+    out += [{"dir": "out", "text": o["body"], "media": None, "at": o["at"]} for o in store.sent() if o["to"] == p]
+    return sorted(out, key=lambda m: m["at"])
+
+
+@app.post("/jobs/daily")
+def daily_job(today: Optional[date] = None):
+    """Run by Cloud Scheduler each morning: next week's standing orders, then unsold-produce alerts."""
+    today = today or date.today()
+    ran = []
+    for s_ in store.DB.all("standing"):
+        if s_.get("last_run") != today.isoformat() and s_["weekday"] == (today + timedelta(days=2)).strftime("%A"):
+            portal.run_standing(s_["id"], today)
+            store.DB.put("standing", s_["id"], {**s_, "last_run": today.isoformat()})
+            ran.append(s_["id"])
+    offers = surplus.sweep(today)
+    return {"standing_orders_run": ran, "unsold_offers": len(offers)}
+
+
 @app.post("/intake")
 async def intake(text: Optional[str] = Form(None), file: Optional[UploadFile] = File(None),
-                 sender: str = Form("web"), today: Optional[date] = Form(None)):
-    """Web upload: photo, voice note or text."""
-    media = await file.read() if file else None
+                 sender: str = Form("web"), via: str = Form("web"), today: Optional[date] = Form(None)):
+    """Web portal and WhatsApp simulator: photo, voice note or text."""
+    text = (text or "").strip() or None
+    if text and len(text) > MAX_TEXT:
+        raise HTTPException(400, f"Message is too long (max {MAX_TEXT} characters).")
+    media, mime = None, None
+    if file and file.filename:
+        mime = (file.content_type or "").split(";")[0].strip()
+        if not mime.startswith(MEDIA_TYPES):
+            raise HTTPException(400, "Send a photo or a voice note.")
+        media = await file.read(MAX_UPLOAD + 1)
+        if len(media) > MAX_UPLOAD:
+            raise HTTPException(400, "That file is too big (max 10 MB).")
     if not text and not media:
-        raise HTTPException(400, "send text or a file")
-    return handle(text=text, media=media, mime_type=file.content_type if file else None,
-                  sender=sender, today=today or date.today())
+        raise HTTPException(400, "Type a message or attach a photo or voice note.")
+    phone = normalise_phone(sender) or "web"
+    if via == "sim" and phone == "web":
+        raise HTTPException(400, "Pick a phone number for the simulator.")
+    try:
+        return handle(text=text, media=media, mime_type=mime, sender=phone,
+                      today=today or date.today(), via="sim" if via == "sim" else "web")
+    except Exception:
+        log.exception("intake failed")
+        raise HTTPException(502, "We could not read that message just now. Please try again.")
 
 
 @app.get("/webhook/whatsapp")
@@ -85,7 +227,7 @@ def _process_whatsapp(msg: whatsapp.Inbound) -> None:
     try:
         media = whatsapp.fetch_media(msg.media_id) if msg.media_id else None
         out = handle(text=msg.text, media=media, mime_type=msg.mime_type,
-                     sender=msg.sender, today=date.today())
+                     sender=msg.sender, today=date.today(), via="whatsapp")
         whatsapp.send_text(msg.sender, out["reply"])
     except Exception:
         log.exception("whatsapp message failed")
@@ -243,14 +385,16 @@ DEMO_MESSAGES = [
 @app.post("/demo/seed")
 def demo_seed():
     """Reset the in-memory store and replay a realistic morning of messages."""
-    if os.getenv("STORE") == "firestore":
-        raise HTTPException(400, "demo seed only runs on the memory store")
-    store.reset()
+    try:
+        store.reset()
+    except RuntimeError as e:
+        raise HTTPException(400, str(e))
     today = date.today()
     day = (today + timedelta(days=2)).strftime("%A")
     def send_all(messages):
         for phone, text in messages:
-            handle(text=text.format(day=day), media=None, mime_type=None, sender=phone, today=today)
+            handle(text=text.format(day=day), media=None, mime_type=None, sender=phone, today=today,
+                   via="sim", auto_plan=False)
 
     # Earlier this morning: deals confirmed and shipments already moving, later departures
     # further behind, so every step shows on the board.

@@ -1,6 +1,10 @@
 // Sinhala and Tamil strings need a native speaker's review before the demo.
 const T = {
   en: {
+    h_title: "Post your harvest", h_name: "Your name", h_crop: "Crop", h_kg: "How much?", h_ready: "Ready on", h_town: "Your town",
+    h_post: "Post harvest", h_or: "or send a message, photo or voice note", today: "Today", tomorrow: "Tomorrow", in2: "In 2 days",
+    h_done: "Posted. We will WhatsApp you when a buyer is found.", h_matched: "Buyer found: {kg} kg to {buyer} at Rs {price}/kg after transport. Reply YES on WhatsApp to confirm.",
+    h_fill: "Please fill in your name, phone and crop.", b_title: "Restaurants, hotels and shops", b_sub: "Order with fair prices, weekly standing orders and delivery tracking.", b_go: "Open the ordering portal", err: "Something went wrong. Please try again.",
     hero: "Sell your harvest direct. Buy fresh from the farm.", sub: "No middlemen. Send a voice note, a photo or a message, and we find the buyer and the bus.",
     wa: "Message us on WhatsApp", or: "or use this page", t_prices: "Today's prices", t_send: "Sell / Order", t_track: "My orders",
     i_farmer: "I'm selling", i_buyer: "I'm buying", photo: "Photo", voice: "Voice note", phone_ph: "Your phone number",
@@ -13,6 +17,10 @@ const T = {
     before_transport: "before transport", transport_off: "Transport already taken off", shared: "shared with neighbours",
   },
   si: {
+    h_title: "ඔබේ අස්වැන්න දාන්න", h_name: "ඔබේ නම", h_crop: "බෝගය", h_kg: "කොපමණද?", h_ready: "සූදානම් දිනය", h_town: "ඔබේ නගරය",
+    h_post: "අස්වැන්න දාන්න", h_or: "නැතහොත් පණිවිඩයක්, ඡායාරූපයක් හෝ හඬ පණිවිඩයක් එවන්න", today: "අද", tomorrow: "හෙට", in2: "දින 2කින්",
+    h_done: "දැම්මා. ගැනුම්කරුවෙක් හමු වූ විට WhatsApp කරන්නෙමු.", h_matched: "ගැනුම්කරු හමු විය: කිලෝ {kg} {buyer} වෙත, ප්‍රවාහනයෙන් පසු රු {price}/කිලෝ. තහවුරු කිරීමට WhatsApp හි YES යවන්න.",
+    h_fill: "කරුණාකර නම, දුරකථන අංකය සහ බෝගය පුරවන්න.", b_title: "අවන්හල්, හෝටල් සහ කඩ", b_sub: "සාධාරණ මිලට ඇණවුම්, සතිපතා ඇණවුම් සහ බෙදාහැරීම් ලුහුබැඳීම.", b_go: "ඇණවුම් පිටුව විවෘත කරන්න", err: "වැරැද්දක් සිදු විය. නැවත උත්සාහ කරන්න.",
     hero: "ඔබේ අස්වැන්න කෙලින්ම විකුණන්න. ගොවිපලෙන් අලුත් එළවළු.", sub: "අතරමැදියන් නැත. හඬ පණිවිඩයක්, ඡායාරූපයක් හෝ පණිවිඩයක් එවන්න. ගැනුම්කරු සහ බස් රථය අපි සොයා දෙන්නෙමු.",
     wa: "WhatsApp හරහා පණිවිඩයක් එවන්න", or: "නැතහොත් මෙම පිටුව භාවිතා කරන්න", t_prices: "අද මිල", t_send: "විකුණන්න / ඇණවුම්", t_track: "මගේ ඇණවුම්",
     i_farmer: "මම විකුණනවා", i_buyer: "මම මිලදී ගන්නවා", photo: "ඡායාරූපය", voice: "හඬ පණිවිඩය", phone_ph: "ඔබේ දුරකථන අංකය",
@@ -25,6 +33,10 @@ const T = {
     before_transport: "ප්‍රවාහනයට පෙර", transport_off: "ප්‍රවාහන වියදම දැනටමත් අඩු කර ඇත", shared: "අසල්වැසියන් සමඟ බෙදාගත්",
   },
   ta: {
+    h_title: "உங்கள் அறுவடையைப் பதிவிடுங்கள்", h_name: "உங்கள் பெயர்", h_crop: "பயிர்", h_kg: "எவ்வளவு?", h_ready: "தயாராகும் நாள்", h_town: "உங்கள் ஊர்",
+    h_post: "அறுவடையைப் பதிவிடு", h_or: "அல்லது செய்தி, புகைப்படம் அல்லது குரல் செய்தி அனுப்புங்கள்", today: "இன்று", tomorrow: "நாளை", in2: "2 நாளில்",
+    h_done: "பதிவிடப்பட்டது. வாங்குபவர் கிடைத்ததும் WhatsApp செய்வோம்.", h_matched: "வாங்குபவர் கிடைத்தார்: {kg} கிலோ {buyer} க்கு, போக்குவரத்துக்குப் பின் ரூ {price}/கிலோ. உறுதிப்படுத்த WhatsApp இல் YES அனுப்புங்கள்.",
+    h_fill: "பெயர், தொலைபேசி எண் மற்றும் பயிரை நிரப்புங்கள்.", b_title: "உணவகங்கள், ஹோட்டல்கள், கடைகள்", b_sub: "நியாய விலையில் ஆர்டர், வாராந்திர ஆர்டர்கள், விநியோகக் கண்காணிப்பு.", b_go: "ஆர்டர் பக்கத்தைத் திற", err: "ஏதோ தவறு. மீண்டும் முயற்சிக்கவும்.",
     hero: "உங்கள் அறுவடையை நேரடியாக விற்கவும். பண்ணையிலிருந்து புதிதாக வாங்கவும்.", sub: "இடைத்தரகர்கள் இல்லை. குரல் செய்தி, புகைப்படம் அல்லது செய்தி அனுப்புங்கள். வாங்குபவரையும் பேருந்தையும் நாங்கள் கண்டுபிடிப்போம்.",
     wa: "WhatsApp இல் செய்தி அனுப்புங்கள்", or: "அல்லது இந்தப் பக்கத்தைப் பயன்படுத்துங்கள்", t_prices: "இன்றைய விலை", t_send: "விற்க / ஆர்டர்", t_track: "என் ஆர்டர்கள்",
     i_farmer: "நான் விற்கிறேன்", i_buyer: "நான் வாங்குகிறேன்", photo: "புகைப்படம்", voice: "குரல் செய்தி", phone_ph: "உங்கள் தொலைபேசி எண்",
@@ -51,8 +63,41 @@ function applyLang() {
   document.querySelectorAll("[data-tp]").forEach((el) => (el.placeholder = t(el.dataset.tp)));
   document.querySelectorAll("#langs button").forEach((b) => b.classList.toggle("on", b.dataset.l === lang));
   $("text").placeholder = t(role === "farmer" ? "ph_farmer" : "ph_buyer");
-  loadPrices();
+  loadPrices(); renderForm();
 }
+
+// ---- harvest form: the main way farmers post supply
+const CROP_NAME = { si: { carrot: "කැරට්", leeks: "ලීක්ස්", beans: "බෝංචි", tomato: "තක්කාලි", "red onion": "රතු ළූණු", "green chilli": "අමු මිරිස්" },
+  ta: { carrot: "கேரட்", leeks: "லீக்ஸ்", beans: "பீன்ஸ்", tomato: "தக்காளி", "red onion": "சின்ன வெங்காயம்", "green chilli": "பச்சை மிளகாய்" } };
+let form = { crop: null, ready: 1, crops: [], towns: [] };
+try { Object.assign(form, JSON.parse(localStorage.getItem("hform") || "{}"), { crops: [], towns: [] }); } catch {}
+const iso = (d) => { const x = new Date(); x.setDate(x.getDate() + d); return x.toISOString().slice(0, 10); };
+function renderForm() {
+  $("h-crops").innerHTML = form.crops.map((c) => `<button type="button" data-c="${esc(c)}" class="${c === form.crop ? "on" : ""}">${esc((CROP_NAME[lang] || {})[c] || c)}</button>`).join("");
+  $("h-crops").querySelectorAll("button").forEach((b) => (b.onclick = () => { form.crop = b.dataset.c; renderForm(); }));
+  $("h-ready").innerHTML = [[0, "today"], [1, "tomorrow"], [2, "in2"]].map(([d, k]) => `<button type="button" data-d="${d}" class="${d === form.ready ? "on" : ""}">${t(k)}</button>`).join("");
+  $("h-ready").querySelectorAll("button").forEach((b) => (b.onclick = () => { form.ready = +b.dataset.d; renderForm(); }));
+  const cur = $("h-town").value || form.town;
+  $("h-town").innerHTML = form.towns.map((x) => `<option ${x === cur ? "selected" : ""}>${esc(x)}</option>`).join("");
+}
+document.querySelectorAll(".qty button").forEach((b) => (b.onclick = () => { $("h-kg").value = Math.max(1, (+$("h-kg").value || 0) + +b.dataset.d); }));
+fetch("/api/towns").then((r) => r.json()).then((d) => { form.crops = d.crops; form.towns = d.origins; renderForm(); });
+$("h-go").onclick = async () => {
+  const body = { farmer: $("h-name").value.trim(), phone: $("h-phone").value.trim(), crop: form.crop, qty_kg: +$("h-kg").value,
+    ready_on: iso(form.ready), location: $("h-town").value, lang };
+  if (!body.farmer || !body.phone || !body.crop || !(body.qty_kg > 0)) { $("h-out").innerHTML = `<div class="bad">${t("h_fill")}</div>`; return; }
+  $("h-go").disabled = true;
+  try {
+    const r = await fetch("/api/listings", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(typeof d.detail === "string" ? d.detail : t("err"));
+    try { localStorage.setItem("hform", JSON.stringify({ town: body.location, ready: form.ready })); } catch {}
+    const m = d.matches[0];
+    $("h-out").innerHTML = `<div class="ok">${esc(m ? t("h_matched").replace("{kg}", Math.round(d.matched_kg)).replace("{buyer}", m.buyer).replace("{price}", Math.round(m.farmer_gets_lkr_per_kg)) : t("h_done"))}</div>`;
+    $("tphone").value = body.phone;
+  } catch (e) { $("h-out").innerHTML = `<div class="bad">${esc(e.message)}</div>`; }
+  finally { $("h-go").disabled = false; }
+};
 
 async function loadPrices() {
   const rows = await (await fetch("/api/prices")).json();
@@ -77,6 +122,7 @@ document.querySelectorAll("#langs button").forEach((b) => (b.onclick = () => {
 }));
 document.querySelectorAll("#who button").forEach((b) => (b.onclick = () => {
   role = b.dataset.r;
+  $("hform").hidden = role !== "farmer"; $("bform").hidden = role !== "buyer";
   document.querySelectorAll("#who button").forEach((x) => x.classList.toggle("on", x === b));
   $("text").placeholder = t(role === "farmer" ? "ph_farmer" : "ph_buyer");
 }));
@@ -95,7 +141,9 @@ $("go").onclick = async () => {
   fd.append("sender", $("phone").value.trim() || "web");
   $("go").disabled = true; $("go").textContent = t("sent");
   try {
-    const out = await (await fetch("/intake", { method: "POST", body: fd })).json();
+    const r = await fetch("/intake", { method: "POST", body: fd });
+    const out = await r.json().catch(() => ({}));
+    if (!r.ok) { $("reply").innerHTML = `<div class="bad">${esc(typeof out.detail === "string" ? out.detail : t("err"))}</div>`; return; }
     $("reply").innerHTML = `<div class="card reply">${esc(out.reply)}</div>`;
     $("text").value = ""; $("photo").value = ""; $("voice").value = ""; $("picked").textContent = "";
     if ($("phone").value.trim()) $("tphone").value = $("phone").value.trim();

@@ -10,7 +10,11 @@ const fmtDate = (d) => new Date(d + "T00:00").toLocaleDateString("en-GB", { week
 
 async function api(path, opts) {
   const r = await fetch(path, opts);
-  if (!r.ok) throw new Error(await r.text());
+  if (r.status === 401) { location.href = "/login?next=/admin" + location.hash; throw new Error("signed out"); }
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(typeof body.detail === "string" ? body.detail : r.statusText);
+  }
   return r.json();
 }
 
@@ -246,6 +250,7 @@ $("sim-send").onclick = (e) => busy(e.target, async () => {
 });
 
 api("/healthz").then((h) => {
+  $("logout").hidden = !h.admin_locked;
   $("mode").textContent = h.gemini ? "Gemini live" : "Demo mode · no Gemini key";
   $("mode").className = "badge" + (h.gemini ? " live" : "");
   $("sent-note").textContent = h.gemini ? "written by the Gemini agent" : "templates (demo mode)";

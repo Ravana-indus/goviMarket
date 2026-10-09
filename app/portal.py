@@ -8,7 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from . import deals, forecast, store
+from . import deals, forecast, store, vocab
 from .pricing import split
 from .schemas import Order
 
@@ -18,15 +18,15 @@ WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", 
 
 class Line(BaseModel):
     crop: str
-    qty_kg: float = Field(gt=0)
+    qty_kg: float = Field(gt=0, le=5000)
 
 
 class OrderIn(BaseModel):
     phone: str
-    business: str
-    location: str = "Colombo"
+    business: str = Field(min_length=1, max_length=80)
+    location: str = Field("Colombo", max_length=60)
     needed_by: date
-    items: list[Line]
+    items: list[Line] = Field(max_length=20)
     repeat_weekly: bool = False
 
 
@@ -70,7 +70,14 @@ def _create(o: OrderIn) -> list[str]:
 def place_order(o: OrderIn):
     """Place an order from the portal. Matching runs at once, so the buyer sees suppliers."""
     if not o.items:
-        raise HTTPException(400, "add at least one item")
+        raise HTTPException(400, "Add at least one item.")
+    phone = vocab.phone(o.phone)
+    if not phone:
+        raise HTTPException(400, "Enter a valid WhatsApp number.")
+    if not date.today() <= o.needed_by <= date.today() + timedelta(days=60):
+        raise HTTPException(400, "Delivery date must be between today and 60 days ahead.")
+    o = o.model_copy(update={"phone": phone, "location": vocab.town(o.location) or "Colombo",
+                             "items": [Line(crop=vocab.crop(l.crop), qty_kg=l.qty_kg) for l in o.items]})
     known = store.prices()
     bad = [l.crop for l in o.items if l.crop not in known]
     if bad:
@@ -106,11 +113,20 @@ def run_standing(sid: str, today: Optional[date] = None):
     return place_order(o)
 
 
+_FC: dict = {}
+FC_TTL = 3600  # Gemini writes the summary at most once an hour
+
+
 @router.get("/api/forecast")
 def get_forecast():
+    import time
     rows = forecast.outlook()
-    try:
-        summary = forecast.explain(rows)
-    except Exception:
-        summary = forecast.template(rows)
-    return {"summary": summary, "crops": rows}
+    key = date.today().isoformat()
+    hit = _FC.get(key)
+    if not hit or time.time() - hit[0] > FC_TTL:
+        try:
+            summary = forecast.explain(rows)
+        except Exception:
+            summary = forecast.template(rows)
+        _FC.clear(); _FC[key] = hit = (time.time(), summary)
+    return {"summary": hit[1], "crops": rows}
