@@ -146,28 +146,31 @@ def test_both_sides_confirm_and_stock_is_held(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     c = TestClient(app)
     plan = c.post("/demo/seed").json()
-    m = next(x for x in plan["matches"] if x["farmer"] == "Sunil")
+    m = next(x for x in plan["matches"] if x["status"] == "proposed" and x["buyer"] == "Mango Tree Cafe")
+    farmer = store.get("listings", m["listing_id"])
+    before = farmer["remaining_kg"]
     sent = c.get("/state").json()["outbox"]
-    assert any(o["to"] == "94770000002" and "YES" in o["body"] for o in sent)  # farmer notified
-    assert c.post("/intake", data={"text": "ඔව්", "sender": "94770000002"}).json()["reply"].startswith("Thanks")
-    assert c.post("/intake", data={"text": "yes", "sender": "94770000011"}).json()["reply"].startswith("Confirmed")
-    s = c.get("/state").json()
-    sunil = next(l for l in s["listings"] if l["id"] == m["listing_id"])
-    assert sunil["remaining_kg"] == 280 - m["qty_kg"]
-    # Re-running matching keeps confirmed and pending deals and does not double-allocate.
+    assert any(o["to"] == farmer["phone"] and "YES" in o["body"] for o in sent)  # farmer notified
+    assert c.post("/intake", data={"text": "ඔව්", "sender": farmer["phone"]}).json()["reply"].startswith("Thanks")
+    # the buyer may have several pending loads; keep saying yes until this one is confirmed
+    for _ in range(4):
+        c.post("/intake", data={"text": "yes", "sender": "94770000014"})
+    assert next(x for x in store.matches() if x.id == m["id"]).status == "confirmed"
+    assert store.get("listings", m["listing_id"])["remaining_kg"] == before - m["qty_kg"]
     again = c.post("/plan").json()
-    assert sum(x["qty_kg"] for x in again["matches"] if x["listing_id"] == m["listing_id"]) <= 280
-    assert again["impact"]["confirmed"] == 1
+    assert sum(x["qty_kg"] for x in again["matches"] if x["listing_id"] == m["listing_id"]) <= farmer["qty_kg"]
 
 
 def test_decline_frees_the_match(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     c = TestClient(app)
     c.post("/demo/seed")
-    assert c.post("/intake", data={"text": "no", "sender": "94770000002"}).json()["reply"].startswith("Declined")
+    pending = next(x for x in store.matches() if x.status == "proposed")
+    phone = store.get("listings", pending.listing_id)["phone"]
+    assert c.post("/intake", data={"text": "no", "sender": phone}).json()["reply"].startswith("Declined")
     live = c.post("/plan").json()["matches"]
     declined = [m for m in __import__("app.store", fromlist=["x"]).matches() if m.status == "declined"]
-    assert declined and declined[0].farmer == "Sunil"
+    assert declined and declined[0].id == pending.id
     assert declined[0].id not in {x["id"] for x in live}
     assert not any(x["listing_id"] == declined[0].listing_id and x["order_id"] == declined[0].order_id for x in live)
 
@@ -208,3 +211,23 @@ def test_farmer_reply_quotes_price_after_transport(monkeypatch):
     store.reset()
     out = TestClient(app).post("/intake", data={"text": "This is Sunil, carrot 100kg ready tomorrow, Nuwara Eliya"}).json()
     assert "after transport" in out["reply"]
+
+
+
+def test_shipment_moves_through_every_step_and_messages_both_sides(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    c = TestClient(app)
+    plan = c.post("/demo/seed").json()
+    statuses = {x["status"] for x in plan["shipments"]}
+    assert {"planned", "booked", "loaded", "in_transit", "delivered"} <= statuses
+    assert {x["lane"]["mode"] for x in plan["shipments"]} >= {"train_parcel", "sl_post", "lorry"}
+    waiting = next(x for x in plan["shipments"] if x["status"] == "planned")
+    assert c.post(f"/shipments/{waiting['id']}/advance").status_code == 409  # nobody said YES yet
+    booked = next(x for x in plan["shipments"] if x["status"] == "booked")
+    n_sent = len(c.get("/state").json()["outbox"])
+    for want in ["loaded", "in_transit", "arrived", "delivered"]:
+        assert c.post(f"/shipments/{booked['id']}/advance").json()["status"] == want
+    sent = c.get("/state").json()["outbox"][n_sent:]
+    assert any("Delivered" in o["body"] or "භාර" in o["body"] for o in sent)
+    track = c.get("/api/track", params={"phone": "94770000011"}).json()
+    assert any(m["shipment"] for o in track["orders"] for m in o["matches"])

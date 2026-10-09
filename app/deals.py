@@ -5,7 +5,7 @@ import logging
 import os
 import uuid
 
-from . import agent, store, whatsapp
+from . import agent, shipping, store, whatsapp
 from .lanes import load_lanes
 from .matcher import bundle, impact, match
 from .pricing import split
@@ -46,15 +46,26 @@ def plan() -> dict:
         m.id = uuid.uuid4().hex[:8]
         store.put_match(m)
     live = [m for m in store.matches() if m.status != "declined"]
-    for m in live:  # every run starts from each load's own cheapest lane, then re-bundles
+    # Shipments already booked are locked; only loads still being planned get re-bundled.
+    frozen = [x for x in store.shipments() if x.status != "planned"]
+    for x in store.shipments():
+        if x.status == "planned":
+            store.delete_shipment(x.id)
+    frozen_ids = {mid for x in frozen for mid in x.match_ids}
+    movable = [m for m in live if m.id not in frozen_ids]
+    for m in movable:  # every run starts from each load's own cheapest lane, then re-bundles
         m.lane = m.solo_lane or m.lane
         m.transport_lkr_per_kg = m.solo_transport_lkr_per_kg or m.transport_lkr_per_kg
         m.shipment_id = None
         m.farmer_gets_lkr_per_kg = split(prices[m.crop], m.transport_lkr_per_kg)["farmer_gets"] \
             if m.crop in prices else m.farmer_gets_lkr_per_kg
-    shipments = bundle(live, LANES, prices)
-    for m in live:
+    shipments = bundle(movable, LANES, prices)
+    for x in shipments:
+        x.schedule = shipping.schedule(x.lane, x.ship_on)
+        store.put_shipment(x)
+    for m in movable:
         store.put_match(m)
+    shipments = frozen + shipments
     fresh_ids = {m.id for m in fresh}
     sizes = {x.id: len(x.farmers) for x in shipments}
     for m in live:
@@ -70,6 +81,17 @@ def plan() -> dict:
                       "confirmed": sum(m.status == "confirmed" for m in live)}}
     store.save_plan(out)
     return out
+
+
+def confirm(m) -> None:
+    """Both sides said yes: lock the deal and take the kg out of open stock and demand."""
+    m.farmer_ok = m.buyer_ok = True
+    m.status = "confirmed"
+    for kind, rid in (("listings", m.listing_id), ("orders", m.order_id)):
+        doc = store.get(kind, rid)
+        doc["remaining_kg"] -= m.qty_kg
+        store.put(kind, doc)
+    store.put_match(m)
 
 
 def answer(phone: str, text: str) -> str | None:
@@ -95,14 +117,14 @@ def answer(phone: str, text: str) -> str | None:
         return f"Declined: {m.qty_kg:.0f} kg {m.crop}. We will look for another match."
     setattr(m, f"{side}_ok", True)
     if m.farmer_ok and m.buyer_ok:
-        m.status = "confirmed"
-        for kind in ("listings", "orders"):
-            doc = store.get(kind, m.listing_id if kind == "listings" else m.order_id)
-            doc["remaining_kg"] -= m.qty_kg
-            store.put(kind, doc)
+        confirm(m)
         other = store.get("orders" if side == "farmer" else "listings",
                           m.order_id if side == "farmer" else m.listing_id)
         _send(other.get("phone"), f"Confirmed: {m.qty_kg:.0f} kg {m.crop}, {m.farmer} → {m.buyer}.", m.id)
     store.put_match(m)
     done = "Confirmed by both sides." if m.status == "confirmed" else "Thanks. Waiting for the other side."
     return f"{done} {m.qty_kg:.0f} kg {m.crop}."
+
+
+def advance_shipment(sid: str):
+    return shipping.advance(sid, _send)

@@ -7,13 +7,14 @@ from datetime import date, datetime, timezone
 from typing import Protocol
 
 from .pricing import load_prices
-from .schemas import Listing, Match, Order, ParsedMessage
+from .schemas import Listing, Match, Order, ParsedMessage, Shipment
 
 
 class Backend(Protocol):
     def put(self, kind: str, key: str, doc: dict) -> None: ...
     def all(self, kind: str) -> list[dict]: ...
     def clear(self) -> None: ...
+    def delete(self, kind: str, key: str) -> None: ...
 
 
 class Memory:
@@ -29,6 +30,9 @@ class Memory:
     def clear(self):
         self.data.clear()
 
+    def delete(self, kind, key):
+        self.data.get(kind, {}).pop(key, None)
+
 
 class Firestore:
     def __init__(self):
@@ -43,6 +47,9 @@ class Firestore:
 
     def clear(self):
         raise RuntimeError("refusing to clear Firestore")
+
+    def delete(self, kind, key):
+        self.db.collection(kind).document(key).delete()
 
 
 DB: Backend = Firestore() if os.getenv("STORE") == "firestore" else Memory()
@@ -135,3 +142,15 @@ def outbox(to: str, body: str, match_id: str = "") -> None:
 
 def sent() -> list[dict]:
     return sorted(DB.all("outbox"), key=lambda d: d["at"])
+
+
+def shipments() -> list[Shipment]:
+    return [Shipment(**d) for d in DB.all("shipments")]
+
+
+def put_shipment(x: Shipment) -> None:
+    DB.put("shipments", x.id, x.model_dump(mode="json"))
+
+
+def delete_shipment(sid: str) -> None:
+    DB.delete("shipments", sid)

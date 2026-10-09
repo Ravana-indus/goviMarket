@@ -23,6 +23,16 @@
   .ship .loads span:nth-child(2n) { background: color-mix(in srgb, var(--leaf) 70%, var(--surface)); }
   .ship .cost { display: flex; gap: 16px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
   .ship .cost b { color: var(--ink); }
+  .steps { list-style: none; display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; margin: 2px 0 0; padding: 0; }
+  .steps li { position: relative; padding-top: 16px; font-size: 12px; color: var(--muted); display: grid; }
+  .steps li b { font-weight: 600; }
+  .steps li::before { content: ""; position: absolute; top: 5px; left: 0; right: 0; height: 3px; background: var(--line); }
+  .steps li.done::before { background: var(--leaf); }
+  .steps li .dot { position: absolute; top: 0; left: 0; width: 13px; height: 13px; border-radius: 50%; background: var(--surface); border: 3px solid var(--line); z-index: 1; }
+  .steps li.done .dot { border-color: var(--leaf); background: var(--leaf); }
+  .steps li.now .dot { box-shadow: 0 0 0 4px var(--leaf-soft); }
+  .steps li.done b { color: var(--ink); }
+  .btn.small { padding: 5px 10px; font-size: 13px; }
   .kpi { padding: 16px; }
   .kpi .label { font-size: 13px; color: var(--muted); }
   .kpi .value { font-size: 28px; font-weight: 700; margin-top: 4px; letter-spacing: -.02em; }
@@ -82,7 +92,8 @@
         </table></div>
       </section>
       <section class="card">
-        <header><h2>Shipments</h2><span class="muted small">loads from the same town share one bus, train or lorry</span></header>
+        <header><h2>Shipments</h2><span class="muted small"><span id="ship-count"></span> · loads from one town share a bus, train, lorry or Post · rates are estimates</span>
+          <button class="btn small" id="advance-all" title="Demo: move every shipment one step">Simulate next step ▶</button></header>
         <div id="shipments"></div>
       </section>
       <div class="two">

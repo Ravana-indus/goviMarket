@@ -1,6 +1,50 @@
 [
-  {"crop": "carrot", "collector": 160, "wholesale": 230, "retail": 320, "date": "PLACEHOLDER", "source": "PLACEHOLDER - replace with HARTI daily price report"},
-  {"crop": "leeks", "collector": 120, "wholesale": 180, "retail": 260, "date": "PLACEHOLDER", "source": "PLACEHOLDER - replace with HARTI daily price report"},
-  {"crop": "beans", "collector": 200, "wholesale": 280, "retail": 380, "date": "PLACEHOLDER", "source": "PLACEHOLDER - replace with HARTI daily price report"},
-  {"crop": "tomato", "collector": 90, "wholesale": 150, "retail": 220, "date": "PLACEHOLDER", "source": "PLACEHOLDER - replace with HARTI daily price report"}
+ {
+  "crop": "carrot",
+  "collector": 160,
+  "wholesale": 230,
+  "retail": 320,
+  "date": "PLACEHOLDER",
+  "source": "PLACEHOLDER - replace with HARTI daily price report"
+ },
+ {
+  "crop": "leeks",
+  "collector": 120,
+  "wholesale": 180,
+  "retail": 260,
+  "date": "PLACEHOLDER",
+  "source": "PLACEHOLDER - replace with HARTI daily price report"
+ },
+ {
+  "crop": "beans",
+  "collector": 200,
+  "wholesale": 280,
+  "retail": 380,
+  "date": "PLACEHOLDER",
+  "source": "PLACEHOLDER - replace with HARTI daily price report"
+ },
+ {
+  "crop": "tomato",
+  "collector": 90,
+  "wholesale": 150,
+  "retail": 220,
+  "date": "PLACEHOLDER",
+  "source": "PLACEHOLDER - replace with HARTI daily price report"
+ },
+ {
+  "crop": "red onion",
+  "collector": 180,
+  "wholesale": 260,
+  "retail": 360,
+  "date": "PLACEHOLDER",
+  "source": "PLACEHOLDER - replace with HARTI daily price report"
+ },
+ {
+  "crop": "green chilli",
+  "collector": 300,
+  "wholesale": 420,
+  "retail": 600,
+  "date": "PLACEHOLDER",
+  "source": "PLACEHOLDER - replace with HARTI daily price report"
+ }
 ]

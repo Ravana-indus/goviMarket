@@ -9,6 +9,7 @@ const T = {
     waiting: "Waiting for a match", matched: "Matched", to: "to", from: "from", you_get: "You get", per_kg: "/kg",
     none: "Nothing found for this number yet.", note: "Prices update every morning from market reporters.",
     selling: "Selling", ordering: "Ordering", sent: "Sending…",
+    s_booked: "Booked", s_loaded: "Loaded", s_in_transit: "On the way", s_arrived: "Arrived", s_delivered: "Delivered", ref: "Ref", dropoff: "Drop-off", eta: "Arrives",
     before_transport: "before transport", transport_off: "Transport already taken off", shared: "shared with neighbours",
   },
   si: {
@@ -20,6 +21,7 @@ const T = {
     waiting: "ගැළපීමක් බලාපොරොත්තුවෙන්", matched: "ගැළපුණා", to: "වෙත", from: "වෙතින්", you_get: "ඔබට ලැබෙන්නේ", per_kg: "/කිලෝ",
     none: "මෙම අංකයට තවම කිසිවක් නැත.", note: "වෙළඳපොළ වාර්තාකරුවන්ගෙන් සෑම උදෑසනකම මිල යාවත්කාලීන වේ.",
     selling: "විකිණීම", ordering: "ඇණවුම", sent: "යවමින්…",
+    s_booked: "වෙන් කළා", s_loaded: "පැටෙව්වා", s_in_transit: "යමින්", s_arrived: "ළඟා විය", s_delivered: "භාර දුන්නා", ref: "අංකය", dropoff: "භාර දෙන තැන", eta: "ලැබෙන වේලාව",
     before_transport: "ප්‍රවාහනයට පෙර", transport_off: "ප්‍රවාහන වියදම දැනටමත් අඩු කර ඇත", shared: "අසල්වැසියන් සමඟ බෙදාගත්",
   },
   ta: {
@@ -31,6 +33,7 @@ const T = {
     waiting: "பொருத்தத்திற்காகக் காத்திருக்கிறது", matched: "பொருந்தியது", to: "க்கு", from: "இடமிருந்து", you_get: "உங்களுக்குக் கிடைப்பது", per_kg: "/கிலோ",
     none: "இந்த எண்ணுக்கு இன்னும் எதுவும் இல்லை.", note: "சந்தை நிருபர்களிடமிருந்து ஒவ்வொரு காலையும் விலை புதுப்பிக்கப்படுகிறது.",
     selling: "விற்பனை", ordering: "ஆர்டர்", sent: "அனுப்புகிறது…",
+    s_booked: "பதிவு", s_loaded: "ஏற்றப்பட்டது", s_in_transit: "வழியில்", s_arrived: "வந்தடைந்தது", s_delivered: "வழங்கப்பட்டது", ref: "எண்", dropoff: "ஒப்படைக்கும் இடம்", eta: "வந்தடையும் நேரம்",
     before_transport: "போக்குவரத்துக்கு முன்", transport_off: "போக்குவரத்து செலவு ஏற்கனவே கழிக்கப்பட்டது", shared: "அயலவர்களுடன் பகிர்ந்தது",
   },
 };
@@ -99,20 +102,29 @@ $("go").onclick = async () => {
   } finally { $("go").disabled = false; $("go").textContent = t("send"); }
 };
 
+const STEPS = ["booked", "loaded", "in_transit", "arrived", "delivered"];
+function shipSteps(x, kind) {
+  const at = STEPS.indexOf(x.status);
+  return `<div class="track">${STEPS.map((st, i) => `<span class="${i <= at ? "on" : ""}">${t("s_" + st)}</span>`).join("")}</div>
+    ${x.ref ? `<div class="ship">${t("ref")} ${esc(x.ref)} · ${kind === "listing"
+      ? `${t("dropoff")}: ${esc(x.lane.pickup || x.origin)}`
+      : `${t("eta")}: ${new Date(x.schedule.delivered).toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" })}`}</div>` : ""}`;
+}
+
 $("tgo").onclick = async () => {
   const phone = $("tphone").value.trim();
   if (!phone) return $("tphone").focus();
   const d = await (await fetch("/api/track?phone=" + encodeURIComponent(phone))).json();
   const card = (x, kind) => {
     const total = x.qty_kg, done = x.matched_kg, matched = done > 0;
-    const ships = x.matches.map((m) => `<div class="ship">${m.lane ? MODE[m.lane.mode] || "🚚" : "📍"} ${Math.round(m.qty_kg)} kg ${kind === "listing" ? t("to") + " " + esc(m.buyer) : t("from") + " " + esc(m.farmer)}
+    const ships = x.matches.map((m) => `${m.shipment ? shipSteps(m.shipment, kind) : ""}<div class="ship">${m.lane ? MODE[m.lane.mode] || "🚚" : "📍"} ${Math.round(m.qty_kg)} kg ${kind === "listing" ? t("to") + " " + esc(m.buyer) : t("from") + " " + esc(m.farmer)}
       ${m.lane ? `· ${esc(m.lane.origin)} ${m.lane.departs}` : ""} · ${kind === "listing" ? t("you_get") + " " + rs(m.farmer_gets_lkr_per_kg) : rs(m.buyer_pays_lkr_per_kg)}${t("per_kg")}
       ${kind === "listing" ? `<br>${t("transport_off")}: ${rs(m.transport_lkr_per_kg)}${t("per_kg")}${m.transport_lkr_per_kg < m.solo_transport_lkr_per_kg ? " · " + t("shared") : ""}` : ""}</div>`).join("");
     return `<div class="card item">
       <div class="row"><span class="title"><span style="text-transform:capitalize">${esc(x.crop)}</span> · ${Math.round(total)} kg</span>
       <span class="chip ${matched ? "farmer" : ""}">${matched ? t("matched") : t("waiting")}</span></div>
       <div class="small muted">${kind === "listing" ? t("selling") : t("ordering")} · ${esc(x.location)} · ${esc(x.ready_on || x.needed_by)}</div>
-      <div class="steps"><span class="on"></span><span class="${matched ? "on" : ""}"></span><span class="${done >= total ? "on" : ""}"></span></div>${ships}</div>`;
+      ${ships}</div>`;
   };
   const html = d.listings.map((x) => card(x, "listing")).join("") + d.orders.map((x) => card(x, "order")).join("");
   $("mine").innerHTML = html || `<div class="empty">${t("none")}</div>`;

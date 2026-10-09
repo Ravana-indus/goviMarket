@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 Role = Literal["farmer", "buyer", "reporter", "unknown"]
 PriceKind = Literal["collector", "wholesale", "retail"]
+ShipStatus = Literal["planned", "booked", "loaded", "in_transit", "arrived", "delivered"]
 Lang = Literal["si", "ta", "en"]
 
 
@@ -66,6 +67,8 @@ class Lane(BaseModel):
     transit_hours: float
     max_kg: float
     handling_lkr: float = 0  # loading, booking and getting the load to the station or stand
+    pickup: str = ""  # where the farmer hands the load over
+    door_delivery: bool = False  # carrier delivers to the buyer, so no Colombo pickup run
     source: str  # where the number came from; "ESTIMATE" until field-checked
 
 
@@ -108,3 +111,7 @@ class Shipment(BaseModel):
     lkr_per_kg: float
     solo_cost_lkr: float
     saved_lkr: float
+    status: ShipStatus = "planned"
+    schedule: dict[str, str] = {}  # status -> planned ISO time
+    events: list[dict] = []  # {"status", "at", "note"} as each step happens
+    ref: str = ""  # carrier booking reference

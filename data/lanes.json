@@ -9,7 +9,8 @@
   "transit_hours": 6,
   "max_kg": 300,
   "source": "ESTIMATE",
-  "handling_lkr": 300
+  "handling_lkr": 300,
+  "pickup": "Nuwara Eliya bus stand"
  },
  {
   "origin": "Nuwara Eliya",
@@ -21,7 +22,8 @@
   "transit_hours": 10,
   "max_kg": 1000,
   "source": "ESTIMATE (Nanu Oya station)",
-  "handling_lkr": 300
+  "handling_lkr": 300,
+  "pickup": "Nanu Oya station parcel office"
  },
  {
   "origin": "Nuwara Eliya",
@@ -33,7 +35,8 @@
   "transit_hours": 6,
   "max_kg": 3000,
   "source": "ESTIMATE (shared vegetable lorry)",
-  "handling_lkr": 300
+  "handling_lkr": 300,
+  "pickup": "Nuwara Eliya Economic Centre"
  },
  {
   "origin": "Dambulla",
@@ -45,7 +48,8 @@
   "transit_hours": 4.5,
   "max_kg": 300,
   "source": "ESTIMATE",
-  "handling_lkr": 300
+  "handling_lkr": 300,
+  "pickup": "Dambulla bus stand"
  },
  {
   "origin": "Dambulla",
@@ -57,7 +61,8 @@
   "transit_hours": 4,
   "max_kg": 4000,
   "source": "ESTIMATE",
-  "handling_lkr": 300
+  "handling_lkr": 300,
+  "pickup": "Dambulla Economic Centre"
  },
  {
   "origin": "Jaffna",
@@ -69,7 +74,8 @@
   "transit_hours": 9,
   "max_kg": 1000,
   "source": "ESTIMATE",
-  "handling_lkr": 300
+  "handling_lkr": 300,
+  "pickup": "Jaffna station parcel office"
  },
  {
   "origin": "Jaffna",
@@ -81,7 +87,8 @@
   "transit_hours": 9,
   "max_kg": 200,
   "source": "ESTIMATE",
-  "handling_lkr": 300
+  "handling_lkr": 300,
+  "pickup": "Jaffna bus stand"
  },
  {
   "origin": "Badulla",
@@ -93,18 +100,21 @@
   "transit_hours": 11,
   "max_kg": 1000,
   "source": "ESTIMATE",
-  "handling_lkr": 300
+  "handling_lkr": 300,
+  "pickup": "Badulla station parcel office"
  },
  {
   "origin": "Badulla",
   "dest": "Colombo",
   "mode": "sl_post",
   "lkr_per_kg": 40,
-  "min_charge_lkr": 200,
+  "min_charge_lkr": 250,
   "departs": "15:00",
-  "transit_hours": 18,
+  "transit_hours": 16,
   "max_kg": 30,
-  "source": "ESTIMATE",
-  "handling_lkr": 300
+  "source": "ESTIMATE (SL Post parcel, door delivery)",
+  "handling_lkr": 300,
+  "pickup": "Badulla post office",
+  "door_delivery": true
  }
 ]

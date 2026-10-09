@@ -106,7 +106,33 @@ def latest_plan():
     live = [m for m in store.matches() if m.status != "declined"]
     plan["matches"] = [m.model_dump(mode="json") for m in live]
     plan["impact"] = {**plan.get("impact", {}), "confirmed": sum(m.status == "confirmed" for m in live)}
+    plan["shipments"] = [x.model_dump(mode="json") for x in
+                         sorted(store.shipments(), key=lambda x: x.schedule.get("in_transit", ""))]
     return plan
+
+
+@app.post("/shipments/{sid}/advance")
+def advance_shipment(sid: str):
+    """Move a shipment to its next step (booked, loaded, in transit, arrived, delivered)."""
+    try:
+        return deals.advance_shipment(sid)
+    except KeyError:
+        raise HTTPException(404, "no such shipment")
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.post("/demo/advance-all")
+def advance_all():
+    """Demo control: push every shipment that can move one step forward."""
+    moved = []
+    for x in store.shipments():
+        try:
+            if x.status != "delivered":
+                moved.append(deals.advance_shipment(x.id).id)
+        except ValueError:
+            pass
+    return {"moved": moved}
 
 
 @app.get("/api/prices")
@@ -124,9 +150,10 @@ def price_board():
 @app.get("/api/track")
 def track(phone: str):
     """A sender's own listings and orders, with match status from the latest plan."""
-    plan = store.latest_plan() or {"matches": []}
+    ships = {x.id: x.model_dump(mode="json") for x in store.shipments()}
+    live = [m.model_dump(mode="json") for m in store.matches() if m.status != "declined"]
     def status(rid, key):
-        ms = [m for m in plan["matches"] if m[key] == rid]
+        ms = [{**m, "shipment": ships.get(m["shipment_id"])} for m in live if m[key] == rid]
         return {"matched_kg": sum(m["qty_kg"] for m in ms), "matches": ms}
     return {"listings": [{**l.model_dump(mode="json"), **status(l.id, "listing_id")}
                          for l in store.listings() if l.phone == phone],
@@ -139,12 +166,14 @@ DEMO_MESSAGES = [
     ("94770000002", "This is Sunil, carrot 280kg ready tomorrow, Nuwara Eliya"),
     ("94770000003", "This is Kumari, leeks 150kg ready tomorrow, Nuwara Eliya"),
     ("94770000004", "This is Nimal, beans 90kg and tomato 200kg ready tomorrow, Dambulla"),
-    ("94770000005", "This is Rasan, tomato 120kg ready tomorrow, Jaffna"),
+    ("94770000005", "This is Rasan, tomato 120kg and red onion 150kg ready tomorrow, Jaffna"),
+    ("94770000008", "This is Kamala, tomato 250kg ready tomorrow, Dambulla"),
+    ("94770000009", "This is Sita, green chilli 25kg ready tomorrow, Badulla"),
     ("94770000006", "This is Priya, carrot 60kg ready tomorrow, Nuwara Eliya"),
     ("94770000007", "This is Ajith, beans 45kg ready tomorrow, Nuwara Eliya"),
-    ("94770000011", "Order from Lotus Kitchen: need carrot 200kg and beans 40kg by {day}, Colombo"),
-    ("94770000012", "Order from Green Spoon Hotel: need tomato 150kg and leeks 60kg by {day}, Colombo"),
-    ("94770000013", "Order from Ceylon Fresh Exports: need leeks 80kg by {day}, Colombo"),
+    ("94770000011", "Order from Lotus Kitchen: need carrot 200kg and beans 40kg and red onion 100kg by {day}, Colombo"),
+    ("94770000012", "Order from Green Spoon Hotel: need tomato 150kg and leeks 60kg and green chilli 20kg by {day}, Colombo"),
+    ("94770000013", "Order from Ceylon Fresh Exports: need leeks 80kg and tomato 200kg by {day}, Colombo"),
     ("94770000014", "Order from Mango Tree Cafe: need carrot 120kg and beans 60kg by {day}, Colombo"),
 ]
 
@@ -157,9 +186,25 @@ def demo_seed():
     store.reset()
     today = date.today()
     day = (today + timedelta(days=2)).strftime("%A")
-    for phone, text in DEMO_MESSAGES:
-        handle(text=text.format(day=day), media=None, mime_type=None, sender=phone, today=today)
-    return plan()
+    def send_all(messages):
+        for phone, text in messages:
+            handle(text=text.format(day=day), media=None, mime_type=None, sender=phone, today=today)
+
+    # Earlier this morning: deals confirmed and shipments already moving, later departures
+    # further behind, so every step shows on the board.
+    send_all(DEMO_MESSAGES[:-1])
+    deals.plan()
+    for m in store.matches():
+        if m.status == "proposed":
+            deals.confirm(m)
+    ships = sorted(store.shipments(), key=lambda x: x.schedule["in_transit"])
+    for x, n in zip(ships, [5, 3, 2, 1, 1, 1]):
+        for _ in range(n):
+            deals.advance_shipment(x.id)
+    # Just now: a new order comes in and waits for both sides to say YES.
+    send_all(DEMO_MESSAGES[-1:])
+    deals.plan()
+    return latest_plan()
 
 
 @app.get("/state")
