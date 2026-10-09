@@ -7,7 +7,7 @@ Built for the AI Builder Cup 2026 (Sustainability & Social Impact).
 ## How it works
 1. `POST /webhook/whatsapp` (WhatsApp Cloud API) or `POST /intake` (web) takes text and/or a photo or voice note. Farmers, buyers and market price reporters all use the same pipeline. Gemini returns structured JSON (`app/parser.py`, schema in `app/schemas.py`).
 2. The message becomes a harvest listing (farmer) or an order (buyer) (`app/store.py`).
-3. `POST /plan` runs the matcher (`app/matcher.py`). It fills the earliest deadlines first, from the farm that nets the farmer the most after transport. The lane picker (`app/lanes.py`) uses the cheapest public transport that lands by 08:00 on the needed-by day.
+3. `POST /plan` runs the matcher, then bundles loads leaving the same town on the same day into one consignment (cheapest bus, train or lorry for the combined weight; fixed loading and Colombo pickup paid once; each farmer's share cut by the same ratio, so nobody pays more than shipping alone) (`app/matcher.py`). It fills the earliest deadlines first, from the farm that nets the farmer the most after transport. The lane picker (`app/lanes.py`) uses the cheapest public transport that lands by 08:00 on the needed-by day.
 4. Leftover stock comes back as `surplus`, ready to route to processors or exporters.
 
 ## Preview locally (no keys needed)

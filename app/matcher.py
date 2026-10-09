@@ -3,11 +3,14 @@
 Deterministic on purpose: Gemini explains the plan, it does not decide who gets paid."""
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 
-from .lanes import lane_cost, pick_lane
+import uuid
+from collections import defaultdict
+
+from .lanes import _norm, arrival, lane_cost, pick_lane
 from .pricing import split
-from .schemas import Lane, Listing, Match, Order
+from .schemas import Lane, Listing, Match, Order, Shipment
 
 
 def match(listings: list[Listing], orders: list[Order], lanes: list[Lane],
@@ -52,6 +55,8 @@ def match(listings: list[Listing], orders: list[Order], lanes: list[Lane],
             matches.append(Match(
                 listing_id=l.id, order_id=order.id, farmer=l.farmer, buyer=order.buyer,
                 crop=order.crop, qty_kg=kg, lane=lane, transport_lkr_per_kg=transport,
+                solo_transport_lkr_per_kg=transport, solo_lane=lane, needed_by=order.needed_by,
+                ship_on=max(l.ready_on, order.needed_by - timedelta(days=1)),
                 farmer_gets_lkr_per_kg=money["farmer_gets"],
                 buyer_pays_lkr_per_kg=money["buyer_pays"],
                 collector_pays_lkr_per_kg=money["collector"],
@@ -61,9 +66,55 @@ def match(listings: list[Listing], orders: list[Order], lanes: list[Lane],
     return matches, surplus
 
 
+def bundle(matches: list[Match], lanes: list[Lane], prices: dict[str, dict]) -> list[Shipment]:
+    """Put loads leaving the same town for the same city on the same day into one consignment.
+
+    For each group, try every lane on the route with the combined weight, keep the cheapest one
+    that still meets every buyer's deadline and fits the load, and split its cost by kg. A bigger
+    load can switch mode (for example to a shared lorry), and the fixed handling and pickup costs
+    are paid once instead of once per farmer. Updates each match's transport and farmer price."""
+    groups: dict[tuple, list[Match]] = defaultdict(list)
+    for m in matches:
+        if m.lane and m.ship_on:
+            groups[(_norm(m.lane.origin), _norm(m.lane.dest), m.ship_on)].append(m)
+    shipments = []
+    for (_, _, ship_on), group in groups.items():
+        for m in group:
+            m.solo_transport_lkr_per_kg = m.solo_transport_lkr_per_kg or m.transport_lkr_per_kg
+        total = sum(m.qty_kg for m in group)
+        solo = sum(m.solo_transport_lkr_per_kg * m.qty_kg for m in group)
+        deadline = min(m.needed_by for m in group)
+        cutoff = datetime(deadline.year, deadline.month, deadline.day, 8, 0)
+        origin, dest = group[0].lane.origin, group[0].lane.dest
+        options = [l for l in lanes if _norm(l.origin) == _norm(origin) and _norm(l.dest) == _norm(dest)
+                   and l.max_kg >= total and arrival(l, ship_on) <= cutoff]
+        if not options:
+            continue  # too heavy for any single lane; loads travel separately
+        lane = min(options, key=lambda l: lane_cost(l, total))
+        cost = lane_cost(lane, total)
+        if cost > solo and len(group) > 1:
+            continue
+        per_kg = round(cost / total, 1)
+        ratio = cost / solo if solo else 1.0
+        sid = uuid.uuid4().hex[:8]
+        for m in group:
+            # Everyone's share falls by the same ratio, so no farmer pays more than shipping alone.
+            m.lane, m.shipment_id = lane, sid
+            m.transport_lkr_per_kg = round(m.solo_transport_lkr_per_kg * ratio, 1)
+            m.farmer_gets_lkr_per_kg = split(prices[m.crop], m.transport_lkr_per_kg)["farmer_gets"]
+        shipments.append(Shipment(
+            id=sid, origin=origin, dest=dest, ship_on=ship_on, lane=lane,
+            match_ids=[m.id for m in group], farmers=sorted({m.farmer for m in group}),
+            buyers=sorted({m.buyer for m in group}), total_kg=total, cost_lkr=round(cost),
+            lkr_per_kg=per_kg, solo_cost_lkr=round(solo), saved_lkr=round(max(solo - cost, 0))))
+    return shipments
+
+
 def impact(matches: list[Match]) -> dict:
     """Totals for the ops screen and the pitch."""
     kg = sum(m.qty_kg for m in matches)
+    transport_saved = sum((m.solo_transport_lkr_per_kg - m.transport_lkr_per_kg) * m.qty_kg for m in matches)
     farmer_extra = sum((m.farmer_gets_lkr_per_kg - m.collector_pays_lkr_per_kg) * m.qty_kg for m in matches)
     buyer_saved = sum((m.market_retail_lkr_per_kg - m.buyer_pays_lkr_per_kg) * m.qty_kg for m in matches)
-    return {"kg_matched": kg, "farmer_extra_lkr": round(farmer_extra), "buyer_saved_lkr": round(buyer_saved)}
+    return {"kg_matched": kg, "farmer_extra_lkr": round(farmer_extra), "buyer_saved_lkr": round(buyer_saved),
+            "transport_saved_lkr": round(transport_saved)}

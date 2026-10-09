@@ -26,9 +26,25 @@ function renderPlan(plan) {
   $("k-farmer").textContent = rs(i.farmer_extra_lkr || 0);
   $("k-buyer").textContent = rs(i.buyer_saved_lkr || 0);
   $("k-surplus").textContent = kg(i.surplus_kg || 0);
+  $("k-transport").textContent = rs(i.transport_saved_lkr || 0);
+  const ships = plan.shipments || [];
+  $("shipments").innerHTML = ships.length ? ships.map((x) => {
+    const loads = plan.matches.filter((m) => m.shipment_id === x.id);
+    const bars = loads.map((m) => `<span style="flex:${m.qty_kg}" title="${esc(m.farmer)} → ${esc(m.buyer)}: ${kg(m.qty_kg)} ${esc(m.crop)}">${esc(m.farmer)} ${Math.round(m.qty_kg)}</span>`).join("");
+    const day = new Date(x.ship_on + "T00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+    return `<div class="ship">
+      <div class="row"><span class="mode">${MODE[x.lane.mode] || x.lane.mode}</span>
+        <span>${esc(x.origin)} → ${esc(x.dest)} · ${day} ${x.lane.departs}</span>
+        <span class="chip">${kg(x.total_kg)} · ${loads.length} load${loads.length > 1 ? "s" : ""} · ${x.farmers.length} farmer${x.farmers.length > 1 ? "s" : ""}</span>
+        ${x.saved_lkr > 0 ? `<span class="chip farmer" style="margin-left:auto">saves ${rs(x.saved_lkr)}</span>` : ""}</div>
+      <div class="loads">${bars}</div>
+      <div class="cost"><span>Bundled: <b>${rs(x.cost_lkr)}</b> (avg Rs ${x.lkr_per_kg}/kg)</span><span>Sent separately: ${rs(x.solo_cost_lkr)}</span>
+        <span>Includes loading and Colombo pickup once, not ${loads.length}×</span></div></div>`;
+  }).join("") : `<div class="empty">Run matching to plan shipments.</div>`;
   $("matches").innerHTML = plan.matches.length ? plan.matches.map((m) => {
+    const shared = m.transport_lkr_per_kg < m.solo_transport_lkr_per_kg;
     const lane = m.lane
-      ? `<div class="lane">${MODE[m.lane.mode] || m.lane.mode} · ${esc(m.lane.origin)} ${m.lane.departs} · ${m.lane.transit_hours}h · Rs ${m.transport_lkr_per_kg}/kg${m.lane.source.startsWith("ESTIMATE") ? " · est." : ""}</div>`
+      ? `<div class="lane">${MODE[m.lane.mode] || m.lane.mode} · ${esc(m.lane.origin)} ${m.lane.departs} · Rs ${m.transport_lkr_per_kg}/kg${shared ? ` <span class="up">bundled</span> <s>${m.solo_transport_lkr_per_kg}</s>` : ""}${m.lane.source.startsWith("ESTIMATE") ? " · est." : ""}</div>`
       : `<div class="lane">Same town · no transport</div>`;
     const up = m.farmer_gets_lkr_per_kg - m.collector_pays_lkr_per_kg;
     const down = m.market_retail_lkr_per_kg - m.buyer_pays_lkr_per_kg;

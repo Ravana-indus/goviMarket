@@ -9,6 +9,7 @@ const T = {
     waiting: "Waiting for a match", matched: "Matched", to: "to", from: "from", you_get: "You get", per_kg: "/kg",
     none: "Nothing found for this number yet.", note: "Prices update every morning from market reporters.",
     selling: "Selling", ordering: "Ordering", sent: "Sending…",
+    before_transport: "before transport", transport_off: "Transport already taken off", shared: "shared with neighbours",
   },
   si: {
     hero: "ඔබේ අස්වැන්න කෙලින්ම විකුණන්න. ගොවිපලෙන් අලුත් එළවළු.", sub: "අතරමැදියන් නැත. හඬ පණිවිඩයක්, ඡායාරූපයක් හෝ පණිවිඩයක් එවන්න. ගැනුම්කරු සහ බස් රථය අපි සොයා දෙන්නෙමු.",
@@ -19,6 +20,7 @@ const T = {
     waiting: "ගැළපීමක් බලාපොරොත්තුවෙන්", matched: "ගැළපුණා", to: "වෙත", from: "වෙතින්", you_get: "ඔබට ලැබෙන්නේ", per_kg: "/කිලෝ",
     none: "මෙම අංකයට තවම කිසිවක් නැත.", note: "වෙළඳපොළ වාර්තාකරුවන්ගෙන් සෑම උදෑසනකම මිල යාවත්කාලීන වේ.",
     selling: "විකිණීම", ordering: "ඇණවුම", sent: "යවමින්…",
+    before_transport: "ප්‍රවාහනයට පෙර", transport_off: "ප්‍රවාහන වියදම දැනටමත් අඩු කර ඇත", shared: "අසල්වැසියන් සමඟ බෙදාගත්",
   },
   ta: {
     hero: "உங்கள் அறுவடையை நேரடியாக விற்கவும். பண்ணையிலிருந்து புதிதாக வாங்கவும்.", sub: "இடைத்தரகர்கள் இல்லை. குரல் செய்தி, புகைப்படம் அல்லது செய்தி அனுப்புங்கள். வாங்குபவரையும் பேருந்தையும் நாங்கள் கண்டுபிடிப்போம்.",
@@ -29,6 +31,7 @@ const T = {
     waiting: "பொருத்தத்திற்காகக் காத்திருக்கிறது", matched: "பொருந்தியது", to: "க்கு", from: "இடமிருந்து", you_get: "உங்களுக்குக் கிடைப்பது", per_kg: "/கிலோ",
     none: "இந்த எண்ணுக்கு இன்னும் எதுவும் இல்லை.", note: "சந்தை நிருபர்களிடமிருந்து ஒவ்வொரு காலையும் விலை புதுப்பிக்கப்படுகிறது.",
     selling: "விற்பனை", ordering: "ஆர்டர்", sent: "அனுப்புகிறது…",
+    before_transport: "போக்குவரத்துக்கு முன்", transport_off: "போக்குவரத்து செலவு ஏற்கனவே கழிக்கப்பட்டது", shared: "அயலவர்களுடன் பகிர்ந்தது",
   },
 };
 const MODE = { night_bus: "🚌", train_parcel: "🚆", sl_post: "📮", lorry: "🚚" };
@@ -52,7 +55,7 @@ async function loadPrices() {
   const rows = await (await fetch("/api/prices")).json();
   $("prices").innerHTML = rows.map((p) => `<div class="card price">
     <div class="head"><span class="crop">${esc(p.crop)}</span><span class="big num">${rs(p.farmer_fair)}<span class="sub">${t("per_kg")}</span></span></div>
-    <div class="sub">${t("fair")}</div>
+    <div class="sub">${t("fair")} · ${t("before_transport")}</div>
     <div class="stats">
       <div><div class="sub">${t("collector")}</div><div class="num down">${rs(p.collector)}</div></div>
       <div><div class="sub">${t("buyer")}</div><div class="num">${rs(p.buyer_price)}</div></div>
@@ -103,7 +106,8 @@ $("tgo").onclick = async () => {
   const card = (x, kind) => {
     const total = x.qty_kg, done = x.matched_kg, matched = done > 0;
     const ships = x.matches.map((m) => `<div class="ship">${m.lane ? MODE[m.lane.mode] || "🚚" : "📍"} ${Math.round(m.qty_kg)} kg ${kind === "listing" ? t("to") + " " + esc(m.buyer) : t("from") + " " + esc(m.farmer)}
-      ${m.lane ? `· ${esc(m.lane.origin)} ${m.lane.departs}` : ""} · ${kind === "listing" ? t("you_get") + " " + rs(m.farmer_gets_lkr_per_kg) : rs(m.buyer_pays_lkr_per_kg)}${t("per_kg")}</div>`).join("");
+      ${m.lane ? `· ${esc(m.lane.origin)} ${m.lane.departs}` : ""} · ${kind === "listing" ? t("you_get") + " " + rs(m.farmer_gets_lkr_per_kg) : rs(m.buyer_pays_lkr_per_kg)}${t("per_kg")}
+      ${kind === "listing" ? `<br>${t("transport_off")}: ${rs(m.transport_lkr_per_kg)}${t("per_kg")}${m.transport_lkr_per_kg < m.solo_transport_lkr_per_kg ? " · " + t("shared") : ""}` : ""}</div>`).join("");
     return `<div class="card item">
       <div class="row"><span class="title"><span style="text-transform:capitalize">${esc(x.crop)}</span> · ${Math.round(total)} kg</span>
       <span class="chip ${matched ? "farmer" : ""}">${matched ? t("matched") : t("waiting")}</span></div>

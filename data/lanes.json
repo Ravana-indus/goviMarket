@@ -1,10 +1,110 @@
 [
-  {"origin": "Nuwara Eliya", "dest": "Colombo", "mode": "night_bus", "lkr_per_kg": 12, "min_charge_lkr": 300, "departs": "21:00", "transit_hours": 6, "max_kg": 300, "source": "ESTIMATE"},
-  {"origin": "Nuwara Eliya", "dest": "Colombo", "mode": "train_parcel", "lkr_per_kg": 8, "min_charge_lkr": 400, "departs": "09:30", "transit_hours": 10, "max_kg": 1000, "source": "ESTIMATE (Nanu Oya station)"},
-  {"origin": "Dambulla", "dest": "Colombo", "mode": "night_bus", "lkr_per_kg": 9, "min_charge_lkr": 250, "departs": "22:00", "transit_hours": 4.5, "max_kg": 300, "source": "ESTIMATE"},
-  {"origin": "Dambulla", "dest": "Colombo", "mode": "lorry", "lkr_per_kg": 6, "min_charge_lkr": 3000, "departs": "23:00", "transit_hours": 4, "max_kg": 4000, "source": "ESTIMATE"},
-  {"origin": "Jaffna", "dest": "Colombo", "mode": "train_parcel", "lkr_per_kg": 10, "min_charge_lkr": 400, "departs": "19:30", "transit_hours": 9, "max_kg": 1000, "source": "ESTIMATE"},
-  {"origin": "Jaffna", "dest": "Colombo", "mode": "night_bus", "lkr_per_kg": 15, "min_charge_lkr": 400, "departs": "20:00", "transit_hours": 9, "max_kg": 200, "source": "ESTIMATE"},
-  {"origin": "Badulla", "dest": "Colombo", "mode": "train_parcel", "lkr_per_kg": 9, "min_charge_lkr": 400, "departs": "17:45", "transit_hours": 11, "max_kg": 1000, "source": "ESTIMATE"},
-  {"origin": "Badulla", "dest": "Colombo", "mode": "sl_post", "lkr_per_kg": 40, "min_charge_lkr": 200, "departs": "15:00", "transit_hours": 18, "max_kg": 30, "source": "ESTIMATE"}
+ {
+  "origin": "Nuwara Eliya",
+  "dest": "Colombo",
+  "mode": "night_bus",
+  "lkr_per_kg": 12,
+  "min_charge_lkr": 300,
+  "departs": "21:00",
+  "transit_hours": 6,
+  "max_kg": 300,
+  "source": "ESTIMATE",
+  "handling_lkr": 300
+ },
+ {
+  "origin": "Nuwara Eliya",
+  "dest": "Colombo",
+  "mode": "train_parcel",
+  "lkr_per_kg": 8,
+  "min_charge_lkr": 400,
+  "departs": "09:30",
+  "transit_hours": 10,
+  "max_kg": 1000,
+  "source": "ESTIMATE (Nanu Oya station)",
+  "handling_lkr": 300
+ },
+ {
+  "origin": "Nuwara Eliya",
+  "dest": "Colombo",
+  "mode": "lorry",
+  "lkr_per_kg": 4,
+  "min_charge_lkr": 4000,
+  "departs": "20:00",
+  "transit_hours": 6,
+  "max_kg": 3000,
+  "source": "ESTIMATE (shared vegetable lorry)",
+  "handling_lkr": 300
+ },
+ {
+  "origin": "Dambulla",
+  "dest": "Colombo",
+  "mode": "night_bus",
+  "lkr_per_kg": 9,
+  "min_charge_lkr": 250,
+  "departs": "22:00",
+  "transit_hours": 4.5,
+  "max_kg": 300,
+  "source": "ESTIMATE",
+  "handling_lkr": 300
+ },
+ {
+  "origin": "Dambulla",
+  "dest": "Colombo",
+  "mode": "lorry",
+  "lkr_per_kg": 6,
+  "min_charge_lkr": 3000,
+  "departs": "23:00",
+  "transit_hours": 4,
+  "max_kg": 4000,
+  "source": "ESTIMATE",
+  "handling_lkr": 300
+ },
+ {
+  "origin": "Jaffna",
+  "dest": "Colombo",
+  "mode": "train_parcel",
+  "lkr_per_kg": 10,
+  "min_charge_lkr": 400,
+  "departs": "19:30",
+  "transit_hours": 9,
+  "max_kg": 1000,
+  "source": "ESTIMATE",
+  "handling_lkr": 300
+ },
+ {
+  "origin": "Jaffna",
+  "dest": "Colombo",
+  "mode": "night_bus",
+  "lkr_per_kg": 15,
+  "min_charge_lkr": 400,
+  "departs": "20:00",
+  "transit_hours": 9,
+  "max_kg": 200,
+  "source": "ESTIMATE",
+  "handling_lkr": 300
+ },
+ {
+  "origin": "Badulla",
+  "dest": "Colombo",
+  "mode": "train_parcel",
+  "lkr_per_kg": 9,
+  "min_charge_lkr": 400,
+  "departs": "17:45",
+  "transit_hours": 11,
+  "max_kg": 1000,
+  "source": "ESTIMATE",
+  "handling_lkr": 300
+ },
+ {
+  "origin": "Badulla",
+  "dest": "Colombo",
+  "mode": "sl_post",
+  "lkr_per_kg": 40,
+  "min_charge_lkr": 200,
+  "departs": "15:00",
+  "transit_hours": 18,
+  "max_kg": 30,
+  "source": "ESTIMATE",
+  "handling_lkr": 300
+ }
 ]

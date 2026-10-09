@@ -140,9 +140,12 @@ DEMO_MESSAGES = [
     ("94770000003", "This is Kumari, leeks 150kg ready tomorrow, Nuwara Eliya"),
     ("94770000004", "This is Nimal, beans 90kg and tomato 200kg ready tomorrow, Dambulla"),
     ("94770000005", "This is Rasan, tomato 120kg ready tomorrow, Jaffna"),
+    ("94770000006", "This is Priya, carrot 60kg ready tomorrow, Nuwara Eliya"),
+    ("94770000007", "This is Ajith, beans 45kg ready tomorrow, Nuwara Eliya"),
     ("94770000011", "Order from Lotus Kitchen: need carrot 200kg and beans 40kg by {day}, Colombo"),
     ("94770000012", "Order from Green Spoon Hotel: need tomato 150kg and leeks 60kg by {day}, Colombo"),
     ("94770000013", "Order from Ceylon Fresh Exports: need leeks 80kg by {day}, Colombo"),
+    ("94770000014", "Order from Mango Tree Cafe: need carrot 120kg and beans 60kg by {day}, Colombo"),
 ]
 
 

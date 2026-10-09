@@ -13,7 +13,16 @@
   .logo i { width: 28px; height: 28px; border-radius: 8px; background: var(--leaf); display: grid; place-items: center; color: var(--leaf-ink); font-style: normal; font-size: 15px; }
   .spacer { flex: 1; }
   main { max-width: 1320px; margin: 0 auto; padding: 20px; display: grid; gap: 16px; }
-  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .ship { padding: 14px 16px; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
+  .ship:last-child { border-bottom: 0; }
+  .ship .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .ship .mode { font-weight: 650; }
+  .ship .loads { display: flex; height: 22px; border-radius: 6px; overflow: hidden; background: var(--line); }
+  .ship .loads span { display: flex; align-items: center; padding: 0 6px; font-size: 11px; font-weight: 600; color: var(--leaf-ink); background: var(--leaf); border-right: 2px solid var(--surface); white-space: nowrap; overflow: hidden; }
+  .ship .loads span:nth-child(2n) { background: color-mix(in srgb, var(--leaf) 70%, var(--surface)); }
+  .ship .cost { display: flex; gap: 16px; font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+  .ship .cost b { color: var(--ink); }
   .kpi { padding: 16px; }
   .kpi .label { font-size: 13px; color: var(--muted); }
   .kpi .value { font-size: 28px; font-weight: 700; margin-top: 4px; letter-spacing: -.02em; }
@@ -23,7 +32,9 @@
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .route { display: flex; align-items: center; gap: 6px; font-weight: 600; }
   .route .arrow { color: var(--muted); font-weight: 400; }
-  .lane { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); margin-top: 3px; }
+  .lane { font-size: 13px; color: var(--muted); margin-top: 3px; white-space: nowrap; }
+  .lane s { opacity: .7; }
+  #matches td:nth-child(n+3) { white-space: nowrap; }
   .delta { font-size: 12px; }
   .msg { padding: 12px 16px; border-bottom: 1px solid var(--line); display: grid; gap: 6px; }
   .msg:last-child { border-bottom: 0; }
@@ -38,6 +49,7 @@
   .badge.live { background: var(--leaf-soft); color: var(--leaf); }
   .bar { height: 6px; background: var(--line); border-radius: 6px; overflow: hidden; margin-top: 4px; min-width: 80px; }
   .bar > span { display: block; height: 100%; background: var(--leaf); }
+  @media (max-width: 1200px) { .kpis { grid-template-columns: repeat(3, 1fr); } }
   @media (max-width: 1000px) { .grid, .two { grid-template-columns: 1fr; } .kpis { grid-template-columns: repeat(2, 1fr); } }
   @media (max-width: 520px) { main { padding: 16px; } .top .in { padding: 10px 16px; flex-wrap: wrap; } .kpi .value { font-size: 22px; } }
 </style>
@@ -56,6 +68,7 @@
     <div class="card kpi"><div class="label">Matched today</div><div class="value num" id="k-kg">0 kg</div><div class="hint" id="k-matches">0 matches</div></div>
     <div class="card kpi"><div class="label">Extra to farmers</div><div class="value num up" id="k-farmer">Rs 0</div><div class="hint">vs village collector price</div></div>
     <div class="card kpi"><div class="label">Saved by buyers</div><div class="value num" id="k-buyer">Rs 0</div><div class="hint">vs Colombo retail</div></div>
+    <div class="card kpi"><div class="label">Transport saved</div><div class="value num up" id="k-transport">Rs 0</div><div class="hint">by bundling loads</div></div>
     <div class="card kpi"><div class="label">Surplus to reroute</div><div class="value num" id="k-surplus" style="color:var(--sun)">0 kg</div><div class="hint">offered to processors and exporters</div></div>
   </section>
 
@@ -64,9 +77,13 @@
       <section class="card">
         <header><h2>Matches and transport</h2><span class="muted small" id="plan-note"></span></header>
         <div class="scroll-x"><table>
-          <thead><tr><th>Farmer → buyer</th><th>Crop</th><th>Kg</th><th>Farmer gets</th><th>Buyer pays</th></tr></thead>
+          <thead><tr><th>Farmer → buyer</th><th>Crop</th><th>Kg</th><th>Farmer gets<br><span style="font-weight:400">after transport</span></th><th>Buyer pays</th></tr></thead>
           <tbody id="matches"></tbody>
         </table></div>
+      </section>
+      <section class="card">
+        <header><h2>Shipments</h2><span class="muted small">loads from the same town share one bus, train or lorry</span></header>
+        <div id="shipments"></div>
       </section>
       <div class="two">
         <section class="card"><header><h2>Supply</h2><span class="chip farmer" id="supply-n">0</span></header>

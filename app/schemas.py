@@ -65,6 +65,7 @@ class Lane(BaseModel):
     departs: str  # "21:30"
     transit_hours: float
     max_kg: float
+    handling_lkr: float = 0  # loading, booking and getting the load to the station or stand
     source: str  # where the number came from; "ESTIMATE" until field-checked
 
 
@@ -80,8 +81,30 @@ class Match(BaseModel):
     crop: str
     qty_kg: float
     lane: Optional[Lane]
+    solo_lane: Optional[Lane] = None
+    ship_on: Optional[date] = None
+    needed_by: Optional[date] = None
+    shipment_id: Optional[str] = None
     transport_lkr_per_kg: float
+    solo_transport_lkr_per_kg: float = 0
     farmer_gets_lkr_per_kg: float
     buyer_pays_lkr_per_kg: float
     collector_pays_lkr_per_kg: float
     market_retail_lkr_per_kg: float
+
+
+class Shipment(BaseModel):
+    """Several matched loads from one town riding the same bus, train or lorry."""
+    id: str
+    origin: str
+    dest: str
+    ship_on: date
+    lane: Lane
+    match_ids: list[str]
+    farmers: list[str]
+    buyers: list[str]
+    total_kg: float
+    cost_lkr: float
+    lkr_per_kg: float
+    solo_cost_lkr: float
+    saved_lkr: float

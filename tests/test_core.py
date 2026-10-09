@@ -138,7 +138,7 @@ def test_demo_seed_runs_offline_and_pages_serve(monkeypatch):
     assert plan["impact"]["kg_matched"] > 0 and plan["surplus"]
     assert c.get("/api/prices").json()[0]["farmer_fair"] > 0
     sunil = c.get("/api/track", params={"phone": "94770000002"}).json()
-    assert sunil["listings"][0]["matched_kg"] == 200
+    assert sunil["listings"][0]["matched_kg"] >= 200
     assert c.get("/").status_code == 200 and c.get("/admin").status_code == 200
 
 
@@ -153,7 +153,7 @@ def test_both_sides_confirm_and_stock_is_held(monkeypatch):
     assert c.post("/intake", data={"text": "yes", "sender": "94770000011"}).json()["reply"].startswith("Confirmed")
     s = c.get("/state").json()
     sunil = next(l for l in s["listings"] if l["id"] == m["listing_id"])
-    assert sunil["remaining_kg"] == 80
+    assert sunil["remaining_kg"] == 280 - m["qty_kg"]
     # Re-running matching keeps confirmed and pending deals and does not double-allocate.
     again = c.post("/plan").json()
     assert sum(x["qty_kg"] for x in again["matches"] if x["listing_id"] == m["listing_id"]) <= 280
@@ -184,3 +184,27 @@ def test_agent_passes_tools_and_language():
     cfg = calls[0]["config"]
     assert "Sinhala" in cfg.system_instruction and agent.get_price_board in cfg.tools
     assert agent.get_price_board("carrot")["collector"] == PRICES["carrot"]["collector"]
+
+
+def test_bundling_shares_one_consignment_and_nobody_pays_more():
+    from app.matcher import bundle
+    listings = [Listing(id=f"L{i}", farmer=f"F{i}", location="Nuwara Eliya", crop="carrot",
+                        qty_kg=kg, ready_on=THU, remaining_kg=kg) for i, kg in enumerate([200, 60, 40])]
+    orders = [Order(id="O1", buyer="Cafe", location="Colombo", crop="carrot", qty_kg=300,
+                    needed_by=FRI, remaining_kg=300)]
+    matches, _ = match(listings, orders, LANES, PRICES)
+    for i, m in enumerate(matches):
+        m.id = f"m{i}"
+    solo = {m.id: m.transport_lkr_per_kg for m in matches}
+    shipments = bundle(matches, LANES, PRICES)
+    assert len(shipments) == 1 and shipments[0].total_kg == 300
+    assert shipments[0].saved_lkr > 0
+    assert all(m.transport_lkr_per_kg < solo[m.id] for m in matches)
+    assert all(m.shipment_id == shipments[0].id for m in matches)
+
+
+def test_farmer_reply_quotes_price_after_transport(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    store.reset()
+    out = TestClient(app).post("/intake", data={"text": "This is Sunil, carrot 100kg ready tomorrow, Nuwara Eliya"}).json()
+    assert "after transport" in out["reply"]

@@ -33,17 +33,20 @@ def get_lane_options(origin: str, dest: str) -> list[dict]:
 SYSTEM = """You are Govi Market's WhatsApp assistant. You write ONE short message (max 6 lines) to
 a farmer or a buyer about a proposed match. Write it in {lang}, in simple everyday words a
 farmer with little schooling understands. Use the given match facts and your tools; never
-invent a number. For a farmer: who buys, how many kg, Rs/kg they get versus the collector price,
-which bus or train to load and when. For a buyer: who grows it, kg, Rs/kg versus the retail price,
+invent a number. For a farmer: who buys, how many kg, Rs/kg they get AFTER transport versus the collector
+price, that transport (Rs/kg) is already taken off, whether the load is shared with
+neighbours to cut the cost, and which bus, train or lorry to load and when. For a buyer: who grows it, kg, Rs/kg versus the retail price,
 and when it arrives. If a transport source is "ESTIMATE", say the time is approximate.
 End with: reply YES to confirm or NO to decline (in {lang}, keep the words YES and NO in English too)."""
 
 
-def _template(m: Match, party: str, lang: Lang) -> str:
+def _template(m: Match, party: str, lang: Lang, shared_with: int = 0) -> str:
     lane = f"{m.lane.mode.replace('_', ' ')} from {m.lane.origin} at {m.lane.departs}" if m.lane else "local pickup"
     if party == "farmer":
+        shared = f", shared with {shared_with} other farmer{'s' if shared_with > 1 else ''}" if shared_with else ""
         body = (f"Buyer found: {m.buyer} wants {m.qty_kg:.0f} kg {m.crop}.\n"
-                f"You get Rs {m.farmer_gets_lkr_per_kg:.0f}/kg (collector pays Rs {m.collector_pays_lkr_per_kg:.0f}).\n"
+                f"You get Rs {m.farmer_gets_lkr_per_kg:.0f}/kg after transport (collector pays Rs {m.collector_pays_lkr_per_kg:.0f}).\n"
+                f"Transport Rs {m.transport_lkr_per_kg:.0f}/kg is already taken off{shared}.\n"
                 f"Send by {lane}.")
     else:
         body = (f"Supplier found: {m.farmer} has {m.qty_kg:.0f} kg {m.crop} for you.\n"
@@ -52,26 +55,30 @@ def _template(m: Match, party: str, lang: Lang) -> str:
     return body + "\nReply YES to confirm or NO to decline."
 
 
-def explain(m: Match, *, party: str, lang: Lang, prices: dict[str, dict], client=None) -> str:
-    """Message for `party` ('farmer' or 'buyer') about match `m`."""
+def explain(m: Match, *, party: str, lang: Lang, prices: dict[str, dict], client=None,
+            shared_with: int = 0) -> str:
+    """Message for `party` ('farmer' or 'buyer') about match `m`.
+
+    `shared_with` is how many other farmers' loads ride in the same shipment."""
     if client is None and not os.getenv("GEMINI_API_KEY"):
-        return _template(m, party, lang)
+        return _template(m, party, lang, shared_with)
     from google import genai
     from google.genai import types
 
     _PRICES.clear(); _PRICES.update(prices)
     client = client or genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-    facts = m.model_dump_json(exclude={"status", "farmer_ok", "buyer_ok"})
+    facts = m.model_dump_json(exclude={"status", "farmer_ok", "buyer_ok", "solo_lane"})
     try:
         resp = client.models.generate_content(
             model=MODEL,
-            contents=f"Write the message for the {party}.\nMatch facts (JSON): {facts}",
+            contents=(f"Write the message for the {party}.\nMatch facts (JSON): {facts}\n"
+                      f"Other farmers sharing this shipment: {shared_with}."),
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM.format(lang=LANG_NAME[lang]),
                 tools=[get_price_board, get_lane_options],
                 temperature=0.3,
             ),
         )
-        return resp.text.strip() or _template(m, party, lang)
+        return resp.text.strip() or _template(m, party, lang, shared_with)
     except Exception:
-        return _template(m, party, lang)
+        return _template(m, party, lang, shared_with)

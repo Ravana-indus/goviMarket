@@ -7,7 +7,8 @@ import uuid
 
 from . import agent, store, whatsapp
 from .lanes import load_lanes
-from .matcher import impact, match
+from .matcher import bundle, impact, match
+from .pricing import split
 
 log = logging.getLogger("govi")
 LANES = load_lanes()
@@ -44,11 +45,26 @@ def plan() -> dict:
     for m in fresh:
         m.id = uuid.uuid4().hex[:8]
         store.put_match(m)
-        l, o = by_id[m.listing_id], by_id[m.order_id]
-        _send(l.phone, agent.explain(m, party="farmer", lang=l.lang, prices=prices), m.id)
-        _send(o.phone, agent.explain(m, party="buyer", lang=o.lang, prices=prices), m.id)
     live = [m for m in store.matches() if m.status != "declined"]
+    for m in live:  # every run starts from each load's own cheapest lane, then re-bundles
+        m.lane = m.solo_lane or m.lane
+        m.transport_lkr_per_kg = m.solo_transport_lkr_per_kg or m.transport_lkr_per_kg
+        m.shipment_id = None
+        m.farmer_gets_lkr_per_kg = split(prices[m.crop], m.transport_lkr_per_kg)["farmer_gets"] \
+            if m.crop in prices else m.farmer_gets_lkr_per_kg
+    shipments = bundle(live, LANES, prices)
+    for m in live:
+        store.put_match(m)
+    fresh_ids = {m.id for m in fresh}
+    sizes = {x.id: len(x.farmers) for x in shipments}
+    for m in live:
+        if m.id in fresh_ids:
+            l, o = by_id[m.listing_id], by_id[m.order_id]
+            _send(l.phone, agent.explain(m, party="farmer", lang=l.lang, prices=prices,
+                                         shared_with=sizes.get(m.shipment_id, 1) - 1), m.id)
+            _send(o.phone, agent.explain(m, party="buyer", lang=o.lang, prices=prices), m.id)
     out = {"matches": [m.model_dump(mode="json") for m in live],
+           "shipments": [x.model_dump(mode="json") for x in shipments],
            "surplus": [l.model_dump(mode="json") for l in surplus],
            "impact": {**impact(live), "surplus_kg": sum(l.remaining_kg for l in surplus),
                       "confirmed": sum(m.status == "confirmed" for m in live)}}
