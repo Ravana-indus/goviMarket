@@ -13,14 +13,14 @@ async function api(path, opts) {
   if (r.status === 401) { location.href = "/login?next=/admin" + location.hash; throw new Error("signed out"); }
   if (!r.ok) {
     const body = await r.json().catch(() => ({}));
-    throw new Error(typeof body.detail === "string" ? body.detail : r.statusText);
+    throw new Error(typeof body.detail === "string" ? body.detail : `${r.status} ${r.statusText || "error"} on ${path}`);
   }
   return r.json();
 }
 
 function statusChip(m) {
   const note = m.note ? ` <span class="chip warn" title="${esc(m.note)}">${esc(m.note.replace("rescue: ", "rescue · "))}</span>` : "";
-  if (m.status === "confirmed") return `<span class="chip farmer">confirmed</span>${note}`; return `<span class="chip farmer">confirmed</span>`;
+  if (m.status === "confirmed") return `<span class="chip farmer">confirmed</span>${note}`;
   const waiting = [!m.farmer_ok && "farmer", !m.buyer_ok && "buyer"].filter(Boolean).join(" + ");
   return `<span class="chip reporter" title="waiting for YES">waiting: ${waiting}</span>${note}`;
 }

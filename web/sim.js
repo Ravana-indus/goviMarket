@@ -20,7 +20,7 @@ const ls = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; 
 let people = PEOPLE.concat(ls.get("sim_extra", []));
 let me = people.find((p) => p.phone === ls.get("sim_phone", "")) || people[0];
 let local = {}; // phone -> [{at, url, kind}] media previews kept in this tab only
-let pending = null, rec = null, waiting = false, lastCount = -1;
+let pending = null, rec = null, waiting = false, lastCount = -1, failNote = "";
 
 function renderPeople() {
   let html = "", group = "";
@@ -51,7 +51,7 @@ function pick(phone) {
   $("chips").innerHTML = ["YES", "NO", "1", "2", "3", ...me.tries].map((t, i) => `<button data-i="${i}" title="${esc(t)}">${esc(t.length > 34 ? t.slice(0, 32) + "…" : t)}</button>`).join("");
   const all = ["YES", "NO", "1", "2", "3", ...me.tries];
   $("chips").querySelectorAll("button").forEach((b) => (b.onclick = () => { const t = all[b.dataset.i]; t.length <= 3 ? send(t) : ($("text").value = t, $("text").focus()); }));
-  lastCount = -1; renderPeople(); load(true);
+  lastCount = -1; failNote = ""; renderPeople(); load(true);
 }
 
 const hm = (iso) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -72,7 +72,8 @@ async function load(scroll) {
   const box = $("msgs");
   const atEnd = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
   box.innerHTML = (thread.length ? `<div class="day">Messages go through the same Gemini pipeline as WhatsApp</div>` : `<div class="day">Say hello, or tap a sample message below</div>`)
-    + thread.map(bubble).join("") + (waiting ? `<div class="typing">Govi is reading…</div>` : "");
+    + thread.map(bubble).join("") + (waiting ? `<div class="typing">Govi is reading…</div>` : "")
+    + (failNote ? `<div class="day err">${esc(failNote)}</div>` : "");
   if (scroll || atEnd) box.scrollTop = box.scrollHeight;
 }
 
@@ -141,14 +142,16 @@ async function send(textArg) {
   }
   fd.append("sender", me.phone); fd.append("via", "sim");
   $("text").value = ""; pending = null; $("file").value = ""; showPreview();
-  waiting = true; $("send").disabled = true;
+  waiting = true; failNote = ""; $("send").disabled = true;
   setTimeout(() => load(true), 150);
   try {
     const r = await fetch("/intake", { method: "POST", body: fd });
     if (!r.ok) {
       const e = await r.json().catch(() => ({}));
-      $("msgs").insertAdjacentHTML("beforeend", `<div class="day err">${esc(e.detail || "Could not send. Try again.")}</div>`);
+      failNote = e.detail || `Could not send (error ${r.status}). Try again.`;
     }
+  } catch {
+    failNote = "No connection to Govi. Check your internet and try again.";
   } finally {
     waiting = false; $("send").disabled = false; lastCount = -1; await load(true);
   }

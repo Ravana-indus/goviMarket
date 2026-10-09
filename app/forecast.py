@@ -104,11 +104,19 @@ def template(rows: list[dict]) -> str:
 
 def explain(rows: list[dict], client=None) -> str:
     """Two or three plain sentences for the ops team. Gemini when a key is set, else a template."""
-    if client is None and not os.getenv("GEMINI_API_KEY"):
+    from . import ai
+    if client is None and not ai.enabled():
         return template(rows)
     from google import genai
     from google.genai import types
-    client = client or genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    try:
+        return _explain(rows, client or genai.Client(api_key=os.environ["GEMINI_API_KEY"]), types)
+    except Exception as e:
+        ai.failed("forecast", e)
+        return template(rows)
+
+
+def _explain(rows, client, types) -> str:
     slim = [{k: r[k] for k in ("crop", "collector_now", "collector_next_week", "low", "high", "change_pct",
                                "supply_kg", "demand_kg", "signal", "source")} for r in rows]
     resp = client.models.generate_content(
@@ -121,4 +129,4 @@ def explain(rows: list[dict], client=None) -> str:
                                 "the history is a demo series."),
             temperature=0.2),
     )
-    return resp.text.strip()
+    return (resp.text or "").strip() or template(rows)

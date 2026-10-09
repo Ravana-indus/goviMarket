@@ -7,6 +7,8 @@ from __future__ import annotations
 import json
 import os
 
+from . import ai
+
 LANG_NAME = {"si": "Sinhala", "ta": "Tamil", "en": "English"}
 SYSTEM = """You write ONE WhatsApp message (max 6 short lines) for Govi Market, a Sri Lankan
 farm-to-buyer marketplace. Write in {lang}, in simple everyday words. Use only the facts given;
@@ -15,7 +17,7 @@ did, and what (if anything) the reader must do. {extra}"""
 
 
 def write(purpose: str, facts: dict, lang: str, fallback: str, *, extra: str = "", client=None) -> str:
-    if client is None and not os.getenv("GEMINI_API_KEY"):
+    if client is None and not ai.enabled():
         return fallback
     try:
         from google import genai
@@ -29,5 +31,6 @@ def write(purpose: str, facts: dict, lang: str, fallback: str, *, extra: str = "
                 temperature=0.3),
         )
         return (resp.text or "").strip() or fallback
-    except Exception:
+    except Exception as e:
+        ai.failed("message", e)
         return fallback

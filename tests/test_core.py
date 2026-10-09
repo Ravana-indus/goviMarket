@@ -345,3 +345,25 @@ def test_unsold_produce_gets_numbered_offers_and_a_reply_settles_it(monkeypatch)
     after = c.get("/api/plan").json()
     assert after["impact"]["surplus_rescued_kg"] >= o["kg"]
     assert o["listing_id"] not in {s["id"] for s in after["surplus"]}
+
+
+def test_gemini_outage_still_answers_text_and_seed_stays_offline(monkeypatch):
+    from app import ai, security
+    calls = []
+    def broken():
+        calls.append(1)
+        raise RuntimeError("429 RESOURCE_EXHAUSTED")
+    monkeypatch.setenv("GEMINI_API_KEY", "x")
+    monkeypatch.setattr(parser, "_client", broken)
+    security.reset_limits()
+    c = TestClient(app)
+    assert c.post("/demo/seed").status_code == 200
+    assert calls == []  # demo seed never spends Gemini quota
+    r = c.post("/intake", data={"text": "This is Nimal, tomato 150kg ready tomorrow, Dambulla",
+                                "sender": "94770000004", "via": "sim"})
+    assert r.status_code == 200 and "tomato" in r.json()["reply"].lower()
+    assert calls and "RESOURCE_EXHAUSTED" in ai.last_error["error"]
+    photo = c.post("/intake", data={"sender": "94770000004", "via": "sim"},
+                   files={"file": ("p.jpg", b"\xff\xd8", "image/jpeg")})
+    assert photo.status_code == 502
+    assert c.get("/favicon.ico").status_code == 200

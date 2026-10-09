@@ -10,13 +10,13 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from . import deals, parser, portal, replies, reporters, rescue, security, shipping, store, surplus, vocab, whatsapp
+from . import ai, deals, parser, portal, replies, reporters, rescue, security, shipping, store, surplus, vocab, whatsapp
 from .pricing import split
 from .schemas import Listing
 
@@ -70,7 +70,38 @@ def healthz():
     return {"ok": True, "gemini": bool(os.getenv("GEMINI_API_KEY")), "store": os.getenv("STORE", "memory"),
             "admin_locked": bool(security.admin_token()), "agent_locked": bool(security.agent_pin()),
             "whatsapp": bool(os.getenv("WHATSAPP_TOKEN")),
-            "whatsapp_number": os.getenv("WHATSAPP_DISPLAY_NUMBER", "")}
+            "whatsapp_number": os.getenv("WHATSAPP_DISPLAY_NUMBER", ""),
+            "gemini_last_error": ai.last_error or None}
+
+
+@app.get("/favicon.ico")
+def favicon():
+    svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" '
+           'fill="#2f7d4a"/><text x="16" y="23" font-size="20" font-family="sans-serif" font-weight="700" '
+           'fill="#fff" text-anchor="middle">G</text></svg>')
+    return Response(svg, media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/admin/diag")
+def diag():
+    """Console-only self-test: one Firestore round trip and one tiny Gemini call, with the real errors."""
+    out: dict = {"store": os.getenv("STORE", "memory"), "gemini_key": bool(os.getenv("GEMINI_API_KEY")),
+                 "model": parser.MODEL}
+    try:
+        store.DB.put("diag", "ping", {"at": datetime.now(timezone.utc).isoformat()})
+        store.DB.delete("diag", "ping")
+        out["store_ok"] = True
+    except Exception as e:
+        out["store_ok"], out["store_error"] = False, f"{type(e).__name__}: {e}"[:400]
+    if os.getenv("GEMINI_API_KEY"):
+        try:
+            p = parser.parse(text="carrot 10kg ready tomorrow, Dambulla", today=date.today().isoformat(),
+                             client=parser._client())
+            out["gemini_ok"], out["gemini_sample"] = True, p.model_dump(mode="json")
+        except Exception as e:
+            out["gemini_ok"], out["gemini_error"] = False, f"{type(e).__name__}: {e}"[:400]
+    out["gemini_last_error"] = ai.last_error or None
+    return out
 
 
 @app.get("/")
@@ -389,6 +420,15 @@ def demo_seed():
         store.reset()
     except RuntimeError as e:
         raise HTTPException(400, str(e))
+    try:
+        with ai.offline():  # canned messages: built-in parser and templates, no Gemini quota spent
+            return _seed()
+    except Exception as e:
+        log.exception("demo seed failed")
+        raise HTTPException(500, f"Demo load failed: {type(e).__name__}: {e}"[:300])
+
+
+def _seed():
     today = date.today()
     day = (today + timedelta(days=2)).strftime("%A")
     def send_all(messages):

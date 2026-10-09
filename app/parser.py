@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from typing import Optional
 
-from . import vocab
+from . import ai, vocab
 from .schemas import ParsedMessage
 
 MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
@@ -46,8 +46,8 @@ def parse(*, text: Optional[str] = None, media: Optional[bytes] = None,
     """Parse one inbound message. Pass `client` in tests to avoid the network."""
     if not text and not media:
         raise ValueError("need text or media")
-    if client is None and not os.getenv("GEMINI_API_KEY"):
-        from . import demo_parser
+    from . import demo_parser
+    if client is None and not ai.enabled():
         return normalise(demo_parser.parse(text=text, media=media, today=today))
 
     from google.genai import types
@@ -57,14 +57,21 @@ def parse(*, text: Optional[str] = None, media: Optional[bytes] = None,
         parts.append(types.Part.from_bytes(data=media, mime_type=mime))
     parts.append(f"Today is {today}.\n\nMessage text (may be empty):\n{text or ''}")
 
-    resp = (client or _client()).models.generate_content(
-        model=MODEL,
-        contents=parts,
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM,
-            response_mime_type="application/json",
-            response_json_schema=ParsedMessage.model_json_schema(),
-            temperature=0,
-        ),
-    )
-    return normalise(ParsedMessage.model_validate_json(resp.text))
+    try:
+        resp = (client or _client()).models.generate_content(
+            model=MODEL,
+            contents=parts,
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM,
+                response_mime_type="application/json",
+                response_json_schema=ParsedMessage.model_json_schema(),
+                temperature=0,
+            ),
+        )
+        return normalise(ParsedMessage.model_validate_json(resp.text))
+    except Exception as e:
+        ai.failed("parse", e)
+        if media or client is not None:
+            raise  # photos and voice notes need Gemini; tests want the real error
+        # Text still gets an answer from the built-in parser while Gemini is down or rate-limited.
+        return normalise(demo_parser.parse(text=text, media=None, today=today))

@@ -60,7 +60,8 @@ def explain(m: Match, *, party: str, lang: Lang, prices: dict[str, dict], client
     """Message for `party` ('farmer' or 'buyer') about match `m`.
 
     `shared_with` is how many other farmers' loads ride in the same shipment."""
-    if client is None and not os.getenv("GEMINI_API_KEY"):
+    from . import ai
+    if client is None and not ai.enabled():
         return _template(m, party, lang, shared_with)
     from google import genai
     from google.genai import types
@@ -79,6 +80,7 @@ def explain(m: Match, *, party: str, lang: Lang, prices: dict[str, dict], client
                 temperature=0.3,
             ),
         )
-        return resp.text.strip() or _template(m, party, lang, shared_with)
-    except Exception:
+        return (resp.text or "").strip() or _template(m, party, lang, shared_with)
+    except Exception as e:
+        ai.failed("match message", e)
         return _template(m, party, lang, shared_with)
