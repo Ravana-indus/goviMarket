@@ -50,13 +50,13 @@ def test_half_finished_message_is_held_then_completed(fake):
                  _p(role="farmer", language="si", location="Dambulla", items=[item]))
     first = main.handle(text="කැරට් කිලෝ 200", media=None, mime_type=None, sender="94771111111",
                         today=TODAY, auto_plan=False)
-    assert first["created"] == [] and first["reply"].endswith("ඔබ කුමන නගරයේ ද?")
-    assert any(d["phone"] == "94771111111" for d in store.DB.all("drafts"))
+    assert first["created"] == [] and first["reply"].endswith("ඔබ කුමන නගරයේ සිට එවනවාද?")
+    assert store.DB.one("convo", "94771111111")["state"] == "asking"
 
     second = main.handle(text="දඹුල්ල", media=None, mime_type=None, sender="94771111111",
                          today=TODAY, auto_plan=False)
-    assert "Unfinished earlier message" in calls[1]["context"]
-    assert second["created"] and not store.DB.all("drafts")
+    assert "Pending order" in calls[1]["context"]
+    assert second["created"] and store.DB.one("convo", "94771111111")["state"] == "idle"
     assert store.listings()[0].location == "Dambulla"
 
 

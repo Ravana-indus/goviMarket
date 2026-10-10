@@ -80,7 +80,8 @@ def test_every_role_end_to_end(c):
 
     # 5. A simulator text from a new farmer is parsed (demo parser without a key) and stored.
     reply = sim(c, SPARE, "This is Rasan, red onion 100kg ready today, Jaffna")
-    assert "red onion" in reply.lower()
+    assert "red onion" in reply.lower() and "YES" in reply
+    assert "up for sale" in sim(c, SPARE, "yes")
 
     # 6. Ops console: sign in, move the shipment, then mark one as missed.
     r = c.post("/login", data={"token": TOKEN, "next": "/admin"}, follow_redirects=False)

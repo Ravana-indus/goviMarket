@@ -5,13 +5,37 @@ from __future__ import annotations
 import re
 
 CROPS = {
-    "carrot": ["carrots", "කැරට්", "கேரட்"],
+    "carrot": ["carrots", "karat", "kerat", "කැරට්", "கேரட்"],
     "leeks": ["leek", "ලීක්ස්", "ලීක්", "லீக்ஸ்"],
-    "beans": ["bean", "green bean", "green beans", "බෝංචි", "பீன்ஸ்", "agarawatte beans"],
-    "tomato": ["tomatoes", "තක්කාලි", "தக்காளி"],
-    "red onion": ["red onions", "small onion", "shallot", "shallots", "රතු ළූණු", "சின்ன வெங்காயம்", "சிவப்பு வெங்காயம்"],
-    "maize": ["corn", "sweet corn", "බඩ ඉරිඟු", "ඉරිඟු", "சோளம்", "மக்காச்சோளம்"],
-    "green chilli": ["green chillies", "green chili", "green chilies", "chilli", "chillies", "chili", "අමු මිරිස්", "මිරිස්", "பச்சை மிளகாய்", "மிளகாய்"],
+    "beans": ["bean", "bonchi", "boonchi", "bonji", "green bean", "green beans", "බෝංචි", "பீன்ஸ்", "agarawatte beans"],
+    "tomato": ["tomatoes", "thakkali", "thakkaali", "takkali", "තක්කාලි", "தக்காளி"],
+    "red onion": ["red onions", "rathu lunu", "rathulunu", "chinna vengayam", "small onion", "shallot", "shallots", "රතු ළූණු", "சின்ன வெங்காயம்", "சிவப்பு வெங்காயம்"],
+    "maize": ["corn", "iringu", "badairingu", "bada iringu", "solam", "sweet corn", "බඩ ඉරිඟු", "ඉරිඟු", "சோளம்", "மக்காச்சோளம்"],
+    "green chilli": ["green chillies", "amu miris", "amumiris", "miris", "milagai", "green chili", "green chilies", "chilli", "chillies", "chili", "අමු මිරිස්", "මිරිස්", "பச்சை மிளகாய்", "மிளகாய்"],
+    # Plain "onion" (lunu, வெங்காயம்) in a Sri Lankan kitchen order means big onion.
+    "big onion": ["onion", "vengayam", "periya vengayam", "onions", "big onions", "b onion", "lunu", "loku lunu", "ලොකු ළූණු", "ළූණු",
+                  "வெங்காயம்", "பெரிய வெங்காயம்"],
+    "cabbage": ["cabbages", "gova", "gowa", "kova", "ගෝවා", "கோவா", "முட்டைக்கோஸ்", "முட்டைகோஸ்"],
+    "potato": ["potatoes", "ala", "අල", "உருளைக்கிழங்கு", "உருளை"],
+    "beetroot": ["beet", "beets", "beetroots", "බීට්", "බීට්රූට්", "பீட்ரூட்"],
+    "pumpkin": ["pumpkins", "wattakka", "watakka", "poosani", "වට්ටක්කා", "பூசணிக்காய்", "பூசணி"],
+    "brinjal": ["brinjals", "eggplant", "aubergine", "wambatu", "batu", "kathirikai", "වම්බටු", "கத்தரிக்காய்", "கத்தரி"],
+}
+# What the sender sees: crop names in their own script.
+CROP_NAME = {
+    "carrot": {"si": "කැරට්", "ta": "கேரட்"},
+    "leeks": {"si": "ලීක්ස්", "ta": "லீக்ஸ்"},
+    "beans": {"si": "බෝංචි", "ta": "பீன்ஸ்"},
+    "tomato": {"si": "තක්කාලි", "ta": "தக்காளி"},
+    "red onion": {"si": "රතු ළූණු", "ta": "சின்ன வெங்காயம்"},
+    "maize": {"si": "බඩ ඉරිඟු", "ta": "சோளம்"},
+    "green chilli": {"si": "අමු මිරිස්", "ta": "பச்சை மிளகாய்"},
+    "big onion": {"si": "ලොකු ළූණු", "ta": "வெங்காயம்"},
+    "cabbage": {"si": "ගෝවා", "ta": "கோவா"},
+    "potato": {"si": "අල", "ta": "உருளைக்கிழங்கு"},
+    "beetroot": {"si": "බීට්", "ta": "பீட்ரூட்"},
+    "pumpkin": {"si": "වට්ටක්කා", "ta": "பூசணிக்காய்"},
+    "brinjal": {"si": "වම්බටු", "ta": "கத்தரிக்காய்"},
 }
 TOWNS = {
     "Nuwara Eliya": ["nuwaraeliya", "nuwara-eliya", "n'eliya", "නුවරඑළිය", "நுவரெலியா"],
@@ -23,6 +47,66 @@ TOWNS = {
     "Kandy": ["මහනුවර", "கண்டி"],
     "Colombo": ["කොළඹ", "கொழும்பு"],
 }
+
+
+def crop_name(crop: str, lang: str) -> str:
+    return CROP_NAME.get(crop, {}).get(lang) or crop
+
+
+def crops_in(text: str | None) -> set[str]:
+    """Every crop named anywhere in a message, in any language ("remove the carrot", "கேரட் வேண்டாம்")."""
+    t = " " + re.sub(r"[,.;:!?()\"'/+&-]+", " ", (text or "").lower()) + " "
+    found = set()
+    for alias, canon in sorted(_CROP.items(), key=lambda kv: -len(kv[0])):
+        # Latin words need word edges ("ala" is not in "salad"); Sinhala and Tamil take suffixes
+        # ("கேரட்டை", "තක්කාලිත්"), so a plain substring is right there.
+        pat = (r"(?<![a-z])" + re.escape(alias) + r"(?:s|es)?(?![a-z])") if alias.isascii() else re.escape(alias)
+        if re.search(pat, t):
+            found.add(canon)
+            t = re.sub(pat, " ", t)  # "red onion" must not also count as "onion"
+    return found
+
+
+def script(text: str | None) -> str | None:
+    """'si' or 'ta' when the text is written in that script, else None (Latin letters say nothing)."""
+    for ch in text or "":
+        if "\u0d80" <= ch <= "\u0dff":
+            return "si"
+        if "\u0b80" <= ch <= "\u0bff":
+            return "ta"
+    return None
+
+
+# Short replies people actually send on WhatsApp. Matched against the whole message only.
+YES = {"yes", "y", "yeah", "yep", "yup", "ya", "ok", "okay", "k", "kk", "ok ok", "sure", "confirm", "confirmed",
+       "done", "go", "go ahead", "correct", "right", "yes please", "ok confirm", "yes confirm", "agreed", "fine",
+       "ow", "ow ow", "owu", "ou", "hari", "hari hari", "ehenam", "ow hari", "ok hari",
+       "ඔව්", "ඔව්ව", "හරි", "හරි හරි", "ඔව් හරි", "එහෙනම්", "ඕනෙ", "ඕන",
+       "ஆம்", "ஆமா", "ஆமாம்", "சரி", "ஓகே", "ஓக்கே", "சரி சரி", "aam", "aama", "aamam", "sari", "seri",
+       "👍", "👌", "✅", "🙏👍"}
+NO = {"no", "n", "nope", "nah", "no thanks", "don't", "dont", "not now",
+      "epa", "naha", "nehe", "na", "නැහැ", "නෑ", "එපා", "නැහැ එපා",
+      "இல்லை", "இல்ல", "வேண்டாம்", "venam", "vendam", "illa", "illai", "👎", "❌"}
+CANCEL = {"cancel", "cancel it", "cancel order", "stop", "delete", "අවලංගු", "අවලංගු කරන්න", "කැන්සල්",
+          "ரத்து", "ரத்து செய்", "ரத்து செய்யவும்", "கேன்சல்"}
+STATUS = {"status", "my orders", "orders", "my order", "order status", "where is my order", "track",
+          "තත්ත්වය", "මගේ ඇණවුම්", "ඇණවුම්", "நிலை", "என் ஆர்டர்", "என் ஆர்டர்கள்", "ஆர்டர் நிலை"}
+HELLO = {"hi", "hello", "hey", "helo", "hii", "help", "menu", "start", "ayubowan", "vanakkam", "good morning",
+         "ආයුබෝවන්", "හලෝ", "හායි", "උදව්", "வணக்கம்", "ஹலோ", "உதவி"}
+THANKS = {"thanks", "thank you", "thx", "ty", "thank u", "stuti", "istuti", "isthuthi", "nandri",
+          "ස්තූතියි", "බොහොම ස්තූතියි", "நன்றி", "மிக்க நன்றி", "🙏"}
+SELLING = {"selling", "sell", "i am selling", "farmer", "seller", "vikunanawa", "විකුණනවා", "විකිණීමට", "ගොවියා",
+           "விற்கிறேன்", "விற்பனை", "விவசாயி"}
+BUYING = {"buying", "buy", "i am buying", "buyer", "order", "ganna", "gannawa", "ගන්නවා", "මිලදී ගන්නවා", "ගැනුම්කරු",
+          "வாங்குகிறேன்", "வாங்க", "வாங்குபவர்"}
+# Words that turn "carrot" in an edit into "take the carrot out".
+REMOVE = re.compile(r"\b(remove|delete|drop|without|no more|cancel|take out|don'?t need|dont need)\b|"
+                    r"ඉවත්|එපා|අයින්|வேண்டாம்|நீக்கு|நீக்கவும்|இல்லாமல்|ரத்து", re.I)
+
+
+def norm(text: str | None) -> str:
+    """Lowercase, no punctuation or extra spaces, for matching whole short replies."""
+    return re.sub(r"\s+", " ", re.sub(r"[!.?,;:'\"()\-]+", " ", (text or "").lower())).strip()
 
 
 def _index(table: dict[str, list[str]]) -> dict[str, str]:
@@ -39,6 +123,15 @@ _CROP, _TOWN = _index(CROPS), _index(TOWNS)
 def crop(name: str) -> str:
     key = re.sub(r"\s+", " ", (name or "").lower().strip())
     return _CROP.get(key, key)
+
+
+def towns_in(text: str | None) -> str | None:
+    """The first known town named anywhere in a message, in any script."""
+    t = " " + (text or "").lower() + " "
+    for alias, canon in sorted(_TOWN.items(), key=lambda kv: -len(kv[0])):
+        if (re.search(r"(?<![a-z])" + re.escape(alias) + r"(?![a-z])", t) if alias.isascii() else alias in t):
+            return canon
+    return None
 
 
 def town(name: str | None) -> str | None:

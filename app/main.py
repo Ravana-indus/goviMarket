@@ -2,13 +2,16 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import logging
 import shutil
 import os
 from urllib.parse import quote
 import re
+import threading
 import uuid
+from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
@@ -19,7 +22,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from . import accounts, ai, deals, parser, portal, replies, reporters, reroute, rescue, security, shipping, store, surplus, vocab, whatsapp
+from . import accounts, ai, convo, deals, parser, portal, replies, reporters, reroute, rescue, security, shipping, store, surplus, vocab, whatsapp
 from .pricing import split
 from .schemas import Listing
 
@@ -46,91 +49,32 @@ def _chat(phone: str, direction: str, text: str, via: str, media: str | None = N
                                                  "via": via, "at": datetime.now(timezone.utc).isoformat()})
 
 
-DRAFT_HOURS = 24
-ASK = {"en": "Which crop, how many kg, and (if you are selling) from which town?",
-       "si": "කුමන බෝගය ද, කිලෝ කීයද, (විකුණනවා නම්) කුමන නගරයෙන් ද?",
-       "ta": "எந்தப் பயிர், எத்தனை கிலோ, (விற்கிறீர்கள் என்றால்) எந்த ஊரிலிருந்து?"}
-
-
-def _incomplete(p) -> bool:
-    """Govi cannot trade without a crop, a quantity and, for a farmer, a town."""
-    if p.role == "reporter":
-        return False
-    return p.role == "unknown" or not p.items or any(not it.qty_kg for it in p.items) \
-        or (p.role == "farmer" and not p.location)
-
-
-def _draft(sender: str) -> dict | None:
-    if not sender.isdigit():
-        return None
-    d = next((d for d in store.DB.all("drafts") if d.get("phone") == sender), None)
-    if d and datetime.fromisoformat(d["at"]) < datetime.now(timezone.utc) - timedelta(hours=DRAFT_HOURS):
-        store.DB.delete("drafts", sender)
-        return None
-    return d
-
-
-def _context(sender: str, known: dict | None, draft: dict | None) -> str | None:
-    """What we already know about this number, so Gemini infers instead of asking."""
-    bits = []
-    role = (known or {}).get("role")
-    if role not in ("farmer", "buyer") and sender.isdigit():
-        sold = any(x.phone == sender for x in store.listings())
-        bought = any(x.phone == sender for x in store.orders())
-        role = "farmer" if sold and not bought else "buyer" if bought and not sold else None
-    if role:
-        bits.append(f"About the sender: this number belongs to a {role}"
-                    + (f" in {known['location']}" if known and known.get("location") else "") + ".")
-    if draft:
-        bits.append("Unfinished earlier message from this sender (JSON): "
-                    + json.dumps(draft["parsed"], ensure_ascii=False) + f"\nWe asked them: {draft['question']}")
-    return "\n".join(bits) or None
+_locks: dict[str, threading.Lock] = defaultdict(threading.Lock)
+_plan_lock = threading.Lock()
 
 
 def handle(*, text: Optional[str], media: Optional[bytes], mime_type: Optional[str],
-           sender: str, today: date, via: str = "web", auto_plan: bool = True) -> dict:
-    """One pipeline for every channel: parse, store, match, build a reply."""
-    if sender.isdigit():
-        _chat(sender, "in", text or "", via, (mime_type or "").split("/")[0] or None)
-    reply_to = None
-    if text and not media:
-        reply_to = reroute.answer(sender, text, deals._send) or deals.answer(sender, text) or surplus.answer(sender, text)
-    if reply_to:
-        out = {"parsed": None, "created": [], "needs_clarification": False, "reply": reply_to}
-    else:
-        known = accounts.user(sender) if sender.isdigit() else None
-        draft = _draft(sender)
-        parsed = parser.parse(text=text, media=media, mime_type=mime_type, today=today.isoformat(),
-                              context=_context(sender, known, draft))
-        if draft:
-            store.DB.delete("drafts", sender)
-        if parsed.role == "farmer" and not parsed.location and known and known.get("location"):
-            parsed.location = vocab.town(known["location"])
-        # Same number, same person: the account on the web and the WhatsApp chat are one.
-        u = accounts.link(sender, name=parsed.sender_name, role=parsed.role, via=via)
-        if u and u.get("name") and not parsed.sender_name:
-            parsed.sender_name = u.get("business") or u["name"]
-        needs = _incomplete(parsed)
-        if needs and sender.isdigit():
-            # Hold the half-finished message; the next one from this number is read together with it.
-            parsed.question_in_sender_language = parsed.question_in_sender_language or ASK[parsed.language]
-            store.DB.put("drafts", sender, {"phone": sender, "at": datetime.now(timezone.utc).isoformat(),
-                                            "parsed": parsed.model_dump(mode="json"),
-                                            "question": parsed.question_in_sender_language})
-            created = []
-        else:
-            if needs:  # web form without a phone: nothing to hold the draft against, so just ask
-                parsed.question_in_sender_language = parsed.question_in_sender_language or ASK[parsed.language]
-            else:
-                parsed.question_in_sender_language = None  # complete: nothing to ask
-            created = store.record(parsed, default_date=today, sender=sender)
-        out = {"parsed": parsed, "created": created, "needs_clarification": needs,
-               "reply": replies.build(parsed, store.prices())}
-        if created and auto_plan and parsed.role in ("farmer", "buyer"):
-            deals.plan()  # match straight away; both sides get their YES/NO message
-    if sender.isdigit():
-        _chat(sender, "out", out["reply"], via)
-    return out
+           sender: str, today: date, via: str = "web", auto_plan: bool = True,
+           confirm_first: Optional[bool] = None, deliver=None) -> dict:
+    """One pipeline for every channel. Chat channels (WhatsApp, the simulator) show the sender the
+    whole order and wait for YES before anything is stored; the web form places it at once.
+    `deliver` sends the reply (real WhatsApp) before matching runs, so it arrives before any offers."""
+    if confirm_first is None:
+        confirm_first = via in ("sim", "whatsapp")
+    with _locks[sender]:  # two messages from one phone at once must not race on its pending order
+        if sender.isdigit():
+            _chat(sender, "in", text or "", via, (mime_type or "").split("/")[0] or None)
+        turn = convo.step(sender=sender, text=text, media=media, mime_type=mime_type, today=today,
+                          confirm_first=confirm_first, via=via)
+        if sender.isdigit():
+            _chat(sender, "out", turn.reply, via)
+        if deliver:
+            deliver(turn.reply)
+    if turn.plan and auto_plan:
+        with _plan_lock:
+            deals.plan()  # match straight away; each side gets its YES/NO offer
+    return {"parsed": turn.parsed, "created": turn.created, "needs_clarification": turn.needs,
+            "reply": turn.reply, "state": turn.state}
 
 
 @app.get("/api/health")
@@ -348,15 +292,22 @@ def whatsapp_verify(mode: str = Query(alias="hub.mode"), token: str = Query(alia
 
 
 def _process_whatsapp(msg: whatsapp.Inbound) -> None:
+    if msg.id:  # Meta retries a webhook it thinks we missed; one message, one reply
+        key = hashlib.sha1(msg.id.encode()).hexdigest()  # wamid ids can hold "/", which Firestore keys cannot
+        if store.DB.one("seen", key):
+            return
+        store.DB.put("seen", key, {"at": datetime.now(timezone.utc).isoformat()})
+    send = lambda body: whatsapp.send_text(msg.sender, body)  # noqa: E731
     try:
         media = whatsapp.fetch_media(msg.media_id) if msg.media_id else None
-        out = handle(text=msg.text, media=media, mime_type=msg.mime_type,
-                     sender=msg.sender, today=date.today(), via="whatsapp")
-        whatsapp.send_text(msg.sender, out["reply"])
+        handle(text=msg.text, media=media, mime_type=msg.mime_type,
+               sender=msg.sender, today=date.today(), via="whatsapp", deliver=send)
     except Exception:
         log.exception("whatsapp message failed")
         try:
-            whatsapp.send_text(msg.sender, "Sorry, we could not read that. Please try again.")
+            lang = (convo.load(msg.sender).get("lang") or "en") if msg.sender.isdigit() else "en"
+            send(convo.t("unread_audio" if (msg.mime_type or "").startswith("audio") else "unread_image", lang)
+                 if msg.media_id else "Sorry, we could not read that. Please try again.")
         except Exception:
             log.exception("whatsapp apology failed")
 
@@ -558,7 +509,7 @@ def _seed():
     def send_all(messages):
         for phone, text in messages:
             handle(text=text.format(day=day), media=None, mime_type=None, sender=phone, today=today,
-                   via="sim", auto_plan=False)
+                   via="sim", auto_plan=False, confirm_first=False)
 
     # Earlier this morning: deals confirmed and shipments already moving, later departures
     # further behind, so every step shows on the board.

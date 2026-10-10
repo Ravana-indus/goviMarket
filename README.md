@@ -10,6 +10,16 @@ Built for the AI Builder Cup 2026 (Sustainability & Social Impact).
 3. `POST /plan` runs the matcher, then bundles loads leaving the same town on the same day into one consignment (cheapest bus, train or lorry for the combined weight; fixed loading and Colombo pickup paid once; each farmer's share cut by the same ratio, so nobody pays more than shipping alone) (`app/matcher.py`). It fills the earliest deadlines first, from the farm that nets the farmer the most after transport. The lane picker (`app/lanes.py`) uses the cheapest public transport that lands by 08:00 on the needed-by day.
 4. Leftover stock comes back as `surplus`, ready to route to processors or exporters.
 
+## The WhatsApp conversation (`app/convo.py`)
+Each phone number has one conversation state: idle, asking (one fact missing), or confirming.
+1. A message with an order or harvest (text, photo or voice note, Sinhala, Tamil, English or Singlish) is read by Gemini. Govi replies with the whole order in the sender's language: every item and kg, the date, the town, and for farmers the fair price after transport. **Nothing is stored yet.**
+2. If something Govi cannot trade without is missing (the crop, the kg, a farmer's town, or whether they buy or sell when the account does not say), it asks for that one thing, then shows the whole order.
+3. **YES** (ok, ow, hari, ஆம், சரி, 👍, or a voice note saying yes) places it and matching runs. **NO** cancels it. A change ("make tomato 15kg", "remove carrot", "deliver to Kandy") edits it and shows it again. A separate new order replaces the unplaced one and says so.
+4. A YES or NO always goes to the newest question this number was sent: its own pending order, a match offer (one YES answers all offers sent together), or a route change. A second YES after placing says it is already done.
+5. Pending orders expire unplaced after 24 hours. **CANCEL** within 6 hours of placing withdraws it (and tells any farmer already offered), unless a deal on it is agreed. **STATUS** lists what is open. Greetings and thanks never start an order.
+
+YES, NO, STATUS, greetings and bare numbers are handled without a Gemini call. The web form on `/` places at once (the button is the confirmation). Try every path with `pytest tests/test_conversations.py`, or print transcripts with `python scripts/chat_sim.py [https://<cloud-run-url>]` (fresh simulator numbers, real Gemini when given the live URL).
+
 ## Pages
 | URL | Who | Notes |
 |---|---|---|

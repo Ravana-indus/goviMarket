@@ -3,6 +3,7 @@
 Numbers come from code, never from Gemini, so a price in a reply is always one we can trace."""
 from __future__ import annotations
 
+from . import vocab
 from .lanes import cheapest_to, lane_cost, load_lanes
 from .pricing import split
 from .schemas import ParsedMessage
@@ -21,26 +22,34 @@ FAIR_AFTER_TRANSPORT = {
 LANES = load_lanes()
 
 
+def price_lines(parsed: ParsedMessage, prices: dict[str, dict], lang: str | None = None) -> list[str]:
+    """What a farmer should get for each crop, after transport from their town when we know it."""
+    lang = lang or parsed.language
+    lines = []
+    for item in parsed.items:
+        p = prices.get(item.crop)
+        if not p:
+            continue
+        crop = vocab.crop_name(item.crop, lang)
+        lane = cheapest_to(LANES, origin=parsed.location, dest="Colombo", kg=item.qty_kg) \
+            if parsed.location and item.qty_kg else None
+        if lane:
+            transport = lane_cost(lane, item.qty_kg) / item.qty_kg
+            money = split(p, transport_lkr_per_kg=transport)
+            lines.append(FAIR_AFTER_TRANSPORT[lang].format(
+                crop=crop, fair=round(money["farmer_gets"]), transport=round(transport),
+                collector=round(p["collector"])))
+        else:
+            money = split(p, transport_lkr_per_kg=0)
+            lines.append(FAIR[lang].format(crop=crop, fair=round(money["farmer_gets"]),
+                                           collector=round(p["collector"])))
+    return lines
+
+
 def build(parsed: ParsedMessage, prices: dict[str, dict]) -> str:
     lines = [parsed.summary_in_sender_language]
-    lang = parsed.language
     if parsed.role == "farmer":
-        for item in parsed.items:
-            p = prices.get(item.crop)
-            if not p:
-                continue
-            lane = cheapest_to(LANES, origin=parsed.location, dest="Colombo", kg=item.qty_kg) \
-                if parsed.location and item.qty_kg else None
-            if lane:
-                transport = lane_cost(lane, item.qty_kg) / item.qty_kg
-                money = split(p, transport_lkr_per_kg=transport)
-                lines.append(FAIR_AFTER_TRANSPORT[lang].format(
-                    crop=item.crop, fair=round(money["farmer_gets"]), transport=round(transport),
-                    collector=round(p["collector"])))
-            else:
-                money = split(p, transport_lkr_per_kg=0)
-                lines.append(FAIR[lang].format(crop=item.crop, fair=round(money["farmer_gets"]),
-                                               collector=round(p["collector"])))
+        lines += price_lines(parsed, prices)
     # `unclear` holds internal English notes for the console; the sender only ever gets one question.
     if parsed.question_in_sender_language:
         lines.append(parsed.question_in_sender_language)

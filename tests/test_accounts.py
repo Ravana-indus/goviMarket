@@ -124,6 +124,7 @@ def test_whatsapp_history_belongs_to_the_same_number(c):
     r = c.post("/intake", data={"text": "This is Ravi, carrot 100kg ready tomorrow, Dambulla",
                                 "sender": NEW, "via": "sim"})
     assert r.status_code == 200
+    assert c.post("/intake", data={"text": "YES", "sender": NEW, "via": "sim"}).status_code == 200
     assert accounts.user(NEW)["name"] == "Ravi" and accounts.user(NEW)["role"] == "farmer"
     out = sign_in(c)
     assert out["new"] is False and out["user"]["name"] == "Ravi"
