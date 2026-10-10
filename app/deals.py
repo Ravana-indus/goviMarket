@@ -80,6 +80,8 @@ def plan(extra_blocked: set[tuple[str, str]] = frozenset()) -> dict:
            "impact": {**impact(live), "surplus_kg": sum(l.remaining_kg for l in surplus),
                       "confirmed": sum(m.status == "confirmed" for m in live)}}
     store.save_plan(out)
+    from . import reroute
+    reroute.scan(_send)  # a better route can show up after a deal is agreed
     return out
 
 

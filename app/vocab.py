@@ -10,6 +10,7 @@ CROPS = {
     "beans": ["bean", "green bean", "green beans", "බෝංචි", "பீன்ஸ்", "agarawatte beans"],
     "tomato": ["tomatoes", "තක්කාලි", "தக்காளி"],
     "red onion": ["red onions", "small onion", "shallot", "shallots", "රතු ළූණු", "சின்ன வெங்காயம்", "சிவப்பு வெங்காயம்"],
+    "maize": ["corn", "sweet corn", "බඩ ඉරිඟු", "ඉරිඟු", "சோளம்", "மக்காச்சோளம்"],
     "green chilli": ["green chillies", "green chili", "green chilies", "chilli", "chillies", "chili", "අමු මිරිස්", "මිරිස්", "பச்சை மிளகாய்", "மிளகாய்"],
 }
 TOWNS = {
@@ -17,6 +18,8 @@ TOWNS = {
     "Dambulla": ["දඹුල්ල", "தம்புள்ளை"],
     "Jaffna": ["යාපනය", "யாழ்ப்பாணம்"],
     "Badulla": ["බදුල්ල", "பதுளை"],
+    "Ampara": ["අම්පාර", "அம்பாறை"],
+    "Kurunegala": ["kurunagala", "කුරුණෑගල", "குருநாகல்"],
     "Kandy": ["මහනුවර", "கண்டி"],
     "Colombo": ["කොළඹ", "கொழும்பு"],
 }

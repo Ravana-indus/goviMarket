@@ -81,6 +81,7 @@ function renderPlan(plan) {
   document.querySelectorAll("[data-advance]").forEach((b) => (b.onclick = () => busy(b, async () => {
     await api(`/shipments/${b.dataset.advance}/advance`, { method: "POST" }); await refresh();
   })));
+  renderSwaps(plan.swaps || []);
   $("matches").innerHTML = plan.matches.length ? plan.matches.map((m) => {
     const shared = m.transport_lkr_per_kg < m.solo_transport_lkr_per_kg;
     const lane = m.lane
@@ -187,6 +188,28 @@ async function loadReports() {
     busy(b, async () => { await api(`/api/agent/reports/${b.dataset.rep}/${b.dataset.v}`, { method: "POST" }); refresh(); })));
 }
 
+const SWAP_STATE = { proposed: ["reporter", "waiting for YES"], done: ["farmer", "switched"],
+  declined: ["", "kept as agreed (someone said NO)"], expired: ["warn", "too late, kept as agreed"] };
+function renderSwaps(swaps) {
+  $("swaps-card").hidden = !swaps.length;
+  $("swaps").innerHTML = swaps.map((s) => {
+    const [cls, label] = SWAP_STATE[s.status] || ["", s.status];
+    const people = s.parties.map((p) => p.ok || s.status !== "proposed"
+      ? `<span class="chip ${p.ok ? "farmer" : ""}">${p.ok ? "✓" : "·"} ${esc(p.name)}</span>`
+      : `<button class="btn small" data-swap="${s.id}" data-phone="${esc(p.phone)}" title="Demo: ${esc(p.name)} replies YES on WhatsApp">YES as ${esc(p.name)}</button>`).join(" ");
+    return `<div class="ship">
+      <div class="row"><b>${kg(s.kg)} ${esc(s.crop)}</b><span class="chip ${cls}">${label}</span>
+        <span class="up">${esc(s.why)}</span>${s.farmer_gain_lkr_per_kg > 0 ? `<span class="chip farmer">farmer +Rs ${s.farmer_gain_lkr_per_kg}/kg</span>` : ""}</div>
+      <div class="cost"><span>Now: ${s.before.map(esc).join("<br>")}</span><span class="arrow">→</span>
+        <span>Better: <b>${s.after.map(esc).join("<br>")}</b></span></div>
+      <div class="cost"><span>Transport ${rs(s.transport_before_lkr)} → ${rs(s.transport_after_lkr)}</span><span style="margin-left:auto">${people}</span></div>
+    </div>`;
+  }).join("");
+  document.querySelectorAll("[data-swap]").forEach((b) => (b.onclick = () => busy(b, async () => {
+    await api(`/api/swaps/${b.dataset.swap}/answer?phone=${encodeURIComponent(b.dataset.phone)}`, { method: "POST" }); await refresh();
+  })));
+}
+
 // ---- console navigation
 const PANES = ["overview", "matches", "shipments", "unsold", "market", "prices", "forecast", "analytics", "messages"];
 function show(p) {
@@ -205,7 +228,9 @@ function renderAttention(s, plan) {
   const notAlerted = plan.surplus.filter((l) => !l.offer).length;
   const noBackup = (plan.shipments || []).filter((x) => x.backup === "").length;
   const unsure = s.inbox.filter((m) => m.parsed.confidence < 0.7).length;
+  const swaps = (plan.swaps || []).filter((s) => s.status === "proposed").length;
   const items = [
+    [swaps, "better routes found", "a cheaper farmer-to-buyer route; switches once everyone says YES", "matches"],
     [waiting, "matches waiting for a YES", "farmers or buyers still have to confirm on WhatsApp", "matches"],
     [notAlerted, "unsold loads not yet alerted", "send the farmer a processor or cold-store offer", "unsold"],
     [openOffers, "unsold offers waiting for a reply", "farmers reply 1, 2 or 3", "unsold"],

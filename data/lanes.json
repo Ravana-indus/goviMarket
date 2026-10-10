@@ -155,5 +155,31 @@
   "source": "ESTIMATE",
   "handling_lkr": 300,
   "pickup": "Nuwara Eliya bus stand"
+ },
+ {
+  "origin": "Ampara",
+  "dest": "Colombo",
+  "mode": "night_bus",
+  "lkr_per_kg": 12,
+  "min_charge_lkr": 300,
+  "departs": "20:00",
+  "transit_hours": 8,
+  "max_kg": 300,
+  "source": "ESTIMATE",
+  "handling_lkr": 300,
+  "pickup": "Ampara bus stand"
+ },
+ {
+  "origin": "Kurunegala",
+  "dest": "Colombo",
+  "mode": "night_bus",
+  "lkr_per_kg": 7,
+  "min_charge_lkr": 200,
+  "departs": "21:00",
+  "transit_hours": 3,
+  "max_kg": 300,
+  "source": "ESTIMATE",
+  "handling_lkr": 300,
+  "pickup": "Kurunegala bus stand"
  }
 ]
