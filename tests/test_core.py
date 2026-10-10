@@ -381,3 +381,12 @@ def test_one_shared_gemini_client(monkeypatch):
     monkeypatch.setattr(ai, "_client", None)
     assert parser._client() is parser._client()  # an inline throwaway client closes mid-call
     monkeypatch.setattr(ai, "_client", None)
+
+
+def test_vertex_express_keys_use_the_vertex_endpoint(monkeypatch):
+    from app import ai
+    for key, vertex in (("AQ.fake", True), ("AIzaFake", False)):
+        monkeypatch.setenv("GEMINI_API_KEY", key)
+        monkeypatch.setattr(ai, "_client", None)
+        assert bool(ai.client()._api_client.vertexai) is vertex
+    monkeypatch.setattr(ai, "_client", None)

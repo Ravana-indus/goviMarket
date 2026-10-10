@@ -260,6 +260,10 @@ async function busy(btn, fn) { btn.disabled = true; try { await fn(); } catch (e
 $("run").onclick = (e) => busy(e.target, async () => { await api("/plan", { method: "POST" }); await refresh(); });
 $("sweep").onclick = (e) => busy(e.target, async () => { await api("/surplus/sweep", { method: "POST" }); await refresh(); });
 $("advance-all").onclick = (e) => busy(e.target, async () => { await api("/demo/advance-all", { method: "POST" }); await refresh(); });
+$("clear").onclick = (e) => {
+  if (!confirm("Delete every listing, order, deal, shipment and chat? Accounts stay.")) return;
+  busy(e.target, async () => { await api("/demo/clear", { method: "POST" }); await refresh(); });
+};
 $("seed").onclick = (e) => busy(e.target, async () => { await api("/demo/seed", { method: "POST" }); await refresh(); await loadForecast(); });
 $("sim-send").onclick = (e) => busy(e.target, async () => {
   const fd = new FormData();
