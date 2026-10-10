@@ -20,6 +20,13 @@ Rules:
 - Use these exact crop names when the crop is one of them: {crops}. Otherwise a lowercase English name.
 - Use these exact town names when the place is one of them: {towns}. A Colombo suburb is "Colombo".
 - Resolve relative dates ("Thursday", "heta" = tomorrow) against today's date given below.
+  "Next week" (heta sathiya, அடுத்த வாரம்) means Monday of next week. No date at all: `when` null.
+  A resolved date is not unclear.
+- Role: if "About the sender" says this number is a farmer or a buyer, use that unless the message
+  plainly says the opposite. Never ask the sender who they are.
+- If "Unfinished earlier message" is given, the new message usually answers its question: merge the
+  two into one complete message.
+- Everything the sender sees (summary, question) is in their language only. `unclear` is internal.
 - Never invent items, quantities or prices. If you cannot read something, list it in `unclear`
   and lower `confidence`.
 """
@@ -41,7 +48,8 @@ def _client():
 
 
 def parse(*, text: Optional[str] = None, media: Optional[bytes] = None,
-          mime_type: Optional[str] = None, today: str, client=None) -> ParsedMessage:
+          mime_type: Optional[str] = None, today: str, client=None,
+          context: Optional[str] = None) -> ParsedMessage:
     """Parse one inbound message. Pass `client` in tests to avoid the network."""
     if not text and not media:
         raise ValueError("need text or media")
@@ -55,7 +63,7 @@ def parse(*, text: Optional[str] = None, media: Optional[bytes] = None,
         mime = (mime_type or "image/jpeg").split(";")[0].strip().lower()  # "audio/ogg; codecs=opus"
         media, mime = audio.for_gemini(media, mime)
         parts.append(types.Part.from_bytes(data=media, mime_type=mime))
-    parts.append(f"Today is {today}.\n\nMessage text (may be empty):\n{text or ''}")
+    parts.append(f"Today is {today}.\n{context or ''}\n\nMessage text (may be empty):\n{text or ''}")
 
     try:
         resp = (client or _client()).models.generate_content(

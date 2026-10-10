@@ -19,11 +19,6 @@ FAIR_AFTER_TRANSPORT = {
     "ta": "இன்று {crop} நியாய விலை: கொழும்புக்கு போக்குவரத்து கழித்த பின் கிலோவுக்கு சுமார் ரூ. {fair} (போக்குவரத்து கிலோவுக்கு சுமார் ரூ. {transport}; சேகரிப்பாளர்கள் சுமார் ரூ. {collector} தருகிறார்கள்). அயலவர்களுடன் சேர்ந்து அனுப்பினால் போக்குவரத்து செலவு குறையும்.",
 }
 LANES = load_lanes()
-UNCLEAR = {
-    "en": "Please check: {fields}",
-    "si": "කරුණාකර තහවුරු කරන්න: {fields}",
-    "ta": "தயவுசெய்து உறுதிப்படுத்தவும்: {fields}",
-}
 
 
 def build(parsed: ParsedMessage, prices: dict[str, dict]) -> str:
@@ -46,6 +41,7 @@ def build(parsed: ParsedMessage, prices: dict[str, dict]) -> str:
                 money = split(p, transport_lkr_per_kg=0)
                 lines.append(FAIR[lang].format(crop=item.crop, fair=round(money["farmer_gets"]),
                                                collector=round(p["collector"])))
-    if parsed.unclear:
-        lines.append(UNCLEAR[lang].format(fields=", ".join(parsed.unclear)))
+    # `unclear` holds internal English notes for the console; the sender only ever gets one question.
+    if parsed.question_in_sender_language:
+        lines.append(parsed.question_in_sender_language)
     return "\n".join(lines)

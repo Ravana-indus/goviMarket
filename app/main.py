@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import logging
 import shutil
 import os
@@ -45,6 +46,47 @@ def _chat(phone: str, direction: str, text: str, via: str, media: str | None = N
                                                  "via": via, "at": datetime.now(timezone.utc).isoformat()})
 
 
+DRAFT_HOURS = 24
+ASK = {"en": "Which crop, how many kg, and (if you are selling) from which town?",
+       "si": "කුමන බෝගය ද, කිලෝ කීයද, (විකුණනවා නම්) කුමන නගරයෙන් ද?",
+       "ta": "எந்தப் பயிர், எத்தனை கிலோ, (விற்கிறீர்கள் என்றால்) எந்த ஊரிலிருந்து?"}
+
+
+def _incomplete(p) -> bool:
+    """Govi cannot trade without a crop, a quantity and, for a farmer, a town."""
+    if p.role == "reporter":
+        return False
+    return p.role == "unknown" or not p.items or any(not it.qty_kg for it in p.items) \
+        or (p.role == "farmer" and not p.location)
+
+
+def _draft(sender: str) -> dict | None:
+    if not sender.isdigit():
+        return None
+    d = next((d for d in store.DB.all("drafts") if d.get("phone") == sender), None)
+    if d and datetime.fromisoformat(d["at"]) < datetime.now(timezone.utc) - timedelta(hours=DRAFT_HOURS):
+        store.DB.delete("drafts", sender)
+        return None
+    return d
+
+
+def _context(sender: str, known: dict | None, draft: dict | None) -> str | None:
+    """What we already know about this number, so Gemini infers instead of asking."""
+    bits = []
+    role = (known or {}).get("role")
+    if role not in ("farmer", "buyer") and sender.isdigit():
+        sold = any(x.phone == sender for x in store.listings())
+        bought = any(x.phone == sender for x in store.orders())
+        role = "farmer" if sold and not bought else "buyer" if bought and not sold else None
+    if role:
+        bits.append(f"About the sender: this number belongs to a {role}"
+                    + (f" in {known['location']}" if known and known.get("location") else "") + ".")
+    if draft:
+        bits.append("Unfinished earlier message from this sender (JSON): "
+                    + json.dumps(draft["parsed"], ensure_ascii=False) + f"\nWe asked them: {draft['question']}")
+    return "\n".join(bits) or None
+
+
 def handle(*, text: Optional[str], media: Optional[bytes], mime_type: Optional[str],
            sender: str, today: date, via: str = "web", auto_plan: bool = True) -> dict:
     """One pipeline for every channel: parse, store, match, build a reply."""
@@ -56,13 +98,32 @@ def handle(*, text: Optional[str], media: Optional[bytes], mime_type: Optional[s
     if reply_to:
         out = {"parsed": None, "created": [], "needs_clarification": False, "reply": reply_to}
     else:
-        parsed = parser.parse(text=text, media=media, mime_type=mime_type, today=today.isoformat())
+        known = accounts.user(sender) if sender.isdigit() else None
+        draft = _draft(sender)
+        parsed = parser.parse(text=text, media=media, mime_type=mime_type, today=today.isoformat(),
+                              context=_context(sender, known, draft))
+        if draft:
+            store.DB.delete("drafts", sender)
+        if parsed.role == "farmer" and not parsed.location and known and known.get("location"):
+            parsed.location = vocab.town(known["location"])
         # Same number, same person: the account on the web and the WhatsApp chat are one.
         u = accounts.link(sender, name=parsed.sender_name, role=parsed.role, via=via)
         if u and u.get("name") and not parsed.sender_name:
             parsed.sender_name = u.get("business") or u["name"]
-        created = store.record(parsed, default_date=today, sender=sender)
-        needs = parsed.confidence < 0.7 or (parsed.role == "farmer" and not parsed.location)
+        needs = _incomplete(parsed)
+        if needs and sender.isdigit():
+            # Hold the half-finished message; the next one from this number is read together with it.
+            parsed.question_in_sender_language = parsed.question_in_sender_language or ASK[parsed.language]
+            store.DB.put("drafts", sender, {"phone": sender, "at": datetime.now(timezone.utc).isoformat(),
+                                            "parsed": parsed.model_dump(mode="json"),
+                                            "question": parsed.question_in_sender_language})
+            created = []
+        else:
+            if needs:  # web form without a phone: nothing to hold the draft against, so just ask
+                parsed.question_in_sender_language = parsed.question_in_sender_language or ASK[parsed.language]
+            else:
+                parsed.question_in_sender_language = None  # complete: nothing to ask
+            created = store.record(parsed, default_date=today, sender=sender)
         out = {"parsed": parsed, "created": created, "needs_clarification": needs,
                "reply": replies.build(parsed, store.prices())}
         if created and auto_plan and parsed.role in ("farmer", "buyer"):
