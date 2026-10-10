@@ -383,10 +383,23 @@ def test_one_shared_gemini_client(monkeypatch):
     monkeypatch.setattr(ai, "_client", None)
 
 
-def test_vertex_express_keys_use_the_vertex_endpoint(monkeypatch):
+def test_aq_keys_land_on_whichever_endpoint_accepts_them(monkeypatch):
+    """AI Studio and Vertex express keys can both start with "AQ."; keep the endpoint that answers."""
+    from google.genai import models
     from app import ai
-    for key, vertex in (("AQ.fake", True), ("AIzaFake", False)):
-        monkeypatch.setenv("GEMINI_API_KEY", key)
+    for works_on_vertex in (True, False):
+        def get(self, *, model, config=None, _v=works_on_vertex):
+            if bool(self._api_client.vertexai) is not _v:
+                raise PermissionError("API key not valid for this endpoint")
+        monkeypatch.setattr(models.Models, "get", get)
+        monkeypatch.setenv("GEMINI_API_KEY", "AQ.fake")
         monkeypatch.setattr(ai, "_client", None)
-        assert bool(ai.client()._api_client.vertexai) is vertex
+        assert bool(ai.client()._api_client.vertexai) is works_on_vertex
+        assert ai.endpoint["name"] == ("vertex" if works_on_vertex else "gemini-api")
+    monkeypatch.setenv("GEMINI_API_KEY", "AIzaFake")  # classic AI Studio key: Gemini API, no probe
+    monkeypatch.setattr(ai, "_client", None)
+    assert not ai.client()._api_client.vertexai
+    monkeypatch.setenv("GEMINI_VERTEX", "1")  # explicit override wins
+    monkeypatch.setattr(ai, "_client", None)
+    assert ai.client()._api_client.vertexai
     monkeypatch.setattr(ai, "_client", None)
