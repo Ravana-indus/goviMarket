@@ -217,7 +217,7 @@ def test_farmer_reply_quotes_price_after_transport(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     store.reset()
     out = TestClient(app).post("/intake", data={"text": "This is Sunil, carrot 100kg ready tomorrow, Nuwara Eliya"}).json()
-    assert "after transport" in out["reply"]
+    assert "Transport to Colombo for all 100 kg" in out["reply"] and "about Rs" in out["reply"]
 
 
 

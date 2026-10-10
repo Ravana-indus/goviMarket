@@ -3,6 +3,7 @@
 Each `say` gives what Gemini would return for that message (or nothing, which asserts Gemini is
 never asked: YES, NO, STATUS, "hi" and bare numbers must not cost a call or depend on the model).
 """
+import re
 from datetime import date, datetime, timedelta, timezone
 
 import pytest
@@ -95,7 +96,7 @@ def test_tamil_order_then_yes_places_every_item(g):
     shop = Phone("94771000001", g)
     r = shop.say(TA_ORDER, TA_PARSE)
     assert shop.state == "confirming" and shop.orders() == []
-    for word in ("வெங்காயம்", "தக்காளி", "கேரட்", "லீக்ஸ்", "கோவா", "YES", "ஞாயிறு 11/10", "Colombo"):
+    for word in ("வெங்காயம்", "தக்காளி", "கேரட்", "லீக்ஸ்", "கோவா", "YES", "ஞாயிறு 11/10", "கொழும்பு"):
         assert word in r, word
     assert "registered" not in r and "பதிவு செய்யப்பட்டுள்ளது" not in r  # nothing claims it is placed yet
 
@@ -191,7 +192,7 @@ def test_sinhala_farmer_is_asked_only_for_the_town(g):
     ctx = g.calls[-1]["context"]
     r = sunil.say("දඹුල්ල", P(role="unknown", lang="si", intent="edit", loc="Dambulla"))
     assert "Pending order" in g.calls[-1]["context"] and ctx is None
-    assert "සාධාරණ මිල" in r and "Dambulla" in r
+    assert "කිලෝවට රු." in r and "දඹුල්ල" in r
     assert sunil.state == "confirming"
     sunil.say("ඔව්")
     [l] = sunil.listings()
@@ -478,3 +479,63 @@ def test_the_role_answer_is_remembered_on_the_account(g):
     new.say("buying")
     new.say("YES")
     assert accounts.user(new.number)["role"] == "buyer"
+
+
+def test_small_lots_share_one_transport_cost_and_never_go_negative(g):
+    """Patu's Jaffna test: tomato 10 kg was quoted alone (Rs 220/kg transport) and came out at Rs -41/kg."""
+    from app import accounts
+    rasan = Phone("94771000047", g)
+    r = rasan.say("x", P(role="farmer", lang="ta", when=TOMORROW, loc="Jaffna",
+                         items={"tomato": 10, "carrot": 50, "leeks": 30, "cabbage": 18}))
+    assert "-" not in "".join(re.findall(r"ரூ\. ?-?[\d,]+", r))
+    assert "மொத்த 108 கிலோவும் சேர்ந்து" in r  # one transport cost for the whole load
+    assert r.count("அயலவர்களுடன்") == 1  # the pooling tip once, not per item
+    assert "யாழ்ப்பாணம்" in r and "Jaffna" not in r
+    assert "உங்களுக்கு மொத்தம் சுமார் ரூ." in r
+    assert len(r.splitlines()) <= 9
+    done = rasan.say("YES")
+    assert "உங்களுக்கு மொத்தம்" in done and "STATUS" in done
+
+
+def test_an_item_worth_less_than_the_collector_price_says_so(g):
+    from app.schemas import Item
+    tiny = Phone("94771000048", g)
+    r = tiny.say("x", P(role="farmer", loc="Jaffna", items={"cabbage": 2}))
+    assert "better sold locally" in r and "You get about" not in r
+
+
+# ------------------------------------------------------------- Gemini down: the keyword parser stands in
+
+def _fallback(text):
+    from app import demo_parser
+    return demo_parser.parse(text=text, media=None, today=TODAY.isoformat())
+
+
+PATU_TEXT = "two kilo carrot, 5 kg onlon, 8kg gova need day after tomorrow"
+
+
+def test_gemini_outage_still_reads_number_words_typos_and_day_after_tomorrow(g):
+    """Patu's live test while Gemini was failing: only cabbage 8 kg came through, needed Sunday."""
+    shop = Phone("94771000049", g)
+    r = shop.say(PATU_TEXT, _fallback(PATU_TEXT))
+    for line in ("Carrot 2 kg", "Big onion 5 kg", "Cabbage 8 kg", "Mon 12/10"):
+        assert line in r, line
+    assert "not fully sure" in r  # Gemini did not read it, so the sender is told to check
+    assert "replaces" not in r
+
+
+def test_wrong_rereads_the_order_instead_of_merging_it(g):
+    shop = Phone("94771000050", g)
+    shop.say("8kg gova need", _fallback("8kg gova need"))
+    again = "wotng " + PATU_TEXT
+    r = shop.say(again, _fallback(again))
+    assert "I read it again from the start" in r and "Carrot 2 kg" in r and "replaces" not in r
+    r = shop.say("wrong", P(role="unknown", intent="edit"))
+    assert r.startswith("Sorry about that. What is wrong?") and shop.state == "confirming"
+
+
+def test_an_item_we_cannot_name_is_shown_not_dropped(g):
+    shop = Phone("94771000051", g)
+    text = "need 3 kg rambutan and tomato 5kg"
+    r = shop.say(text, _fallback(text))
+    assert "left out: rambutan" in r and "Tomato 5 kg" in r

@@ -22,6 +22,7 @@ Rules:
   Cabbage is gova/ගෝවා/கோவா.
 - Use these exact town names when the place is one of them: {towns}. A Colombo suburb is "Colombo".
 - Resolve relative dates ("Thursday", "heta" = tomorrow) against today's date given below.
+  "Day after tomorrow" (anidda, අනිද්දා, நாளை மறுநாள்) is today + 2 days.
   "Next week" (heta sathiya, அடுத்த வாரம்) means Monday of next week. No date at all: `when` null.
   A resolved date is not unclear.
 - Role: if "About the sender" says this number is a farmer or a buyer, use that unless the message
@@ -36,6 +37,9 @@ Rules:
 - With no pending order: "status" for questions about their orders, "chat" for greetings, thanks or
   anything with no crop in it, else "order".
 - Everything the sender sees (summary, question) is in their language only. `unclear` is internal.
+- Read typos and number words generously ("onlon" is onion, "two kilo" is 2 kg, "gova" is cabbage).
+  Every item the sender lists must appear in `items`; never drop one you cannot name, use your best
+  lowercase English guess and say so in `unclear`.
 - Never invent items, quantities or prices. If you cannot read something, list it in `unclear`
   and lower `confidence`.
 """

@@ -54,3 +54,32 @@ def build(parsed: ParsedMessage, prices: dict[str, dict]) -> str:
     if parsed.question_in_sender_language:
         lines.append(parsed.question_in_sender_language)
     return "\n".join(lines)
+
+
+def quote(parsed: ParsedMessage, prices: dict[str, dict]) -> dict:
+    """Money for a whole harvest or order, worked out once for all its items.
+
+    A farmer's items ride together, so transport is costed on the total kg (one minimum charge,
+    one handling fee, one Colombo pickup) and shared per kg. Quoting each item alone spread those
+    fixed costs over 10 kg and showed a negative tomato price."""
+    rows = [(i, prices[i.crop]) for i in parsed.items if i.crop in prices and i.qty_kg]
+    total_kg = sum(i.qty_kg for i, _ in rows)
+    out = {"total_kg": total_kg, "lane": None, "transport": 0.0, "items": [], "total": 0, "baseline": 0}
+    if parsed.role == "farmer" and parsed.location and total_kg:
+        lane = cheapest_to(LANES, origin=parsed.location, dest="Colombo", kg=total_kg) \
+            or cheapest_to(LANES, origin=parsed.location, dest="Colombo", kg=0)
+        if lane:
+            out["lane"], out["transport"] = lane, lane_cost(lane, total_kg) / total_kg
+    for item, p in rows:
+        money = split(p, transport_lkr_per_kg=out["transport"])
+        if parsed.role == "farmer":
+            per, base = money["farmer_gets"], p["collector"]
+        else:
+            per, base = money["buyer_pays"], p["retail"]
+        worth = per > 0 and (parsed.role != "farmer" or per > base)
+        out["items"].append({"crop": item.crop, "kg": item.qty_kg, "per_kg": round(per), "baseline": round(base),
+                             "worth_it": worth})
+        if worth:
+            out["total"] += round(per * item.qty_kg)
+            out["baseline"] += round(base * item.qty_kg)
+    return out

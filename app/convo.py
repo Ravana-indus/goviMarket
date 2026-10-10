@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
-from . import accounts, ai, deals, parser, replies, reroute, store, surplus, vocab
+from . import accounts, ai, deals, demo_parser, parser, replies, reroute, store, surplus, vocab
 from .schemas import Item, ParsedMessage
 
 log = logging.getLogger("govi.convo")
@@ -28,6 +28,10 @@ KIND = "convo"
 PENDING_HOURS = 24
 DONE_GRACE = timedelta(hours=6)  # a second YES this soon after placing gets "already done"
 MAX_KG = 20000
+MODE = {"train_parcel": {"en": "train", "si": "දුම්රියෙන්", "ta": "ரயிலில்"},
+        "night_bus": {"en": "night bus", "si": "රාත්‍රී බසයෙන්", "ta": "இரவு பேருந்தில்"},
+        "lorry": {"en": "lorry", "si": "ලොරියෙන්", "ta": "லாரியில்"},
+        "sl_post": {"en": "post", "si": "තැපෑලෙන්", "ta": "தபாலில்"}}
 WEEKDAY = {"en": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
            "si": ["සඳුදා", "අඟහරුවාදා", "බදාදා", "බ්‍රහස්පතින්දා", "සිකුරාදා", "සෙනසුරාදා", "ඉරිදා"],
            "ta": ["திங்கள்", "செவ்வாய்", "புதன்", "வியாழன்", "வெள்ளி", "சனி", "ஞாயிறு"]}
@@ -41,20 +45,40 @@ T = {
     "item": {"en": "• {crop} {kg} kg", "si": "• {crop} කිලෝ {kg}", "ta": "• {crop} {kg} கிலோ"},
     "when_buyer": {"en": "Needed by {day} · Deliver to {town}", "si": "අවශ්‍ය දිනය {day} · ලබා දෙන්නේ {town}",
                    "ta": "தேவைப்படும் நாள் {day} · வழங்கும் இடம் {town}"},
-    "when_farmer": {"en": "Ready {day} · From {town}", "si": "සූදානම් දිනය {day} · {town} සිට",
-                    "ta": "தயாராகும் நாள் {day} · {town} இலிருந்து"},
+    "when_farmer": {"en": "Ready {day} · From {town}", "si": "සූදානම් දිනය {day} · නගරය {town}",
+                    "ta": "தயாராகும் நாள் {day} · ஊர் {town}"},
+    "item_sell": {"en": "• {crop} {kg} kg · about Rs {per}/kg (collector Rs {base})",
+                  "si": "• {crop} කිලෝ {kg} · කිලෝවට රු. {per} පමණ (එකතු කරන්නා රු. {base})",
+                  "ta": "• {crop} {kg} கிலோ · கிலோவுக்கு சுமார் ரூ. {per} (சேகரிப்பாளர் ரூ. {base})"},
+    "item_local": {"en": "• {crop} {kg} kg · collectors pay more today (Rs {base}/kg): better sold locally",
+                   "si": "• {crop} කිලෝ {kg} · අද එකතු කරන්නන් වැඩියෙන් ගෙවයි (කිලෝවට රු. {base}): ප්‍රදේශයේම විකුණන්න",
+                   "ta": "• {crop} {kg} கிலோ · இன்று சேகரிப்பாளர்கள் அதிகம் தருகிறார்கள் (கிலோவுக்கு ரூ. {base}): உள்ளூரில் விற்பது நல்லது"},
+    "item_buy": {"en": "• {crop} {kg} kg · about Rs {per}/kg", "si": "• {crop} කිලෝ {kg} · කිලෝවට රු. {per} පමණ",
+                 "ta": "• {crop} {kg} கிலோ · கிலோவுக்கு சுமார் ரூ. {per}"},
+    "transport": {"en": "Transport to Colombo for all {kg} kg together: about Rs {per}/kg by {mode} at {departs}. Less if neighbours send with you.",
+                  "si": "කිලෝ {kg}ම එකට කොළඹට ප්‍රවාහනය: කිලෝවට රු. {per} පමණ, {departs} {mode}. අසල්වැසියන් සමඟ යැවුවොත් අඩුයි.",
+                  "ta": "மொத்த {kg} கிலோவும் சேர்ந்து கொழும்புக்கு போக்குவரத்து: கிலோவுக்கு சுமார் ரூ. {per}, {departs} {mode}. அயலவர்களுடன் அனுப்பினால் குறையும்."},
+    "no_lane": {"en": "We have no transport from {town} yet, so these prices are before transport.",
+                "si": "{town} සිට අපට තවම ප්‍රවාහන මාර්ගයක් නැහැ, ඒ නිසා මේ මිල ප්‍රවාහනයට පෙර.",
+                "ta": "{town} இலிருந்து இன்னும் போக்குவரத்து இல்லை, எனவே இவை போக்குவரத்துக்கு முந்தைய விலைகள்."},
+    "total_farmer": {"en": "You get about Rs {total} in total (collectors: about Rs {base}).",
+                     "si": "ඔබට මුළු රු. {total} පමණ ලැබේ (එකතු කරන්නන්ගෙන්: රු. {base} පමණ).",
+                     "ta": "உங்களுக்கு மொத்தம் சுமார் ரூ. {total} கிடைக்கும் (சேகரிப்பாளர்களிடம்: சுமார் ரூ. {base})."},
+    "total_buyer": {"en": "About Rs {total} in total (market about Rs {base}).",
+                    "si": "මුළු රු. {total} පමණ (වෙළඳපොළේ රු. {base} පමණ).",
+                    "ta": "மொத்தம் சுமார் ரூ. {total} (சந்தையில் சுமார் ரூ. {base})."},
     "ask_buyer": {"en": "Reply YES to place this order, NO to cancel, or send a change (for example: tomato 15kg).",
                   "si": "මෙම ඇණවුම දැමීමට YES (ඔව්) ලෙස පිළිතුරු දෙන්න, අවලංගු කිරීමට NO (එපා), නැත්නම් වෙනසක් එවන්න (උදා: තක්කාලි කිලෝ 15).",
                   "ta": "இந்த ஆர்டரை உறுதிசெய்ய YES (ஆம்), ரத்து செய்ய NO (வேண்டாம்) என பதில் அனுப்பவும், அல்லது மாற்றத்தை அனுப்பவும் (உதா: தக்காளி 15 கிலோ)."},
     "ask_farmer": {"en": "Reply YES to put this up for sale, NO to cancel, or send a change (for example: carrot 250kg).",
                    "si": "විකිණීමට දැමීමට YES (ඔව්) ලෙස පිළිතුරු දෙන්න, අවලංගු කිරීමට NO (එපා), නැත්නම් වෙනසක් එවන්න (උදා: කැරට් කිලෝ 250).",
                    "ta": "விற்பனைக்கு வைக்க YES (ஆம்), ரத்து செய்ய NO (வேண்டாம்) என பதில் அனுப்பவும், அல்லது மாற்றத்தை அனுப்பவும் (உதா: கேரட் 250 கிலோ)."},
-    "placed_buyer": {"en": "Order placed ✅ Ref {ref}. We are finding farmers now and will message you for each match.",
-                     "si": "ඇණවුම දැම්මා ✅ අංකය {ref}. අපි දැන් ගොවීන් සොයනවා; ගැළපීමක් ලැබුණු විට පණිවිඩයක් එවනවා.",
-                     "ta": "ஆர்டர் பதிவு செய்யப்பட்டது ✅ எண் {ref}. இப்போது விவசாயிகளைத் தேடுகிறோம்; பொருத்தம் கிடைத்ததும் செய்தி அனுப்புவோம்."},
-    "placed_farmer": {"en": "Your harvest is up for sale ✅ Ref {ref}. We will message you when a buyer is found.",
-                      "si": "ඔබේ අස්වැන්න විකිණීමට දැම්මා ✅ අංකය {ref}. ගැනුම්කරුවෙක් හමු වූ විට පණිවිඩයක් එවනවා.",
-                      "ta": "உங்கள் அறுவடை விற்பனைக்கு வைக்கப்பட்டது ✅ எண் {ref}. வாங்குபவர் கிடைத்ததும் செய்தி அனுப்புவோம்."},
+    "placed_buyer": {"en": "Order placed ✅ Ref {ref}.\nWe are finding farmers now. Each one we find comes to you with the price and arrival time; reply YES to accept. Send STATUS any time.",
+                     "si": "ඇණවුම දැම්මා ✅ අංකය {ref}.\nඅපි දැන් ගොවීන් සොයනවා. හමු වන සෑම ගොවියෙක් ගැනම මිල සහ පැමිණෙන වේලාව සමඟ පණිවිඩයක් එවනවා; පිළිගන්න YES එවන්න. ඕනෑම වේලාවක STATUS එවන්න.",
+                     "ta": "ஆர்டர் பதிவு செய்யப்பட்டது ✅ எண் {ref}.\nஇப்போது விவசாயிகளைத் தேடுகிறோம். ஒவ்வொருவரும் கிடைத்ததும் விலையும் வரும் நேரமும் அனுப்புவோம்; ஏற்க YES அனுப்பவும். எப்போது வேண்டுமானாலும் STATUS அனுப்பவும்."},
+    "placed_farmer": {"en": "Your harvest is up for sale ✅ Ref {ref}.\nWhen a buyer is found we send you the price and which bus or train to load, and when; reply YES to accept. Send STATUS any time.",
+                      "si": "ඔබේ අස්වැන්න විකිණීමට දැම්මා ✅ අංකය {ref}.\nගැනුම්කරුවෙක් හමු වූ විට මිලත්, පටවන්න ඕන බස් එක හෝ දුම්රියත්, වේලාවත් අපි එවනවා; පිළිගන්න YES එවන්න. ඕනෑම වේලාවක STATUS එවන්න.",
+                      "ta": "உங்கள் அறுவடை விற்பனைக்கு வைக்கப்பட்டது ✅ எண் {ref}.\nவாங்குபவர் கிடைத்ததும் விலையையும், ஏற்ற வேண்டிய பேருந்து அல்லது ரயிலையும், நேரத்தையும் அனுப்புவோம்; ஏற்க YES அனுப்பவும். எப்போது வேண்டுமானாலும் STATUS அனுப்பவும்."},
     "cancelled": {"en": "Cancelled. Nothing was placed.", "si": "අවලංගු කළා. කිසිවක් දැම්මේ නැහැ.",
                   "ta": "ரத்து செய்யப்பட்டது. எதுவும் பதிவு செய்யப்படவில்லை."},
     "cancelled_placed": {"en": "Cancelled ref {ref}. It is no longer open.", "si": "අංකය {ref} අවලංගු කළා.",
@@ -74,6 +98,12 @@ T = {
     "expired_note": {"en": "(Your earlier order waited too long and was not placed. This is a new one.)",
                      "si": "(ඔබේ කලින් ඇණවුම බොහෝ වේලා රැඳී තිබූ නිසා දැම්මේ නැහැ. මෙය අලුත් එකක්.)",
                      "ta": "(உங்கள் முந்தைய ஆர்டர் நீண்ட நேரம் காத்திருந்ததால் பதிவு செய்யப்படவில்லை. இது புதியது.)"},
+    "wrong_ask": {"en": "Sorry about that. What is wrong? Send the right item and kg (for example: carrot 2kg), or NO to cancel.",
+                  "si": "සමාවෙන්න. වැරැද්ද කුමක්ද? නිවැරදි බෝගය සහ කිලෝ ගණන එවන්න (උදා: කැරට් කිලෝ 2), නැත්නම් අවලංගු කිරීමට NO.",
+                  "ta": "மன்னிக்கவும். என்ன தவறு? சரியான பயிரையும் கிலோவையும் அனுப்பவும் (உதா: கேரட் 2 கிலோ), அல்லது ரத்து செய்ய NO."},
+    "wrong_again": {"en": "Sorry. I read it again from the start. If it is still wrong, send one item per line, like: carrot 2kg",
+                    "si": "සමාවෙන්න. මම මුල සිට නැවත කියෙව්වා. තවමත් වැරදි නම්, එක පේළියකට එක බෝගයක් එවන්න, උදා: කැරට් කිලෝ 2",
+                    "ta": "மன்னிக்கவும். மீண்டும் முதலிலிருந்து படித்தேன். இன்னும் தவறு என்றால், ஒரு வரிக்கு ஒரு பயிர் அனுப்பவும், உதா: கேரட் 2 கிலோ"},
     "first": {"en": "First I need one thing: {q}", "si": "මුලින් එක දෙයක් අවශ්‍යයි: {q}", "ta": "முதலில் ஒரு விவரம் தேவை: {q}"},
     "replaced": {"en": "(This replaces your earlier order, which was not placed.)",
                  "si": "(මෙය නොදැමූ ඔබේ කලින් ඇණවුම වෙනුවට.)",
@@ -236,7 +266,7 @@ def merge(base: ParsedMessage, delta: ParsedMessage, text: str | None) -> Parsed
 def _defaults(p: ParsedMessage, sender: str, known: dict | None, today: date) -> ParsedMessage:
     if p.role not in ("farmer", "buyer", "reporter"):
         p.role = _role_of(sender, known) or "unknown"
-    elif not _gemini() and _role_of(sender, known) in ("farmer", "buyer") and p.role != "reporter":
+    elif (not _gemini() or demo_parser.FALLBACK in p.unclear) and _role_of(sender, known) in ("farmer", "buyer") and p.role != "reporter":
         p.role = _role_of(sender, known)  # the keyword parser only guesses the role; the account knows
     if not p.location and known and known.get("location") and p.role in ("farmer", "buyer"):
         p.location = vocab.town(known["location"])
@@ -288,13 +318,38 @@ def item_lines(p: ParsedMessage, lang: str) -> list[str]:
               kg=_kg(i.qty_kg) if i.qty_kg else "?") for i in p.items]
 
 
+def _rs(x: float) -> str:
+    return f"{round(x):,}"
+
+
 def summary(p: ParsedMessage, lang: str) -> list[str]:
-    lines = [t("head_farmer" if p.role == "farmer" else "head_buyer", lang), *item_lines(p, lang)]
+    """The order card: header, one line per item with its price, day and town, transport, total.
+    Every number comes from replies.quote, worked out once for the whole load."""
+    q = replies.quote(p, store.prices())
+    priced = {r["crop"]: r for r in q["items"]}
+    lines = [t("head_farmer" if p.role == "farmer" else "head_buyer", lang)]
+    for i in p.items:
+        crop = vocab.crop_name(i.crop, lang)
+        crop = crop.capitalize() if lang == "en" else crop
+        r = priced.get(i.crop)
+        if not r:
+            lines.append(t("item", lang, crop=crop, kg=_kg(i.qty_kg) if i.qty_kg else "?"))
+        elif p.role == "farmer" and not r["worth_it"]:
+            lines.append(t("item_local", lang, crop=crop, kg=_kg(i.qty_kg), base=_rs(r["baseline"])))
+        else:
+            lines.append(t("item_sell" if p.role == "farmer" else "item_buy", lang, crop=crop, kg=_kg(i.qty_kg),
+                           per=_rs(r["per_kg"]), base=_rs(r["baseline"])))
     if p.when:
         lines.append(t("when_farmer" if p.role == "farmer" else "when_buyer", lang,
-                       day=_day(p.when, lang), town=p.location or "?"))
-    if p.role == "farmer":
-        lines += replies.price_lines(p, store.prices(), lang)
+                       day=_day(p.when, lang), town=vocab.town_name(p.location, lang)))
+    if p.role == "farmer" and q["items"]:
+        lane = q["lane"]
+        lines.append(t("transport", lang, kg=_kg(q["total_kg"]), per=_rs(q["transport"]),
+                       mode=MODE[lane.mode][lang], departs=lane.departs) if lane
+                     else t("no_lane", lang, town=vocab.town_name(p.location, lang)))
+    if q["total"]:
+        lines.append(t("total_farmer" if p.role == "farmer" else "total_buyer", lang,
+                       total=_rs(q["total"]), base=_rs(q["baseline"])))
     return lines
 
 
@@ -374,12 +429,20 @@ def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type:
 
     pending = _pending(c)
     notes = []
+    guessed = demo_parser.FALLBACK in parsed.unclear
+    if guessed and _gemini():
+        notes.append(t("unsure", lang))  # Gemini failed and the keyword parser stood in: say it may be off
+    if pending and vocab.says_wrong(text):
+        if not parsed.items:
+            return Turn(t("wrong_ask", lang), parsed=pending, state=c["state"])
+        pending = None  # read the resent order on its own, not merged into the one they called wrong
+        notes.append(t("wrong_again", lang))
     if pending and parsed.intent == "chat" and not (parsed.items or parsed.location or parsed.when):
         return _remind(c, lang)
     if not pending and (c.get("last") or {}).get("what") == "expired":
         notes.append(t("expired_note", lang))
         c["last"] = None
-    if pending and parsed.intent == "order" and _gemini() and parsed.items and c["state"] == "confirming":
+    if pending and parsed.intent == "order" and _gemini() and not guessed and parsed.items and c["state"] == "confirming":
         p = parsed  # Gemini says this is a separate new order: it replaces the unplaced one
         notes.append(t("replaced", lang))
     elif pending:
@@ -404,7 +467,7 @@ def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type:
         return Turn(t("none_traded", lang, crops=names, all=every), parsed=p)
     if gone:
         notes.append(t("not_traded", lang, crops=", ".join(vocab.crop_name(g, lang) for g in gone)))
-    if p.confidence < 0.6 and (media or p.confidence > 0):
+    if p.confidence < 0.6 and (media or p.confidence > 0) and t("unsure", lang) not in notes:
         notes.append(t("unsure", lang))
     return _advance(c, sender, u or known, p, lang, today, confirm_first, notes)
 
@@ -438,7 +501,8 @@ def _place(c, sender, p: ParsedMessage, lang, today, show=False, notes=()) -> Tu
              last={"what": "placed", "at": _now().isoformat(), "ref": ref, "ids": created, "role": p.role})
     save(c)
     placed = t("placed_farmer" if p.role == "farmer" else "placed_buyer", lang, ref=ref)
-    lines = [*summary(p, lang)[1:], *notes] if show else []
+    card = summary(p, lang)
+    lines = [*card[1:], *notes] if show else [l for l in card if l.startswith(("You get", "About Rs", "ඔබට මුළු", "මුළු රු", "உங்களுக்கு மொத்தம்", "மொத்தம்"))]
     return Turn("\n".join([placed, *lines]), parsed=p, created=created, plan=bool(created))
 
 

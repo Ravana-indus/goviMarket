@@ -2,6 +2,7 @@
 and the transport table. Unknown names pass through unchanged (and simply won't match)."""
 from __future__ import annotations
 
+import difflib
 import re
 
 CROPS = {
@@ -49,6 +50,18 @@ TOWNS = {
 }
 
 
+TOWN_NAME = {
+    "Nuwara Eliya": {"si": "නුවරඑළිය", "ta": "நுவரெலியா"}, "Dambulla": {"si": "දඹුල්ල", "ta": "தம்புள்ளை"},
+    "Jaffna": {"si": "යාපනය", "ta": "யாழ்ப்பாணம்"}, "Badulla": {"si": "බදුල්ල", "ta": "பதுளை"},
+    "Ampara": {"si": "අම්පාර", "ta": "அம்பாறை"}, "Kurunegala": {"si": "කුරුණෑගල", "ta": "குருநாகல்"},
+    "Kandy": {"si": "මහනුවර", "ta": "கண்டி"}, "Colombo": {"si": "කොළඹ", "ta": "கொழும்பு"},
+}
+
+
+def town_name(town: str | None, lang: str) -> str:
+    return TOWN_NAME.get(town or "", {}).get(lang) or town or "?"
+
+
 def crop_name(crop: str, lang: str) -> str:
     return CROP_NAME.get(crop, {}).get(lang) or crop
 
@@ -64,7 +77,20 @@ def crops_in(text: str | None) -> set[str]:
         if re.search(pat, t):
             found.add(canon)
             t = re.sub(pat, " ", t)  # "red onion" must not also count as "onion"
+    # Typos on a phone keyboard ("onlon", "tomatoe", "carot"): a close match on a single word.
+    for word in re.findall(r"[a-z]{4,}", t):
+        if word in NOT_CROPS:
+            continue
+        hit = difflib.get_close_matches(word, _LATIN_CROP, n=1, cutoff=0.8)
+        if hit:
+            found.add(_CROP[hit[0]])
     return found
+
+
+# Words that look like crop names to a fuzzy matcher but never are.
+NOT_CROPS = {"need", "needed", "kilo", "kilos", "after", "tomorrow", "ready", "order", "from", "this", "that",
+             "today", "please", "with", "send", "beans", "make", "more", "less", "only", "also", "deliver",
+             "delivery", "colombo", "kandy", "wrong", "change", "remove", "week", "next", "heta", "anidda"}
 
 
 def script(text: str | None) -> str | None:
@@ -99,6 +125,19 @@ SELLING = {"selling", "sell", "i am selling", "farmer", "seller", "vikunanawa", 
            "விற்கிறேன்", "விற்பனை", "விவசாயி"}
 BUYING = {"buying", "buy", "i am buying", "buyer", "order", "ganna", "gannawa", "ගන්නවා", "මිලදී ගන්නවා", "ගැනුම්කරු",
           "வாங்குகிறேன்", "வாங்க", "வாங்குபவர்"}
+# "That's wrong" about the order we showed: read the message again from scratch, or ask what to fix.
+WRONG = {"wrong", "wrng", "worng", "incorrect", "not correct", "not right", "mistake", "thats wrong", "that's wrong",
+         "වැරදියි", "වැරදි", "වැරැද්දක්", "தவறு", "பிழை", "சரியில்லை"}
+
+
+def says_wrong(text: str | None) -> bool:
+    t = norm(text)
+    if any(w in t for w in WRONG if not w.isascii()) or any(re.search(rf"\b{re.escape(w)}\b", t) for w in WRONG if w.isascii()):
+        return True
+    first = t.split(" ", 1)[0] if t else ""
+    return len(first) >= 4 and bool(difflib.get_close_matches(first, ["wrong"], cutoff=0.6))
+
+
 # Words that turn "carrot" in an edit into "take the carrot out".
 REMOVE = re.compile(r"\b(remove|delete|drop|without|no more|cancel|take out|don'?t need|dont need)\b|"
                     r"ඉවත්|එපා|අයින්|வேண்டாம்|நீக்கு|நீக்கவும்|இல்லாமல்|ரத்து", re.I)
@@ -118,6 +157,7 @@ def _index(table: dict[str, list[str]]) -> dict[str, str]:
 
 
 _CROP, _TOWN = _index(CROPS), _index(TOWNS)
+_LATIN_CROP = [a for a in _CROP if a.isascii() and len(a) >= 4]
 
 
 def crop(name: str) -> str:
