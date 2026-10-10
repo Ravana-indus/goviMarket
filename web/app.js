@@ -257,7 +257,7 @@ async function loadTrack() {
 }
 $("tgo").onclick = signIn;
 
-fetch("/healthz").then((r) => r.json()).then((h) => {
+fetch("/api/health").then((r) => r.json()).then((h) => {
   const n = (h.whatsapp_number || "").replace(/\D/g, "");
   // No number configured means no button: a dead link on the first screen looks broken.
   if (n) { $("wa").href = `https://wa.me/${n}`; $("wa").hidden = false; }

@@ -28,9 +28,13 @@ class ParsedMessage(BaseModel):
     location: Optional[str] = Field(description="Town or district in English, e.g. 'Nuwara Eliya', 'Colombo 03'.")
     when: Optional[date] = Field(description="Harvest-ready date (farmer) or needed-by date (buyer), ISO format, else null.")
     items: list[Item]
-    unclear: list[str] = Field(description="Fields you could not read or had to guess. Empty if everything was clear.")
+    unclear: list[str] = Field(description="Short English notes for the ops team on anything you guessed. Never shown to the sender.")
     confidence: float = Field(description="0 to 1. Your confidence that the items and quantities are correct.")
     summary_in_sender_language: str = Field(description="One-sentence confirmation of what you understood, in the sender's language.")
+    question_in_sender_language: Optional[str] = Field(None, description=(
+        "Null unless a fact Govi cannot trade without is missing and cannot be inferred: the crop, the "
+        "quantity, or a farmer's town. Then ONE short, plain question in the sender's language asking only "
+        "for that. Never ask about dates, role or anything with a default."))
 
 
 class Listing(BaseModel):

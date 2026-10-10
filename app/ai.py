@@ -13,6 +13,8 @@ last_error: dict = {}
 
 
 _client = None
+# gemini-2.5-flash was retired for new API keys in Oct 2026 (404 NOT_FOUND). One place to change it.
+MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 
 
 def client():

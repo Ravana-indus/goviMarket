@@ -159,7 +159,7 @@ async function send(textArg) {
 $("send").onclick = () => send();
 $("text").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
 
-fetch("/healthz").then((r) => r.json()).then((h) => {
+fetch("/api/health").then((r) => r.json()).then((h) => {
   $("mode").textContent = h.gemini ? "Gemini live" : "Demo mode · text only";
   $("mode").className = "badge" + (h.gemini ? " live" : "");
 });

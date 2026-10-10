@@ -49,7 +49,7 @@ class Firestore:
     Every write goes to Firestore first; reads come from memory after a collection's first load.
     Run Cloud Run with --max-instances=1 so one process owns the cache (fine at pilot scale)."""
     KINDS = ["listings", "orders", "inbox", "prices", "matches", "plans", "outbox", "shipments",
-             "standing", "offers", "chat"]
+             "standing", "offers", "chat", "drafts"]
 
     def __init__(self):
         from google.cloud import firestore

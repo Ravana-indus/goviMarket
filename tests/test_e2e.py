@@ -104,7 +104,7 @@ def test_every_role_end_to_end(c):
     assert offer["status"] == "accepted" and reply
 
     # 8. Public pages all load.
-    for path in ("/", "/business", "/agent", "/sim", "/smul", "/login", "/healthz", "/api/prices"):
+    for path in ("/", "/business", "/agent", "/sim", "/smul", "/login", "/healthz", "/api/health", "/api/prices"):
         assert c.get(path).status_code == 200, path
 
 
