@@ -9,13 +9,13 @@ from datetime import date, timedelta
 
 from .schemas import Item, ParsedMessage
 
-CROPS = ["carrot", "leeks", "beans", "tomato", "red onion", "green chilli"]
-PLACES = ["Nuwara Eliya", "Dambulla", "Jaffna", "Badulla", "Colombo", "Kandy"]
+CROPS = ["carrot", "leeks", "beans", "tomato", "red onion", "green chilli", "maize"]
+PLACES = ["Nuwara Eliya", "Dambulla", "Jaffna", "Badulla", "Colombo", "Kandy", "Ampara", "Kurunegala"]
 DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
 
 
 def parse(*, text: str | None, media: bytes | None, today: str) -> ParsedMessage:
-    t = (text or "").lower()
+    t = re.sub(r"\bcorn\b", "maize", (text or "").lower())
     base = date.fromisoformat(today)
     if media and not t:
         return ParsedMessage(role="unknown", language="en", sender_name=None, location=None, when=None,

@@ -16,7 +16,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from . import accounts, ai, deals, parser, portal, replies, reporters, rescue, security, shipping, store, surplus, vocab, whatsapp
+from . import accounts, ai, deals, parser, portal, replies, reporters, reroute, rescue, security, shipping, store, surplus, vocab, whatsapp
 from .pricing import split
 from .schemas import Listing
 
@@ -50,7 +50,7 @@ def handle(*, text: Optional[str], media: Optional[bytes], mime_type: Optional[s
         _chat(sender, "in", text or "", via, (mime_type or "").split("/")[0] or None)
     reply_to = None
     if text and not media:
-        reply_to = deals.answer(sender, text) or surplus.answer(sender, text)
+        reply_to = reroute.answer(sender, text, deals._send) or deals.answer(sender, text) or surplus.answer(sender, text)
     if reply_to:
         out = {"parsed": None, "created": [], "needs_clarification": False, "reply": reply_to}
     else:
@@ -319,6 +319,7 @@ def latest_plan():
             row["backup"] = f"{shipping.MODE_NAME[alt[0].mode]} {alt[0].departs}" if alt else ""
         out.append(row)
     plan["shipments"] = out
+    plan["swaps"] = reroute.swaps()[:10]
     open_kg = surplus._open_kg()
     offered = {o["listing_id"]: o for o in surplus.offers()}
     plan["surplus"] = [{**l.model_dump(mode="json"), "remaining_kg": open_kg[l.id], "offer": offered.get(l.id)}
@@ -329,6 +330,24 @@ def latest_plan():
                       "surplus_rescued_kg": surplus.rescued_kg(), "rescues": len(missed),
                       "rescue_cost_lkr": sum(r.get("extra_cost_lkr", 0) for r in missed)}
     return plan
+
+
+@app.get("/api/swaps")
+def swaps():
+    """Better routes found after deals were agreed, newest first, with who has said YES."""
+    return reroute.swaps()
+
+
+@app.post("/api/swaps/{sid}/answer")
+def swap_answer(sid: str, phone: str, yes: bool = True):
+    """Console demo: reply YES or NO to a route change on behalf of one person in it."""
+    s = next((x for x in reroute.swaps() if x["id"] == sid), None)
+    if s is None:
+        raise HTTPException(404, "no such route change")
+    reply = reroute.answer(phone, "yes" if yes else "no", deals._send)
+    if reply is None:
+        raise HTTPException(409, "this person has nothing waiting on that route change")
+    return {"reply": reply, "swap": next(x for x in reroute.swaps() if x["id"] == sid)}
 
 
 @app.post("/shipments/{sid}/missed")
@@ -431,6 +450,16 @@ DEMO_MESSAGES = [
     ("94770000015", "Order from Hill View Hotel: need tomato 100kg and beans 30kg by {day}, Kandy"),
     ("94770000014", "Order from Mango Tree Cafe: need carrot 120kg and beans 60kg by {day}, Colombo"),
 ]
+# A deal agreed earlier, then a better route shows up: Ampara corn should stay in Ampara, and
+# Kurunegala corn (no route to Ampara) should go to Colombo instead of going unsold.
+REROUTE_AGREED = [
+    ("94770000016", "This is Ranjith, corn 50kg ready tomorrow, Ampara"),
+    ("94770000017", "Order from Spice Route: need corn 50kg by {day}, Colombo"),
+]
+REROUTE_LATER = [
+    ("94770000018", "This is Bandara, corn 50kg ready tomorrow, Kurunegala"),
+    ("94770000019", "Order from Ampara Rest House: need corn 50kg by {day}, Ampara"),
+]
 
 
 @app.post("/demo/seed")
@@ -467,8 +496,13 @@ def _seed():
     for x, n in zip(ships, [5, 3, 2, 1, 1, 1]):
         for _ in range(n):
             deals.advance_shipment(x.id)
-    # Just now: a new order comes in and waits for both sides to say YES.
-    send_all(DEMO_MESSAGES[-1:])
+    send_all(REROUTE_AGREED)
+    deals.plan()
+    for m in store.matches():
+        if m.status == "proposed":
+            deals.confirm(m)
+    # Just now: a new order waits for both sides to say YES, and new corn makes a better route.
+    send_all(DEMO_MESSAGES[-1:] + REROUTE_LATER)
     deals.plan()
     return latest_plan()
 

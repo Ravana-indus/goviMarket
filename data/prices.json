@@ -46,5 +46,13 @@
   "retail": 600,
   "date": "PLACEHOLDER",
   "source": "PLACEHOLDER - replace with HARTI daily price report"
+ },
+ {
+  "crop": "maize",
+  "collector": 110,
+  "wholesale": 150,
+  "retail": 220,
+  "date": "PLACEHOLDER",
+  "source": "PLACEHOLDER - replace with HARTI daily price report"
  }
 ]
