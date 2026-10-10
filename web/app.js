@@ -16,6 +16,7 @@ const T = {
     selling: "Selling", ordering: "Ordering", sent: "Sending…",
     s_booked: "Booked", s_loaded: "Loaded", s_in_transit: "On the way", s_arrived: "Arrived", s_delivered: "Delivered", ref: "Ref", dropoff: "Drop-off", eta: "Arrives",
     before_transport: "before transport", transport_off: "Transport already taken off", shared: "shared with neighbours",
+    signin: "Sign in", signout: "Sign out", posting_as: "Posting as {n} · {p}", t_need: "Sign in with your mobile number to see your harvests and orders, including the ones you sent on WhatsApp.",
   },
   si: {
     n_prices: "මිල", n_sell: "විකුණන්න", n_track: "මගේ ඇණවුම්", you_get: "ඔබට ලැබෙන්නේ", more: "කිලෝවකට රු {n}ක් වැඩියෙන්", show: "පෙන්වන්න", sell_btn: "විකුණන්න", see_orders: "මගේ ඇණවුම් බලන්න", collector_s: "එකතු කරන්නා", govi_s: "Govi සමඟ", fine: "Govi හරහා ගැනුම්කරු {b} · කඩේ {r} · ප්‍රවාහනයට පෙර", phone_need: "පිළිතුරු දීමට කරුණාකර ඔබේ දුරකථන අංකය දාන්න.",
@@ -33,6 +34,7 @@ const T = {
     selling: "විකිණීම", ordering: "ඇණවුම", sent: "යවමින්…",
     s_booked: "වෙන් කළා", s_loaded: "පැටෙව්වා", s_in_transit: "යමින්", s_arrived: "ළඟා විය", s_delivered: "භාර දුන්නා", ref: "අංකය", dropoff: "භාර දෙන තැන", eta: "ලැබෙන වේලාව",
     before_transport: "ප්‍රවාහනයට පෙර", transport_off: "ප්‍රවාහන වියදම දැනටමත් අඩු කර ඇත", shared: "අසල්වැසියන් සමඟ බෙදාගත්",
+    signin: "පිවිසෙන්න", signout: "ඉවත් වන්න", posting_as: "{n} ලෙස දමයි · {p}", t_need: "ඔබේ අස්වැන්න සහ ඇණවුම් බැලීමට, WhatsApp හරහා එවූ ඒවා ද ඇතුළුව, ඔබේ ජංගම අංකයෙන් පිවිසෙන්න.",
   },
   ta: {
     n_prices: "விலை", n_sell: "விற்க", n_track: "என் ஆர்டர்கள்", you_get: "உங்களுக்குக் கிடைப்பது", more: "கிலோவுக்கு ரூ {n} அதிகம்", show: "காட்டு", sell_btn: "விற்க", see_orders: "என் ஆர்டர்களைப் பார்", collector_s: "சேகரிப்பாளர்", govi_s: "Govi மூலம்", fine: "Govi மூலம் வாங்குபவர் {b} · கடை {r} · போக்குவரத்துக்கு முன்", phone_need: "பதில் அனுப்ப உங்கள் தொலைபேசி எண்ணைச் சேர்க்கவும்.",
@@ -50,6 +52,7 @@ const T = {
     selling: "விற்பனை", ordering: "ஆர்டர்", sent: "அனுப்புகிறது…",
     s_booked: "பதிவு", s_loaded: "ஏற்றப்பட்டது", s_in_transit: "வழியில்", s_arrived: "வந்தடைந்தது", s_delivered: "வழங்கப்பட்டது", ref: "எண்", dropoff: "ஒப்படைக்கும் இடம்", eta: "வந்தடையும் நேரம்",
     before_transport: "போக்குவரத்துக்கு முன்", transport_off: "போக்குவரத்து செலவு ஏற்கனவே கழிக்கப்பட்டது", shared: "அயலவர்களுடன் பகிர்ந்தது",
+    signin: "உள்நுழை", signout: "வெளியேறு", posting_as: "{n} ஆகப் பதிவிடுகிறது · {p}", t_need: "உங்கள் அறுவடைகளையும் ஆர்டர்களையும் (WhatsApp இல் அனுப்பியவை உட்பட) பார்க்க உங்கள் மொபைல் எண்ணுடன் உள்நுழையுங்கள்.",
   },
 };
 const MODE = { night_bus: "🚌", train_parcel: "🚆", sl_post: "📮", lorry: "🚚" };
@@ -68,6 +71,7 @@ const day = (d) => d ? new Date(d + "T00:00").toLocaleDateString(lang === "en" ?
 const fill = (s, o) => s.replace(/\{(\w+)\}/g, (_, k) => o[k]);
 // Name and phone are remembered so a returning farmer only picks crop, amount and day.
 let you = ls.get("you", { name: "", phone: "" });
+let account = null; // the signed-in user (phone sign-in), or null
 
 function applyLang() {
   document.documentElement.lang = lang;
@@ -76,7 +80,7 @@ function applyLang() {
   document.querySelectorAll("#langs button").forEach((b) => b.classList.toggle("on", b.dataset.l === lang));
   $("text").placeholder = t(role === "farmer" ? "ph_farmer" : "ph_buyer");
   $("pdate").textContent = new Date().toLocaleDateString(lang === "en" ? "en-GB" : lang + "-LK", { weekday: "long", day: "numeric", month: "long" });
-  renderPrices(); renderForm();
+  renderPrices(); renderForm(); renderAccount();
   if ($("mine").dataset.loaded) loadTrack();
 }
 
@@ -84,7 +88,7 @@ function tab(name) {
   document.querySelectorAll(".nav button").forEach((x) => x.classList.toggle("on", x.dataset.tab === name));
   document.querySelectorAll(".pane").forEach((p) => p.classList.toggle("on", p.id === name));
   window.scrollTo({ top: 0 });
-  if (name === "track" && $("tphone").value.trim()) loadTrack();
+  if (name === "track") loadTrack();
 }
 document.querySelectorAll(".nav button").forEach((b) => (b.onclick = () => tab(b.dataset.tab)));
 
@@ -104,11 +108,32 @@ document.querySelectorAll(".qty button").forEach((b) => (b.onclick = () => { $("
 document.querySelectorAll("#presets button").forEach((b) => (b.onclick = () => { $("h-kg").value = b.textContent; }));
 fetch("/api/towns").then((r) => r.json()).then((d) => { form.crops = d.crops; form.towns = d.origins; renderForm(); });
 
-const phone = () => ($("h-phone").value || $("b-phone").value).trim();
+const phone = () => account ? account.phone : ($("h-phone").value || $("b-phone").value).trim();
 function remember(name, ph) {
   you = { name: name || you.name, phone: ph || you.phone }; ls.set("you", you);
-  $("h-phone").value = $("b-phone").value = $("tphone").value = you.phone;
+  if (!account) $("h-phone").value = $("b-phone").value = you.phone;
 }
+
+// ---- account: sign in with the mobile number; WhatsApp messages from it are already yours
+function renderAccount() {
+  $("acct-name").textContent = account ? account.name || GOVI.auth.pretty(account.phone) : t("signin");
+  $("acct").setAttribute("aria-label", account ? account.name : t("signin"));
+  $("h-who").hidden = !!account; $("h-as").hidden = !account;
+  if (account) $("h-as").textContent = fill(t("posting_as"), { n: account.name, p: GOVI.auth.pretty(account.phone) });
+  $("b-phone").closest("label").hidden = !!account;
+  $("am-name").textContent = account?.name || ""; $("am-phone").textContent = account ? GOVI.auth.pretty(account.phone) : "";
+}
+async function signIn() {
+  const u = await GOVI.auth.open({ lang, role: "farmer" });
+  if (u) { account = u; renderAccount(); if ($("track").classList.contains("on")) loadTrack(); }
+  return u;
+}
+$("acct").onclick = (e) => { e.stopPropagation(); if (account) $("acct-menu").hidden = !$("acct-menu").hidden; else signIn(); };
+document.addEventListener("click", (e) => { if (!e.target.closest(".acct-wrap")) $("acct-menu").hidden = true; });
+$("am-out").onclick = async () => {
+  await GOVI.auth.logout(); account = null; $("acct-menu").hidden = true; renderAccount();
+  $("mine").innerHTML = ""; delete $("mine").dataset.loaded; if ($("track").classList.contains("on")) loadTrack();
+};
 function result(ok, text, withTrack) {
   return `<div class="result ${ok ? "ok" : "bad"}"><div class="h"><span class="tick">${ok ? "✓" : "!"}</span><span>${esc(text)}</span></div>
     ${withTrack ? `<button class="btn big-btn" data-go="track">${t("see_orders")} →</button>` : ""}</div>`;
@@ -116,11 +141,11 @@ function result(ok, text, withTrack) {
 document.addEventListener("click", (e) => { const b = e.target.closest("[data-go]"); if (b) tab(b.dataset.go); });
 
 $("h-go").onclick = async () => {
-  const body = { farmer: $("h-name").value.trim(), phone: $("h-phone").value.trim(), crop: form.crop, qty_kg: +$("h-kg").value,
+  const body = { farmer: account ? account.name : $("h-name").value.trim(), phone: phone(), crop: form.crop, qty_kg: +$("h-kg").value,
     ready_on: iso(form.ready), location: $("h-town").value, lang };
   if (!body.farmer || !body.phone || !body.crop || !(body.qty_kg > 0)) {
     $("h-out").innerHTML = result(false, t("h_fill"));
-    (!body.crop ? $("h-crops") : !body.farmer ? $("h-name") : $("h-phone")).scrollIntoView({ behavior: "smooth", block: "center" });
+    (!body.crop || account ? $("h-crops") : !body.farmer ? $("h-name") : $("h-phone")).scrollIntoView({ behavior: "smooth", block: "center" });
     return;
   }
   $("h-go").disabled = true; $("h-go").textContent = t("sent");
@@ -129,7 +154,7 @@ $("h-go").onclick = async () => {
     const d = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(typeof d.detail === "string" ? d.detail : t("err"));
     ls.set("hform", { town: body.location, ready: form.ready });
-    remember(body.farmer, body.phone);
+    if (!account) remember(body.farmer, body.phone);
     const m = d.matches[0];
     $("h-out").innerHTML = result(true, m ? fill(t("h_matched"), { kg: Math.round(d.matched_kg), buyer: m.buyer, price: Math.round(m.farmer_gets_lkr_per_kg) }) : t("h_done"), true);
     $("h-out").scrollIntoView({ behavior: "smooth", block: "center" });
@@ -194,7 +219,7 @@ $("go").onclick = async () => {
     if (!r.ok) { $("reply").innerHTML = result(false, typeof out.detail === "string" ? out.detail : t("err")); return; }
     $("reply").innerHTML = result(true, out.reply, true);
     $("text").value = ""; $("photo").value = ""; $("voice").value = ""; $("picked").hidden = true;
-    remember("", phone());
+    if (!account) remember("", phone());
   } catch { $("reply").innerHTML = result(false, t("err")); }
   finally { $("go").disabled = false; $("go").textContent = t("send"); }
 };
@@ -209,10 +234,12 @@ function shipSteps(x, kind) {
       : `${t("eta")}: ${new Date(x.schedule.delivered).toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" })}`}</span></div>` : ""}`;
 }
 async function loadTrack() {
-  const ph = $("tphone").value.trim();
-  if (!ph) return $("tphone").focus();
+  $("t-signin").hidden = !!account;
+  if (!account) { $("mine").innerHTML = ""; return; }
   $("mine").dataset.loaded = "1";
-  const d = await (await fetch("/api/track?phone=" + encodeURIComponent(ph))).json();
+  const r = await fetch("/api/track");
+  if (r.status === 401) { account = null; renderAccount(); return loadTrack(); }
+  const d = await r.json();
   const card = (x, kind) => {
     const matched = x.matched_kg > 0;
     const ships = x.matches.map((m) => `${m.shipment ? shipSteps(m.shipment, kind) : ""}<div class="ship"><span>${m.lane ? MODE[m.lane.mode] || "🚚" : "📍"} <b>${Math.round(m.qty_kg)} kg</b> ${kind === "listing" ? t("to") + " " + esc(m.buyer) : t("from") + " " + esc(m.farmer)}
@@ -228,14 +255,14 @@ async function loadTrack() {
   const html = d.listings.map((x) => card(x, "listing")).join("") + d.orders.map((x) => card(x, "order")).join("");
   $("mine").innerHTML = html || `<div class="card empty">${t("none")}</div>`;
 }
-$("tgo").onclick = () => { if ($("tphone").value.trim()) remember("", $("tphone").value.trim()); loadTrack(); };
-$("tphone").addEventListener("keydown", (e) => { if (e.key === "Enter") $("tgo").click(); });
+$("tgo").onclick = signIn;
 
 fetch("/healthz").then((r) => r.json()).then((h) => {
   const n = (h.whatsapp_number || "").replace(/\D/g, "");
   // No number configured means no button: a dead link on the first screen looks broken.
   if (n) { $("wa").href = `https://wa.me/${n}`; $("wa").hidden = false; }
 });
-$("h-name").value = you.name; $("h-phone").value = $("b-phone").value = $("tphone").value = you.phone;
+$("h-name").value = you.name; $("h-phone").value = $("b-phone").value = you.phone;
 applyLang();
 loadPrices();
+GOVI.auth.me().then((u) => { account = u; renderAccount(); if ($("track").classList.contains("on")) loadTrack(); });

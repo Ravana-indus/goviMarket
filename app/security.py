@@ -1,8 +1,9 @@
 """Access control, rate limits and safe headers.
 
 - Ops console and its APIs need ADMIN_TOKEN (cookie after /login, or the X-Admin-Token header
-  for Cloud Scheduler jobs).
-- Market agents need AGENT_PIN (X-Agent-Pin header) to post prices.
+  for Cloud Scheduler jobs), or a phone sign-in from a number in ADMIN_PHONES.
+- Market agents need AGENT_PIN (X-Agent-Pin header) to post prices, or a phone sign-in whose
+  profile role is agent (they gave the PIN once when they took that role).
 - With a variable unset, that gate is open; /healthz reports it so nobody deploys open by accident.
 - Public writes (intake, orders, listings, agent prices, login) are rate limited per IP."""
 from __future__ import annotations
@@ -18,7 +19,8 @@ from fastapi.responses import JSONResponse, RedirectResponse
 COOKIE = "govi_admin"
 ADMIN_PREFIXES = ("/admin", "/state", "/demo/", "/shipments/", "/surplus/", "/api/offers", "/api/plan", "/jobs/")
 ADMIN_EXACT = {("POST", "/plan")}
-LIMITED = {"/intake", "/api/orders", "/api/listings", "/api/agent/prices", "/login"}
+LIMITED = {"/intake", "/api/orders", "/api/listings", "/api/agent/prices", "/login",
+           "/api/auth/start", "/api/auth/verify"}
 RATE = int(os.getenv("RATE_LIMIT_PER_MIN", "30"))
 _hits: dict[str, deque] = defaultdict(deque)
 
@@ -35,16 +37,28 @@ def _same(a: str, b: str) -> bool:
     return hmac.compare_digest((a or "").encode(), (b or "").encode())
 
 
+def _account(request: Request) -> dict | None:
+    from . import accounts
+    return accounts.current(request)
+
+
 def is_admin(request: Request) -> bool:
     tok = admin_token()
     if not tok:
         return True
-    return _same(request.cookies.get(COOKIE, ""), tok) or _same(request.headers.get("x-admin-token", ""), tok)
+    if _same(request.cookies.get(COOKIE, ""), tok) or _same(request.headers.get("x-admin-token", ""), tok):
+        return True
+    from . import accounts
+    u = _account(request)
+    return bool(u) and u["phone"] in accounts.admin_phones()
 
 
 def is_agent(request: Request) -> bool:
     pin = agent_pin()
-    return not pin or _same(request.headers.get("x-agent-pin", ""), pin) or is_admin(request) and bool(admin_token())
+    if not pin or _same(request.headers.get("x-agent-pin", ""), pin) or is_admin(request) and bool(admin_token()):
+        return True
+    u = _account(request)
+    return bool(u) and u.get("role") == "agent"
 
 
 def _needs_admin(request: Request) -> bool:

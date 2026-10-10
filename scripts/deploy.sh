@@ -49,13 +49,39 @@ done
 gc projects add-iam-policy-binding "$PROJECT_ID" --member="serviceAccount:$RUN_SA" \
   --role=roles/datastore.user --condition=None >/dev/null
 
+echo "== Firebase phone sign-in"
+# The Firebase web config (apiKey) is public by design: it ships to every browser. Not a secret.
+# Read it from the project's first Firebase web app, or pass FIREBASE_API_KEY yourself.
+fb_api() { curl -fsS -H "Authorization: Bearer $(gcloud auth print-access-token)" -H "x-goog-user-project: $PROJECT_ID" "$@"; }
+FIREBASE_API_KEY="${FIREBASE_API_KEY:-}"
+if [ -z "$FIREBASE_API_KEY" ]; then
+  APP_ID="$(fb_api "https://firebase.googleapis.com/v1beta1/projects/$PROJECT_ID/webApps" 2>/dev/null \
+    | python3 -c 'import sys,json; a=json.load(sys.stdin).get("apps",[]); print(a[0]["appId"] if a else "")' || true)"
+  [ -n "$APP_ID" ] && FIREBASE_API_KEY="$(fb_api "https://firebase.googleapis.com/v1beta1/projects/$PROJECT_ID/webApps/$APP_ID/config" \
+    | python3 -c 'import sys,json; print(json.load(sys.stdin).get("apiKey",""))' || true)"
+fi
+if [ -n "$FIREBASE_API_KEY" ]; then echo "Firebase web app found: SMS sign-in on"
+else echo "No Firebase web app yet: sign-in uses demo numbers and console codes. Add a web app in the Firebase console and re-run."; fi
+
 echo "== Cloud Run"
 # max-instances=1: the store caches Firestore in memory, so a second instance would read stale data.
 gc run deploy "$SERVICE" --source . --region "$REGION" --allow-unauthenticated \
   --max-instances=1 --min-instances=0 "$CPU_FLAG" --memory=512Mi --timeout=120 \
-  --set-env-vars "STORE=firestore,ALLOW_RESET=$ALLOW_RESET,GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}" \
+  --set-env-vars "STORE=firestore,ALLOW_RESET=$ALLOW_RESET,GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash},GOOGLE_CLOUD_PROJECT=$PROJECT_ID,FIREBASE_PROJECT_ID=$PROJECT_ID,FIREBASE_API_KEY=$FIREBASE_API_KEY,ADMIN_PHONES=${ADMIN_PHONES:-}" \
   --set-secrets "GEMINI_API_KEY=GEMINI_API_KEY:latest,ADMIN_TOKEN=ADMIN_TOKEN:latest,AGENT_PIN=AGENT_PIN:latest"
 URL="$(gc run services describe "$SERVICE" --region "$REGION" --format='value(status.url)')"
+
+if [ -n "$FIREBASE_API_KEY" ]; then
+  echo "== Firebase authorized domain for $URL"
+  HOST="${URL#https://}"
+  CFG="https://identitytoolkit.googleapis.com/admin/v2/projects/$PROJECT_ID/config"
+  DOMAINS="$(fb_api "$CFG" | HOST="$HOST" python3 -c 'import sys,json,os; d=json.load(sys.stdin).get("authorizedDomains",[]); h=os.environ["HOST"]; print(json.dumps({"authorizedDomains": d if h in d else d+[h]}))' || true)"
+  if [ -n "$DOMAINS" ] && fb_api -X PATCH -H "Content-Type: application/json" "$CFG?updateMask=authorizedDomains" -d "$DOMAINS" >/dev/null; then
+    echo "$HOST can use Firebase sign-in"
+  else
+    echo "Could not add $HOST automatically: add it in Firebase console > Authentication > Settings > Authorized domains"
+  fi
+fi
 
 echo "== Daily job (06:00 Colombo): standing orders and unsold-produce alerts"
 TOKEN="$(gc secrets versions access latest --secret=ADMIN_TOKEN)"

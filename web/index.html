@@ -86,9 +86,12 @@
   .track { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
   .track span { font-size: 11px; text-align: center; padding-top: 8px; border-top: 5px solid var(--line); color: var(--muted); border-radius: 2px; }
   .track span.on { border-top-color: var(--leaf); color: var(--leaf); font-weight: 650; }
-  .lookup { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
-  .lookup input { min-height: 50px; font-size: 17px; }
-  .lookup button { min-height: 50px; padding: 0 18px; border-radius: 12px; }
+  .signin-ask { padding: 16px; display: grid; gap: 12px; }
+  .signin-ask p { margin: 0; color: var(--muted); }
+  .bar .right { display: flex; align-items: center; gap: 8px; }
+  .acct-wrap { position: relative; }
+  .acct-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 200px; padding: 14px; display: grid; gap: 8px; }
+  @media (max-width: 420px) { .acct span { display: none; } .acct { padding: 0 10px; } }
 
   .note { font-size: 12px; color: var(--muted); text-align: center; margin: 8px 0 0; }
 
@@ -104,7 +107,11 @@
 <div class="wrap">
   <div class="bar">
     <div class="logo"><span class="mark"></span>Govi Market</div>
+    <div class="right">
+    <div class="acct-wrap"><button class="acct" id="acct" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg><span id="acct-name"></span></button>
+      <div class="card acct-menu" id="acct-menu" hidden><b id="am-name"></b><span class="small muted" id="am-phone"></span><button class="btn" id="am-out" data-t="signout"></button></div></div>
     <div class="langs" id="langs" role="group" aria-label="Language"><button data-l="si" lang="si">සිං</button><button data-l="ta" lang="ta">தமி</button><button data-l="en" lang="en">EN</button></div>
+    </div>
   </div>
 
   <section class="pane on" id="prices">
@@ -128,7 +135,8 @@
         <div class="presets" id="presets"><button type="button">50</button><button type="button">100</button><button type="button">200</button><button type="button">500</button></div></div>
       <div class="f"><span data-t="h_ready"></span><div class="choice" id="h-ready"></div></div>
       <label class="f"><span data-t="h_town"></span><select id="h-town"></select></label>
-      <div class="two">
+      <div class="small muted" id="h-as" hidden></div>
+      <div class="two" id="h-who">
         <label class="f"><span data-t="h_name"></span><input type="text" id="h-name" autocomplete="name"></label>
         <label class="f"><span data-t="phone_ph"></span><input type="tel" id="h-phone" inputmode="tel" autocomplete="tel" placeholder="077 123 4567"></label>
       </div>
@@ -156,7 +164,7 @@
 
   <section class="pane" id="track">
     <div class="sec"><h2 data-t="t_track"></h2></div>
-    <div class="lookup"><input type="tel" id="tphone" inputmode="tel" data-tp="phone_ph"><button class="btn primary" id="tgo" data-t="show"></button></div>
+    <div class="card signin-ask" id="t-signin" hidden><p data-t="t_need"></p><button class="btn primary big-btn" id="tgo" data-t="signin"></button></div>
     <div id="mine" style="display:grid;gap:12px"></div>
   </section>
 </div>
@@ -167,6 +175,7 @@
   <button data-tab="track"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 7h13v10H1zM14 10h4l4 4v3h-8"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg><span data-t="n_track"></span></button>
 </div></nav>
 <script src="/static/common.js"></script>
+<script src="/static/auth.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

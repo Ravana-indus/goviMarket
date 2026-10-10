@@ -8,7 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from . import security, store
+from . import accounts, security, store
 from .schemas import PriceKind
 
 router = APIRouter()
@@ -25,8 +25,8 @@ class PriceLine(BaseModel):
 
 
 class PriceReport(BaseModel):
-    reporter: str
-    phone: str
+    reporter: Optional[str] = None  # signed-in agents: name and phone come from the account
+    phone: Optional[str] = None
     market: str
     kind: PriceKind
     when: Optional[date] = None
@@ -57,6 +57,11 @@ def report(r: PriceReport, request: Request):
     """Save today's prices from one agent. Big jumps are saved but flagged for the admin to check."""
     if not security.is_agent(request):
         raise HTTPException(401, "Wrong agent PIN.")
+    u = accounts.current(request)
+    if u and u.get("role") == "agent":
+        r = r.model_copy(update={"phone": u["phone"], "reporter": u.get("name") or r.reporter})
+    if not r.reporter or not r.phone:
+        raise HTTPException(400, "Enter your name and phone number.")
     if r.market not in MARKETS:
         raise HTTPException(400, "Pick a market from the list.")
     if not r.prices:
