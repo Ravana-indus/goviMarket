@@ -119,3 +119,14 @@ def test_intake_validation_and_rate_limit(c, monkeypatch):
     security.reset_limits()
     codes = [c.post("/login", data={"token": "x"}, follow_redirects=False).status_code for _ in range(5)]
     assert codes[-1] == 429
+
+
+def test_clear_empties_the_market_and_keeps_accounts(c):
+    from app import accounts
+    sim(c, SPARE, "This is Rasan, red onion 100kg ready today, Jaffna")
+    sim(c, SPARE, "yes")
+    assert store.listings() and accounts.user(SPARE)
+    assert c.post("/demo/clear").status_code == 401  # console only
+    assert c.post("/demo/clear", headers={"X-Admin-Token": TOKEN}).json() == {"cleared": True}
+    assert not store.listings() and not store.DB.all("chat") and not store.DB.all("convo")
+    assert accounts.user(SPARE)

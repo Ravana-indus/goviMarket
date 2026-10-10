@@ -488,6 +488,17 @@ REROUTE_LATER = [
 ]
 
 
+@app.post("/demo/clear")
+def demo_clear():
+    """Wipe every listing, order, deal, shipment, chat and price report, leaving an empty market.
+    Accounts and sign-ins stay. Needs ALLOW_RESET=1 on Firestore, like the demo reset."""
+    try:
+        store.reset()
+    except RuntimeError as e:
+        raise HTTPException(400, str(e))
+    return {"cleared": True}
+
+
 @app.post("/demo/seed")
 def demo_seed():
     """Reset the in-memory store and replay a realistic morning of messages."""
