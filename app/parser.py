@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from typing import Optional
 
-from . import ai, vocab
+from . import ai, audio, vocab
 from .schemas import ParsedMessage
 
 MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
@@ -52,7 +52,8 @@ def parse(*, text: Optional[str] = None, media: Optional[bytes] = None,
     from google.genai import types
     parts: list = []
     if media:
-        mime = (mime_type or "image/jpeg").split(";")[0].strip()  # "audio/ogg; codecs=opus"
+        mime = (mime_type or "image/jpeg").split(";")[0].strip().lower()  # "audio/ogg; codecs=opus"
+        media, mime = audio.for_gemini(media, mime)
         parts.append(types.Part.from_bytes(data=media, mime_type=mime))
     parts.append(f"Today is {today}.\n\nMessage text (may be empty):\n{text or ''}")
 
