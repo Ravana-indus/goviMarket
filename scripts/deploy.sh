@@ -74,7 +74,7 @@ echo "== Cloud Run"
 # max-instances=1: the store caches Firestore in memory, so a second instance would read stale data.
 gc run deploy "$SERVICE" --source . --region "$REGION" --allow-unauthenticated \
   --max-instances=1 --min-instances=0 "$CPU_FLAG" --memory=512Mi --timeout=120 \
-  --set-env-vars "STORE=firestore,ALLOW_RESET=$ALLOW_RESET,GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.8-flash},GOOGLE_CLOUD_PROJECT=$PROJECT_ID,FIREBASE_PROJECT_ID=$PROJECT_ID,FIREBASE_API_KEY=$FIREBASE_API_KEY,ADMIN_PHONES=${ADMIN_PHONES//,/;}" \
+  --set-env-vars "STORE=firestore,ALLOW_RESET=$ALLOW_RESET,GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.5-flash-lite},GOOGLE_CLOUD_PROJECT=$PROJECT_ID,FIREBASE_PROJECT_ID=$PROJECT_ID,FIREBASE_API_KEY=$FIREBASE_API_KEY,ADMIN_PHONES=${ADMIN_PHONES//,/;}" \
   --set-secrets "GEMINI_API_KEY=GEMINI_API_KEY:latest,ADMIN_TOKEN=ADMIN_TOKEN:latest,AGENT_PIN=AGENT_PIN:latest"
 URL="$(gc run services describe "$SERVICE" --region "$REGION" --format='value(status.url)')"
 
