@@ -18,7 +18,7 @@ Each phone number has one conversation state: idle, asking (one fact missing), o
 4. A YES or NO always goes to the newest question this number was sent: its own pending order, a match offer (one YES answers all offers sent together), or a route change. A second YES after placing says it is already done.
 5. Pending orders expire unplaced after 24 hours. **CANCEL** within 6 hours of placing withdraws it (and tells any farmer already offered), unless a deal on it is agreed. **STATUS** lists what is open. Greetings and thanks never start an order.
 
-YES, NO, STATUS, greetings and bare numbers are handled without a Gemini call. The web form on `/` places at once (the button is the confirmation). Try every path with `pytest tests/test_conversations.py`, or print transcripts with `python scripts/chat_sim.py [https://<cloud-run-url>]` (fresh simulator numbers, real Gemini when given the live URL).
+YES, NO, STATUS, greetings and bare numbers are handled without a Gemini call. The web form on `/` places at once (the button is the confirmation). Try every path with `pytest tests/test_conversations.py`, or print transcripts with `python scripts/chat_sim.py [https://<cloud-run-url>]` (fresh simulator numbers, real Gemini when given the live URL). The order card prices the whole load at once: transport is costed on the total kg and shared, so a 10 kg item never carries a whole minimum charge, and an item worth less than the collector price is marked "better sold locally" and left out of the total.
 
 ## Pages
 | URL | Who | Notes |

@@ -49,6 +49,18 @@ TOWNS = {
 }
 
 
+TOWN_NAME = {
+    "Nuwara Eliya": {"si": "නුවරඑළිය", "ta": "நுவரெலியா"}, "Dambulla": {"si": "දඹුල්ල", "ta": "தம்புள்ளை"},
+    "Jaffna": {"si": "යාපනය", "ta": "யாழ்ப்பாணம்"}, "Badulla": {"si": "බදුල්ල", "ta": "பதுளை"},
+    "Ampara": {"si": "අම්පාර", "ta": "அம்பாறை"}, "Kurunegala": {"si": "කුරුණෑගල", "ta": "குருநாகல்"},
+    "Kandy": {"si": "මහනුවර", "ta": "கண்டி"}, "Colombo": {"si": "කොළඹ", "ta": "கொழும்பு"},
+}
+
+
+def town_name(town: str | None, lang: str) -> str:
+    return TOWN_NAME.get(town or "", {}).get(lang) or town or "?"
+
+
 def crop_name(crop: str, lang: str) -> str:
     return CROP_NAME.get(crop, {}).get(lang) or crop
 
