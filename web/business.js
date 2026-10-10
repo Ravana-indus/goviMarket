@@ -5,6 +5,7 @@ const kg = (n) => Math.round(n).toLocaleString("en-LK") + " kg";
 const STEPS = ["booked", "loaded", "in_transit", "arrived", "delivered"];
 const STEP_NAME = { booked: "Booked", loaded: "Loaded", in_transit: "On the way", arrived: "Arrived", delivered: "Delivered" };
 const TREND = { rising: "↑ rising", falling: "↓ easing", steady: "→ steady" };
+const cname = (c) => GOVI.name(c, "en");
 const store = {
   get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
@@ -33,6 +34,7 @@ $("si-go").onclick = () => {
   if (!name || !phone) return;
   signIn({ name, phone, location: $("si-loc").value.trim() || "Colombo" });
 };
+$("pitch-ics").innerHTML = ["carrot", "tomato", "beans", "leeks", "red onion", "green chilli"].map((c) => GOVI.icon(c, 40)).join("");
 $("si-demo").onclick = () => signIn({ name: "Mango Tree Cafe", phone: "94770000014", location: "Colombo" });
 function renderWho() {
   $("who").innerHTML = me ? `<b>${esc(me.name)}</b>${esc(me.location)} · <a href="#" id="out">switch</a>` : "";
@@ -55,18 +57,19 @@ function setQty(crop, v) {
 function renderCatalogue() {
   $("catalogue").innerHTML = catalogue.map((p) => {
     const q = cart[p.crop] || 0, out = p.available_kg <= 0;
-    const trend = p.signal ? `<span class="trend ${p.signal}" title="${esc(p.advice || "")}">${TREND[p.signal]} · ${rs(p.next_week_price)} next wk</span>` : "";
-    return `<div class="card prod ${out ? "soldout" : ""}">
-      <div class="head"><span class="name">${esc(p.crop)}</span>${trend}</div>
-      <div class="price num">${rs(p.price)}<small> /kg</small></div>
+    const trend = p.signal ? `<span class="trend ${p.signal}" title="${esc(p.advice || "")}">${TREND[p.signal].split(" ")[0]} ${rs(p.next_week_price)} next week</span>` : "";
+    return `<div class="card prod ${out ? "soldout" : ""} ${q ? "in" : ""}">
+      <div class="head">${GOVI.icon(p.crop, 48)}<span class="name">${esc(cname(p.crop))}</span></div>
+      <div class="pr"><div class="price num">${rs(p.price)}<small> /kg</small></div>${trend}</div>
       <div class="meta"><span class="up">Save ${p.saving_pct}% vs retail ${rs(p.retail)}</span>
         <span>${out ? "No stock right now; order and we'll find a farmer" : `${kg(p.available_kg)} from ${p.farmers} farmer${p.farmers > 1 ? "s" : ""} · ${esc(p.origins.join(", "))}`}</span></div>
       <div class="qty"><button data-c="${esc(p.crop)}" data-d="-10" aria-label="less">−</button>
         <input type="number" min="0" step="5" value="${q}" data-c="${esc(p.crop)}" aria-label="kg of ${esc(p.crop)}"><span class="unit">kg</span>
         <button data-c="${esc(p.crop)}" data-d="10" aria-label="more">+</button></div>
+      <div class="adds">${[5, 10, 25].map((n) => `<button data-c="${esc(p.crop)}" data-d="${n}">+${n} kg</button>`).join("")}</div>
     </div>`;
   }).join("");
-  document.querySelectorAll(".qty button").forEach((b) => (b.onclick = () => setQty(b.dataset.c, (cart[b.dataset.c] || 0) + +b.dataset.d)));
+  document.querySelectorAll(".qty button, .adds button").forEach((b) => (b.onclick = () => setQty(b.dataset.c, (cart[b.dataset.c] || 0) + +b.dataset.d)));
   document.querySelectorAll(".qty input").forEach((i) => (i.onchange = () => setQty(i.dataset.c, +i.value || 0)));
 }
 
@@ -74,7 +77,7 @@ function renderCart() {
   const lines = Object.entries(cart).map(([crop, q]) => ({ crop, q, p: catalogue.find((c) => c.crop === crop) })).filter((l) => l.p);
   const total = lines.reduce((s, l) => s + l.q * l.p.price, 0);
   const retail = lines.reduce((s, l) => s + l.q * l.p.retail, 0);
-  $("lines").innerHTML = lines.length ? lines.map((l) => `<div class="line"><span>${esc(l.crop)} · ${kg(l.q)}</span><span class="num">${rs(l.q * l.p.price)}</span></div>`).join("")
+  $("lines").innerHTML = lines.length ? lines.map((l) => `<div class="line"><span>${esc(cname(l.crop))} · ${kg(l.q)}</span><span class="num">${rs(l.q * l.p.price)}</span></div>`).join("")
     : `<div class="muted small">Add produce from the list.</div>`;
   $("cart-n").textContent = lines.length ? `${lines.length} item${lines.length > 1 ? "s" : ""}` : "";
   $("total").textContent = rs(total);
@@ -108,7 +111,11 @@ async function loadCatalogue() { catalogue = await api("/api/catalogue"); render
 async function loadOutlook() {
   const f = await api("/api/forecast");
   const rising = f.crops.filter((c) => c.signal === "rising").map((c) => c.crop);
-  $("outlook-text").textContent = (rising.length ? `Prices likely to rise next week for ${rising.join(", ")}. A weekly order locks in supply. ` : "") + (f.summary || "");
+  const cls = { rising: "trend rising", falling: "trend falling", steady: "trend steady" };
+  $("outlook-chips").innerHTML = f.crops.filter((c) => c.signal && c.signal !== "steady").map((c) =>
+    `<span class="${cls[c.signal]}">${TREND[c.signal].split(" ")[0]} ${esc(cname(c.crop))} ${c.change_pct > 0 ? "+" : ""}${Math.round(c.change_pct)}%</span>`).join("");
+  $("outlook-text").textContent = rising.length ? `Rising crops cost more next week. A weekly order locks in today's supply.` : "Prices look steady next week.";
+  $("outlook-src").textContent = /synthetic/i.test(f.summary || "") ? "Forecast from demo price history until HARTI data is loaded." : "";
 }
 
 async function loadOrders() {
@@ -122,7 +129,7 @@ async function loadOrders() {
       return `<div class="small muted">${kg(m.qty_kg)} from ${esc(m.farmer)} (${esc(m.shipment.origin)}) · ${esc(m.shipment.ref || "not booked yet")}</div>
         <div class="track">${STEPS.map((s, i) => `<span class="${i <= at ? "on" : ""}">${STEP_NAME[s]}</span>`).join("")}</div>`;
     }).join("");
-    return `<div class="card ord"><div class="row"><span class="title">${esc(o.crop)} · ${kg(o.qty_kg)}</span>
+    return `<div class="card ord"><div class="row"><span class="title" style="display:flex;gap:10px;align-items:center">${GOVI.icon(o.crop, 36)}${esc(cname(o.crop))} · ${kg(o.qty_kg)}</span>
       <span class="chip ${status === "Confirmed" ? "farmer" : "reporter"}">${status}</span></div>
       <div class="small muted">Deliver by ${new Date(o.needed_by + "T00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })} · ${kg(o.matched_kg)} matched · ${rs(ms[0]?.buyer_pays_lkr_per_kg || 0)}/kg</div>
       ${ships}<div><button class="btn small" data-re="${esc(o.crop)}" data-q="${o.qty_kg}">Reorder</button></div></div>`;

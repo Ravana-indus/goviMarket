@@ -46,4 +46,17 @@ textarea, input[type=text], input[type=tel] { width: 100%; border: 1px solid var
 textarea:focus, input:focus { outline: 2px solid var(--leaf); outline-offset: 1px; }
 .scroll-x { overflow-x: auto; }
 
+/* shared pieces: logo mark, crop pictures, badges, focus and press feedback */
+.mark { width: 30px; height: 30px; border-radius: 9px; flex: none; display: inline-block; background: url(/static/logo.svg) center / cover no-repeat; }
+.crop-ic { display: inline-grid; place-items: center; border-radius: 14px; flex: none; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .crop-ic { filter: saturate(.9) brightness(.92); } }
+.badge { font-size: 12px; padding: 4px 10px; border-radius: 999px; background: var(--sun-soft); color: var(--sun); font-weight: 600; white-space: nowrap; }
+.badge.live { background: var(--leaf-soft); color: var(--leaf); }
+.btn.small { padding: 5px 10px; font-size: 13px; }
+button:focus-visible, a:focus-visible, select:focus-visible { outline: 2px solid var(--leaf); outline-offset: 2px; }
+button:not(:disabled):active, .btn:active { transform: scale(.98); }
+button, .btn { transition: background-color .15s, border-color .15s, transform .08s; -webkit-tap-highlight-color: transparent; }
+@keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
 [hidden] { display: none !important; }

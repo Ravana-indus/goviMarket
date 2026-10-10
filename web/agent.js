@@ -35,10 +35,6 @@ const T = {
     same: "அதே", sending: "அனுப்புகிறது…", live: "நேரலை", wait: "சரிபார்ப்பில்",
   },
 };
-const CROP = {
-  si: { carrot: "කැරට්", leeks: "ලීක්ස්", beans: "බෝංචි", tomato: "තක්කාලි", "red onion": "රතු ළූණු", "green chilli": "අමු මිරිස්" },
-  ta: { carrot: "கேரட்", leeks: "லீக்ஸ்", beans: "பீன்ஸ்", tomato: "தக்காளி", "red onion": "சிவப்பு வெங்காயம்", "green chilli": "பச்சை மிளகாய்" },
-};
 const KIND = ["collector", "wholesale", "retail"];
 const ls = {
   get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
@@ -54,7 +50,7 @@ let locked = false;
 fetch("/healthz").then((r) => r.json()).then((h) => { locked = h.agent_locked; $("pin-row").hidden = !locked; });
 
 const t = (k, ...a) => { const v = (T[lang] || T.en)[k] ?? T.en[k]; return typeof v === "function" ? v(...a) : v; };
-const cname = (c) => (CROP[lang] || {})[c] || c;
+const cname = (c) => GOVI.name(c, lang);
 const rs = (n) => Math.round(n).toLocaleString("en-LK");
 const ref = (r) => r.last_here ?? r.current;
 const big = (r, v) => r.current && Math.abs(v - r.current) / r.current > CHECK;
@@ -124,7 +120,7 @@ function render() {
     const cls = v == null ? "" : big(r, v) ? "check" : "set";
     const hint = [r.current ? `${t("board")} Rs ${rs(r.current)}` : "", r.last_here ? `${t("last")} Rs ${rs(r.last_here)}` : ""].filter(Boolean).join(" · ");
     return `<div class="card row ${cls}" data-c="${esc(r.crop)}" role="button" tabindex="0">
-      <div><div class="nm">${esc(cname(r.crop))}</div><div class="hint">${hint}</div>${cls === "check" ? `<div class="flag">⚠ ${esc(t("flagged"))}</div>` : ""}</div>
+      ${GOVI.icon(r.crop, 44)}<div><div class="nm">${esc(cname(r.crop))}</div><div class="hint">${hint}</div>${cls === "check" ? `<div class="flag">⚠ ${esc(t("flagged"))}</div>` : ""}</div>
       <div class="val ${v == null ? "ghost" : ""}" aria-label="${esc(t("tap"))}">${v == null ? "Rs —" : "Rs " + rs(v)}</div>
     </div>`;
   }).join("");

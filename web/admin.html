@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Govi Market Console</title>
+<link rel="icon" href="/static/logo.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;550;600;650;700&family=Noto+Sans+Sinhala:wght@400;600&family=Noto+Sans+Tamil:wght@400;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/style.css">
@@ -10,7 +11,6 @@
   .top { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
   .top .in { max-width: 1320px; margin: 0 auto; padding: 12px 20px; display: flex; align-items: center; gap: 12px; }
   .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }
-  .logo i { width: 28px; height: 28px; border-radius: 8px; background: var(--leaf); display: grid; place-items: center; color: var(--leaf-ink); font-style: normal; font-size: 15px; }
   .spacer { flex: 1; }
   main { max-width: 1320px; margin: 0 auto; padding: 20px; display: grid; gap: 16px; }
   .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
@@ -71,7 +71,7 @@
   .bar > span { display: block; height: 100%; background: var(--leaf); }
   @media (max-width: 1200px) { .kpis { grid-template-columns: repeat(3, 1fr); } }
   @media (max-width: 1000px) { .grid, .two { grid-template-columns: 1fr; } .kpis { grid-template-columns: repeat(2, 1fr); } }
-  @media (max-width: 520px) { main { padding: 16px; } .top .in { padding: 10px 16px; flex-wrap: wrap; } .kpi .value { font-size: 22px; } }
+  @media (max-width: 520px) { main { padding: 16px; } .top .in { padding: 10px 12px; gap: 8px; } .top .logo .lt, #mode, .top a.btn { display: none; } .top .btn { white-space: nowrap; } .top .btn { padding: 7px 10px; font-size: 13px; } .kpi .value { font-size: 22px; } }
   /* console shell */
   :root { --c1: #2f7d4a; --c2: #2b5f9e; --c3: #b26a00; --c4: #8a4fb0; --c0: #b9bdb3; }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --c1: #3fa862; --c2: #4f8fe0; --c3: #b87a1c; --c4: #a97fd0; --c0: #4a544b; } }
@@ -133,7 +133,7 @@
 </head>
 <body>
 <div class="top"><div class="in">
-  <div class="logo"><i>G</i>Govi Market <span class="muted" style="font-weight:500">Console</span></div>
+  <div class="logo"><span class="mark"></span><span class="lt">Govi Market <span class="muted" style="font-weight:500">Console</span></span></div>
   <span id="mode" class="badge">…</span>
   <div class="spacer"></div>
   <button class="btn" id="seed">Load demo morning</button>
