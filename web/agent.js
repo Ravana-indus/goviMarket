@@ -12,7 +12,7 @@ const T = {
     send: (n) => `Send ${n} price${n === 1 ? "" : "s"}`, nothing: "Tap a crop to enter its price",
     big: (b) => `Big change from Rs ${b}. Check before sending.`, flagged: "Big change, will be checked before it goes live",
     sent_ok: (n) => `${n} price${n === 1 ? "" : "s"} sent. Farmers and buyers see them now.`, sent_today: "What you sent", none: "Nothing sent yet.",
-    same: "Same", sending: "Sending…", live: "live", wait: "checking",
+    same: "Same", sending: "Sending…", live: "live", wait: "checking", phone_in: "Sign in with mobile number",
   },
   si: {
     agent: "වෙළඳපොළ නියෝජිත", pin: "නියෝජිත PIN අංකය", bad_pin: "PIN අංකය වැරදියි. Govi වෙතින් අසන්න.", si_title: "අද වෙළඳපොළ මිල", si_sub: "ඔබ කවුද සහ ඔබ ආවරණය කරන වෙළඳපොළ කුමක්ද කියන්න. මෙය එක් වරක් පමණි.",
@@ -22,7 +22,7 @@ const T = {
     send: (n) => `මිල ${n}ක් යවන්න`, nothing: "මිල ඇතුළත් කිරීමට බෝගයක් ඔබන්න",
     big: (b) => `රු ${b} සිට විශාල වෙනසක්. යැවීමට පෙර පරීක්ෂා කරන්න.`, flagged: "විශාල වෙනසක්, ප්‍රසිද්ධ කිරීමට පෙර පරීක්ෂා කෙරේ",
     sent_ok: (n) => `මිල ${n}ක් යැව්වා. ගොවීන්ට සහ ගැනුම්කරුවන්ට දැන් පෙනේ.`, sent_today: "ඔබ එවූ මිල", none: "තවම කිසිවක් එවා නැත.",
-    same: "එසේම", sending: "යවමින්…", live: "සජීවී", wait: "පරීක්ෂාවට",
+    same: "එසේම", sending: "යවමින්…", live: "සජීවී", wait: "පරීක්ෂාවට", phone_in: "ජංගම අංකයෙන් පිවිසෙන්න",
   },
   ta: {
     agent: "சந்தை முகவர்", pin: "முகவர் PIN", bad_pin: "PIN தவறு. Govi இடம் கேளுங்கள்.", si_title: "இன்றைய சந்தை விலை", si_sub: "நீங்கள் யார், எந்தச் சந்தையைக் கவனிக்கிறீர்கள் என்று சொல்லுங்கள். ஒருமுறை மட்டுமே.",
@@ -32,7 +32,7 @@ const T = {
     send: (n) => `${n} விலைகளை அனுப்பு`, nothing: "விலையை உள்ளிட ஒரு பயிரைத் தட்டவும்",
     big: (b) => `ரூ ${b} இலிருந்து பெரிய மாற்றம். அனுப்பும் முன் சரிபார்க்கவும்.`, flagged: "பெரிய மாற்றம், வெளியிடும் முன் சரிபார்க்கப்படும்",
     sent_ok: (n) => `${n} விலைகள் அனுப்பப்பட்டன. விவசாயிகளும் வாங்குபவர்களும் இப்போது பார்க்கலாம்.`, sent_today: "நீங்கள் அனுப்பியவை", none: "இன்னும் எதுவும் அனுப்பவில்லை.",
-    same: "அதே", sending: "அனுப்புகிறது…", live: "நேரலை", wait: "சரிபார்ப்பில்",
+    same: "அதே", sending: "அனுப்புகிறது…", live: "நேரலை", wait: "சரிபார்ப்பில்", phone_in: "மொபைல் எண்ணுடன் உள்நுழை",
   },
 };
 const KIND = ["collector", "wholesale", "retail"];
@@ -80,20 +80,39 @@ function renderMarkets() {
   $("markets").querySelectorAll("button").forEach((b) => (b.onclick = () => { pick = b.dataset.m; renderMarkets(); }));
 }
 function signIn(a) { me = a; ls.set("agent", a); show(); }
+let account = null; // phone sign-in with the agent role: no PIN needed on this device
+async function useAccount(u) {
+  if (!u) return;
+  if (u.role !== "agent") u = await GOVI.auth.profile(u, { role: "agent", lang });  // asks for the PIN once
+  if (!u || u.role !== "agent") return;
+  account = u;
+  $("si-name").value = u.name; $("si-phone").value = "0" + u.phone.slice(2);
+  $("pin-row").hidden = true; $("si-phone-go").hidden = true;
+  if (u.market && markets.includes(u.market)) { pick = u.market; renderMarkets(); signIn({ name: u.name, phone: u.phone, market: u.market, pin: "" }); }
+}
+$("si-phone-go").onclick = async () => useAccount(await GOVI.auth.open({ role: "agent", lang }));
 $("si-go").onclick = () => {
   const name = $("si-name").value.trim();
   let phone = $("si-phone").value.replace(/\D/g, "");
   if (phone.length === 10 && phone.startsWith("0")) phone = "94" + phone.slice(1);
-  const err = !name ? t("name") : phone.length < 9 ? t("phone") : !pick ? t("market") : locked && !$("si-pin").value ? t("pin") : "";
+  const err = !name ? t("name") : phone.length < 9 ? t("phone") : !pick ? t("market") : locked && !account && !$("si-pin").value ? t("pin") : "";
   $("si-err").hidden = !err; $("si-err").textContent = err ? "⚠ " + err : "";
   if (err) return;
+  if (account) {  // remember the market on the account
+    fetch("/api/me", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ market: pick }) });
+    return signIn({ name: account.name, phone: account.phone, market: pick, pin: "" });
+  }
   signIn({ name, phone, market: pick, pin: $("si-pin").value });
 };
 $("si-demo").onclick = () => {
   if (locked && !$("si-pin").value) { $("si-err").hidden = false; $("si-err").textContent = "⚠ " + t("pin"); return; }
   signIn({ name: "Kumari", phone: "94770000099", market: "Dambulla", pin: $("si-pin").value });
 };
-$("switch").onclick = (e) => { e.preventDefault(); me = null; ls.set("agent", null); show(); };
+$("switch").onclick = async (e) => {
+  e.preventDefault(); me = null; ls.set("agent", null);
+  if (account) { await GOVI.auth.logout(); account = null; $("pin-row").hidden = !locked; $("si-phone-go").hidden = false; }
+  show();
+};
 
 function show() {
   $("signin").hidden = !!me;
@@ -204,4 +223,6 @@ async function loadHist() {
   const d = await api("/api/agent/board").catch(() => ({ markets: [] }));
   markets = d.markets; renderMarkets();
   applyLang(); show();
+  const u = await GOVI.auth.me();
+  if (u && u.role === "agent") useAccount(u);
 })();

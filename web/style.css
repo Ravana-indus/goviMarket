@@ -60,3 +60,28 @@ button, .btn { transition: background-color .15s, border-color .15s, transform .
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 
 [hidden] { display: none !important; }
+
+/* phone sign-in sheet (auth.js): bottom sheet on phones, centred card on wider screens */
+.auth-scrim { position: fixed; inset: 0; z-index: 50; background: rgba(10, 20, 12, .45); display: grid; align-items: end; justify-items: center; }
+.auth-sheet { position: relative; width: min(440px, 100%); max-height: 92vh; overflow-y: auto; border-radius: 20px 20px 0 0; padding: 22px 18px calc(18px + env(safe-area-inset-bottom)); animation: pop .2s ease-out; }
+@media (min-width: 640px) { .auth-scrim { align-items: center; } .auth-sheet { border-radius: 20px; padding: 26px 24px; } }
+.auth-body { display: grid; gap: 14px; }
+.auth-body h2 { font-size: 21px; font-weight: 750; padding-right: 36px; }
+.auth-body p { margin: 0; }
+.auth-x { position: absolute; top: 12px; right: 12px; width: 40px; height: 40px; border-radius: 12px; border: 0; background: var(--surface-2); font-size: 22px; line-height: 1; cursor: pointer; color: var(--muted); }
+.auth-f { display: grid; gap: 6px; font-size: 14px; font-weight: 600; color: var(--muted); }
+.auth-f input, .auth-code { width: 100%; min-height: 52px; font-size: 18px; border: 1px solid var(--line); background: var(--surface-2); border-radius: 12px; padding: 10px 14px; color: var(--ink); }
+.auth-code { text-align: center; letter-spacing: .5em; font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.auth-go { width: 100%; min-height: 54px; font-size: 17px; border-radius: 14px; }
+.auth-err { color: var(--clay); font-size: 14px; font-weight: 600; }
+.auth-links { display: flex; justify-content: space-between; font-size: 14px; }
+.auth-demo { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 14px; }
+.auth-demo span { font-size: 13px; color: var(--muted); }
+.auth-demo .btn { min-height: 46px; text-align: left; }
+.auth-roles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.auth-roles button { min-height: 48px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface); font-weight: 650; cursor: pointer; color: var(--ink); font-size: 14px; line-height: 1.2; padding: 6px 4px; }
+.auth-roles button.on { border-color: var(--leaf); background: var(--leaf-soft); color: var(--leaf); }
+/* account button in page headers */
+.acct { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-weight: 650; font-size: 14px; cursor: pointer; color: var(--ink); max-width: 46vw; }
+.acct span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct svg { width: 18px; height: 18px; flex: none; }

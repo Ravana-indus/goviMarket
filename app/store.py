@@ -15,6 +15,11 @@ class Backend(Protocol):
     def all(self, kind: str) -> list[dict]: ...
     def clear(self) -> None: ...
     def delete(self, kind: str, key: str) -> None: ...
+    def one(self, kind: str, key: str) -> dict | None: ...
+
+
+# Accounts survive the demo reset, so "Load demo morning" does not sign everybody out.
+KEEP = {"users", "sessions", "otp"}
 
 
 class Memory:
@@ -28,10 +33,14 @@ class Memory:
         return list(self.data.get(kind, {}).values())
 
     def clear(self):
-        self.data.clear()
+        for kind in set(self.data) - KEEP:
+            del self.data[kind]
 
     def delete(self, kind, key):
         self.data.get(kind, {}).pop(key, None)
+
+    def one(self, kind, key):
+        return self.data.get(kind, {}).get(key)
 
 
 class Firestore:
@@ -62,14 +71,17 @@ class Firestore:
     def clear(self):
         if os.getenv("ALLOW_RESET") != "1":
             raise RuntimeError("reset is off; set ALLOW_RESET=1 for a demo deployment")
-        for kind in set(self.KINDS) | set(self.cache):
+        for kind in (set(self.KINDS) | set(self.cache)) - KEEP:
             for d in self.db.collection(kind).list_documents():
                 d.delete()
-        self.cache.clear()
+            self.cache.pop(kind, None)
 
     def delete(self, kind, key):
         self.db.collection(kind).document(key).delete()
         self._load(kind).pop(key, None)
+
+    def one(self, kind, key):
+        return self._load(kind).get(key)
 
 
 DB: Backend = Firestore() if os.getenv("STORE") == "firestore" else Memory()
@@ -170,9 +182,9 @@ def put(kind: str, doc: dict) -> None:
     DB.put(kind, doc["id"], doc)
 
 
-def outbox(to: str, body: str, match_id: str = "") -> None:
+def outbox(to: str, body: str, match_id: str = "", kind: str = "") -> None:
     DB.put("outbox", uuid.uuid4().hex[:8], {"at": datetime.now(timezone.utc).isoformat(),
-                                            "to": to, "body": body, "match_id": match_id})
+                                            "to": to, "body": body, "match_id": match_id, "kind": kind})
 
 
 def sent() -> list[dict]:

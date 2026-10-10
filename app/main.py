@@ -16,7 +16,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from . import ai, deals, parser, portal, replies, reporters, rescue, security, shipping, store, surplus, vocab, whatsapp
+from . import accounts, ai, deals, parser, portal, replies, reporters, rescue, security, shipping, store, surplus, vocab, whatsapp
 from .pricing import split
 from .schemas import Listing
 
@@ -26,6 +26,7 @@ WEB = Path(__file__).resolve().parent.parent / "web"
 app.mount("/static", StaticFiles(directory=WEB), name="static")
 app.include_router(portal.router)
 app.include_router(reporters.router)
+app.include_router(accounts.router)
 app.middleware("http")(security.middleware)
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 
@@ -54,6 +55,10 @@ def handle(*, text: Optional[str], media: Optional[bytes], mime_type: Optional[s
         out = {"parsed": None, "created": [], "needs_clarification": False, "reply": reply_to}
     else:
         parsed = parser.parse(text=text, media=media, mime_type=mime_type, today=today.isoformat())
+        # Same number, same person: the account on the web and the WhatsApp chat are one.
+        u = accounts.link(sender, name=parsed.sender_name, role=parsed.role, via=via)
+        if u and u.get("name") and not parsed.sender_name:
+            parsed.sender_name = u.get("business") or u["name"]
         created = store.record(parsed, default_date=today, sender=sender)
         needs = parsed.confidence < 0.7 or (parsed.role == "farmer" and not parsed.location)
         out = {"parsed": parsed, "created": created, "needs_clarification": needs,
@@ -69,6 +74,7 @@ def handle(*, text: Optional[str], media: Optional[bytes], mime_type: Optional[s
 def healthz():
     return {"ok": True, "gemini": bool(os.getenv("GEMINI_API_KEY")), "store": os.getenv("STORE", "memory"),
             "admin_locked": bool(security.admin_token()), "agent_locked": bool(security.agent_pin()),
+            "auth": accounts.provider(), "demo_logins": len(accounts.demo_numbers()),
             "whatsapp": bool(os.getenv("WHATSAPP_TOKEN")),
             "whatsapp_number": os.getenv("WHATSAPP_DISPLAY_NUMBER", ""),
             "gemini_last_error": ai.last_error or None}
@@ -131,6 +137,12 @@ def simulator():
     return FileResponse(WEB / "sim.html")
 
 
+@app.get("/signin")
+def signin_page():
+    """Phone sign-in for everyone (farmers, buyers, agents, and staff listed in ADMIN_PHONES)."""
+    return FileResponse(WEB / "signin.html")
+
+
 @app.get("/login")
 def login_page():
     return FileResponse(WEB / "login.html")
@@ -163,8 +175,8 @@ def towns():
 
 
 class ListingIn(BaseModel):
-    farmer: str = Field(min_length=1, max_length=60)
-    phone: str
+    farmer: Optional[str] = Field(None, max_length=60)  # signed in: name and phone come from the account
+    phone: Optional[str] = None
     location: str = Field(min_length=2, max_length=60)
     crop: str
     qty_kg: float = Field(gt=0, le=20000)
@@ -173,11 +185,16 @@ class ListingIn(BaseModel):
 
 
 @app.post("/api/listings")
-def add_listing(x: ListingIn):
-    """Harvest posted from the farmer portal. Matching runs at once."""
-    phone = normalise_phone(x.phone)
+def add_listing(x: ListingIn, request: Request):
+    """Harvest posted from the farmer portal. Matching runs at once.
+    A signed-in farmer always posts as their own number."""
+    u = accounts.current(request)
+    phone = u["phone"] if u else normalise_phone(x.phone)
+    farmer = (x.farmer or "").strip() or (u or {}).get("name", "")
     if not phone:
         raise HTTPException(400, "Enter a valid phone number.")
+    if not farmer:
+        raise HTTPException(400, "Enter your name.")
     crop = vocab.crop(x.crop)
     if crop not in store.prices():
         raise HTTPException(400, f"We don't trade {x.crop} yet.")
@@ -185,7 +202,7 @@ def add_listing(x: ListingIn):
         raise HTTPException(400, "Ready date must be within the next 30 days.")
     rid = uuid.uuid4().hex[:8]
     store.put("listings", Listing(id=rid, phone=phone, lang=x.lang if x.lang in ("si", "ta", "en") else "si",
-                                  farmer=x.farmer.strip(), location=vocab.town(x.location), crop=crop,
+                                  farmer=farmer, location=vocab.town(x.location), crop=crop,
                                   qty_kg=x.qty_kg, ready_on=x.ready_on, remaining_kg=x.qty_kg).model_dump(mode="json"))
     deals.plan()
     mine = [m.model_dump(mode="json") for m in store.matches() if m.listing_id == rid]
@@ -200,7 +217,8 @@ def sim_thread(phone: str):
     if not p or not any(c["via"] == "sim" for c in chat):
         return []
     out = [{"dir": c["dir"], "text": c["text"], "media": c.get("media"), "at": c["at"]} for c in chat]
-    out += [{"dir": "out", "text": o["body"], "media": None, "at": o["at"]} for o in store.sent() if o["to"] == p]
+    out += [{"dir": "out", "text": o["body"], "media": None, "at": o["at"]} for o in store.sent()
+            if o["to"] == p and o.get("kind") != "otp"]  # sign-in codes never show on the public simulator
     return sorted(out, key=lambda m: m["at"])
 
 
@@ -382,8 +400,10 @@ def price_board():
 
 
 @app.get("/api/track")
-def track(phone: str):
-    """A sender's own listings and orders, with match status from the latest plan."""
+def track(request: Request, phone: Optional[str] = None):
+    """Your own listings and orders, with match status from the latest plan.
+    Needs a phone sign-in; the console can look up any number with ?phone=."""
+    phone = portal.whose(request, phone)
     ships = {x.id: x.model_dump(mode="json") for x in store.shipments()}
     live = [m.model_dump(mode="json") for m in store.matches() if m.status != "declined"]
     def status(rid, key):

@@ -19,6 +19,15 @@ Built for the AI Builder Cup 2026 (Sustainability & Social Impact).
 | `/admin` | Operations | Console and analytics; needs `ADMIN_TOKEN` (sign in at `/login`). |
 | `/sim` (also `/smul`) | Demo and testing | WhatsApp simulator: text, photos and voice notes go through the same pipeline as the real webhook, and every reply Govi sends to that number shows up in the chat. |
 
+## Accounts (mobile number is the identity)
+Everyone signs in with their mobile number: a 6-digit code, then name and role (farmer, buyer or market agent) the first time. Code in `app/accounts.py`, sign-in sheet in `web/auth.js`, standalone page at `/signin`.
+- **SMS codes** come from Firebase Authentication when `FIREBASE_API_KEY` is set (deploy.sh reads it from the Firebase project). The server verifies the Firebase ID token and opens its own session (httponly cookie, 30 days, only a hash stored, so sign-out really ends it). `POST /api/auth/logout-all` ends every session for that number.
+- **Without Firebase** Govi sends its own code on WhatsApp if configured; otherwise only the console outbox shows it. Codes never appear on the public `/sim` page.
+- **Demo numbers** sign in with code `123456` and no SMS while `ALLOW_RESET=1`: Sunil (farmer) `0770000002`, Mango Tree Cafe (buyer) `0770000014`, Kamal (agent) `0770000001`. They are off when `ALLOW_RESET=0`.
+- **WhatsApp is the same account**: a message from a number records the person's name and role, and "My orders" after sign-in shows everything that number sent on WhatsApp, SMS or the simulator.
+- Signed-in users post and order as their own number only. `/api/track` and `/api/standing` need a sign-in; the console can still look up any number.
+- Market agents give the agent PIN once when they take the agent role, then post prices without it. Numbers in `ADMIN_PHONES` can open the console after a phone sign-in; the console token still works.
+
 ## Run locally (no keys needed)
 ```bash
 pip install -r requirements-dev.txt

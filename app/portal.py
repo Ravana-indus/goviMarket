@@ -5,10 +5,10 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from . import deals, forecast, store, vocab
+from . import accounts, deals, forecast, security, store, vocab
 from .pricing import split
 from .schemas import Order
 
@@ -22,8 +22,8 @@ class Line(BaseModel):
 
 
 class OrderIn(BaseModel):
-    phone: str
-    business: str = Field(min_length=1, max_length=80)
+    phone: Optional[str] = None  # signed-in buyers: taken from the account
+    business: Optional[str] = Field(None, max_length=80)
     location: str = Field("Colombo", max_length=60)
     needed_by: date
     items: list[Line] = Field(max_length=20)
@@ -67,13 +67,24 @@ def _create(o: OrderIn) -> list[str]:
 
 
 @router.post("/api/orders")
-def place_order(o: OrderIn):
-    """Place an order from the portal. Matching runs at once, so the buyer sees suppliers."""
+def place_order(o: OrderIn, request: Request):
+    """Place an order from the portal. Matching runs at once, so the buyer sees suppliers.
+    A signed-in buyer always orders as their own number."""
+    u = accounts.current(request)
+    if u:
+        o = o.model_copy(update={"phone": u["phone"],
+                                 "business": (o.business or "").strip() or u.get("business") or u.get("name")})
+    return _place(o)
+
+
+def _place(o: OrderIn) -> dict:
     if not o.items:
         raise HTTPException(400, "Add at least one item.")
     phone = vocab.phone(o.phone)
     if not phone:
         raise HTTPException(400, "Enter a valid WhatsApp number.")
+    if not (o.business or "").strip():
+        raise HTTPException(400, "Enter your business name.")
     if not date.today() <= o.needed_by <= date.today() + timedelta(days=60):
         raise HTTPException(400, "Delivery date must be between today and 60 days ahead.")
     o = o.model_copy(update={"phone": phone, "location": vocab.town(o.location) or "Colombo",
@@ -94,14 +105,30 @@ def place_order(o: OrderIn):
             "matched_kg": sum(m["qty_kg"] for m in mine), "ordered_kg": sum(l.qty_kg for l in o.items)}
 
 
+def whose(request: Request, phone: Optional[str]) -> str:
+    """Whose orders to show: the console may look up any number; everyone else sees their own."""
+    if phone and security.is_admin(request):
+        return vocab.phone(phone) or phone
+    return accounts.require(request)["phone"]
+
+
 @router.get("/api/standing")
-def standing(phone: str):
-    return [s for s in store.DB.all("standing") if s["phone"] == phone]
+def standing(request: Request, phone: Optional[str] = None):
+    p = whose(request, phone)
+    return [s for s in store.DB.all("standing") if s["phone"] == p]
 
 
 @router.post("/api/standing/{sid}/run")
+def run_standing_now(sid: str, request: Request, today: Optional[date] = None):
+    """Create next week's order from a standing order now (the owner or the console)."""
+    s = next((x for x in store.DB.all("standing") if x["id"] == sid), None)
+    if s is None or not security.is_admin(request) and s["phone"] != accounts.require(request)["phone"]:
+        raise HTTPException(404)
+    return run_standing(sid, today)
+
+
 def run_standing(sid: str, today: Optional[date] = None):
-    """Create next week's order from a standing order (a weekly job in production)."""
+    """Create next week's order from a standing order (the daily job does this each week)."""
     s = next((x for x in store.DB.all("standing") if x["id"] == sid), None)
     if s is None:
         raise HTTPException(404)
@@ -110,7 +137,7 @@ def run_standing(sid: str, today: Optional[date] = None):
     days = (target - today.weekday()) % 7 or 7
     o = OrderIn(phone=s["phone"], business=s["business"], location=s["location"],
                 needed_by=today + timedelta(days=days), items=[Line(**i) for i in s["items"]])
-    return place_order(o)
+    return _place(o)
 
 
 _FC: dict = {}

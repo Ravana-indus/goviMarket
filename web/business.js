@@ -10,13 +10,14 @@ const store = {
   get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
-let me = store.get("biz", null);
+let me = null; // { name, phone, location } from the phone sign-in
 let cart = store.get("cart", {});
 let catalogue = [];
 
 async function api(path, opts) {
   const r = await fetch(path, opts);
   const body = await r.json().catch(() => ({}));
+  if (r.status === 401 && me) { me = null; renderWho(); showSignin(true); }  // session ended
   if (!r.ok) throw new Error(body.detail || r.statusText);
   return body;
 }
@@ -26,19 +27,29 @@ function showSignin(show) {
   document.querySelectorAll(".pane").forEach((p) => (p.style.display = show ? "none" : ""));
   $("tabs").style.visibility = show ? "hidden" : "";
 }
-function signIn(b) {
-  me = b; store.set("biz", b); showSignin(false); renderWho(); loadAll();
+function signIn(u) {
+  if (!u) return;
+  me = { name: u.business || u.name, phone: u.phone, location: u.location || "Colombo" };
+  showSignin(false); renderWho(); loadAll();
 }
-$("si-go").onclick = () => {
-  const name = $("si-name").value.trim(), phone = $("si-phone").value.replace(/\D/g, "");
-  if (!name || !phone) return;
-  signIn({ name, phone, location: $("si-loc").value.trim() || "Colombo" });
-};
+$("si-go").onclick = async () => signIn(await GOVI.auth.open({ role: "buyer", lang: "en" }));
 $("pitch-ics").innerHTML = ["carrot", "tomato", "beans", "leeks", "red onion", "green chilli"].map((c) => GOVI.icon(c, 40)).join("");
-$("si-demo").onclick = () => signIn({ name: "Mango Tree Cafe", phone: "94770000014", location: "Colombo" });
+// One tap for judges and demos: the demo buyer signs in with its fixed code, no SMS.
+GOVI.auth.config().then((c) => {
+  const demo = (c.demo || []).find((d) => d.role === "buyer");
+  if (!demo) return;
+  $("si-demo").hidden = false;
+  $("si-demo").onclick = async () => {
+    try {
+      const r = await api("/api/auth/verify", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: demo.phone, code: demo.code }) });
+      signIn(r.user);
+    } catch (e) { $("si-err").hidden = false; $("si-err").textContent = e.message; }
+  };
+});
 function renderWho() {
-  $("who").innerHTML = me ? `<b>${esc(me.name)}</b>${esc(me.location)} · <a href="#" id="out">switch</a>` : "";
-  if (me) $("out").onclick = (e) => { e.preventDefault(); store.set("biz", null); me = null; showSignin(true); };
+  $("who").innerHTML = me ? `<b>${esc(me.name)}</b>${esc(me.location)} · ${esc(GOVI.auth.pretty(me.phone))} · <a href="#" id="out">sign out</a>` : "";
+  if (me) $("out").onclick = async (e) => { e.preventDefault(); await GOVI.auth.logout(); me = null; renderWho(); showSignin(true); };
 }
 
 document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => {
@@ -96,7 +107,7 @@ $("place").onclick = async () => {
   $("place").disabled = true;
   try {
     const out = await api("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone: me.phone, business: me.name, location: me.location, needed_by: $("needed").value,
+      body: JSON.stringify({ business: me.name, location: me.location, needed_by: $("needed").value,
         items, repeat_weekly: $("weekly").checked }) });
     const farmers = new Set(out.matches.map((m) => m.farmer)).size;
     $("placed").innerHTML = `<div class="card done"><b>Order placed.</b><div class="small">${kg(out.matched_kg)} of ${kg(out.ordered_kg)} matched with ${farmers} farmer${farmers === 1 ? "" : "s"} so far.
@@ -119,7 +130,7 @@ async function loadOutlook() {
 }
 
 async function loadOrders() {
-  const d = await api("/api/track?phone=" + encodeURIComponent(me.phone));
+  const d = await api("/api/track");
   const rows = [...d.orders].sort((a, b) => b.needed_by.localeCompare(a.needed_by));
   $("order-list").innerHTML = rows.length ? rows.map((o) => {
     const ms = o.matches;
@@ -141,7 +152,7 @@ async function loadOrders() {
 }
 
 async function loadStanding() {
-  const rows = await api("/api/standing?phone=" + encodeURIComponent(me.phone));
+  const rows = await api("/api/standing");
   $("standing-list").innerHTML = rows.length ? rows.map((s) => `<div class="card ord">
       <div class="row"><span class="title">Every ${esc(s.weekday)}</span><button class="btn small primary" data-run="${s.id}">Create next week's order</button></div>
       <div class="small muted">${s.items.map((i) => `${esc(i.crop)} ${kg(i.qty_kg)}`).join(" · ")} · to ${esc(s.location)}</div>
@@ -158,4 +169,4 @@ function loadAll() { loadCatalogue(); loadOutlook(); }
 const d = new Date(); d.setDate(d.getDate() + 2);
 $("needed").value = d.toISOString().slice(0, 10);
 renderWho();
-if (me) loadAll(); else showSignin(true);
+GOVI.auth.me().then((u) => (u ? signIn(u) : showSignin(true)));
