@@ -23,7 +23,11 @@ def client():
     global _client
     if _client is None:
         from google import genai
-        _client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+        key = os.environ["GEMINI_API_KEY"]
+        # Keys starting "AQ." are Vertex AI express-mode keys; they only work on the Vertex endpoint.
+        # "AIza..." keys from AI Studio use the Gemini API. GEMINI_VERTEX=1/0 overrides the guess.
+        vertex = os.getenv("GEMINI_VERTEX", "1" if key.startswith("AQ.") else "0") == "1"
+        _client = genai.Client(vertexai=True, api_key=key) if vertex else genai.Client(api_key=key)
     return _client
 
 
