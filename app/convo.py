@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
-from . import accounts, ai, deals, parser, replies, reroute, store, surplus, vocab
+from . import accounts, ai, deals, demo_parser, parser, replies, reroute, store, surplus, vocab
 from .schemas import Item, ParsedMessage
 
 log = logging.getLogger("govi.convo")
@@ -98,6 +98,12 @@ T = {
     "expired_note": {"en": "(Your earlier order waited too long and was not placed. This is a new one.)",
                      "si": "(ඔබේ කලින් ඇණවුම බොහෝ වේලා රැඳී තිබූ නිසා දැම්මේ නැහැ. මෙය අලුත් එකක්.)",
                      "ta": "(உங்கள் முந்தைய ஆர்டர் நீண்ட நேரம் காத்திருந்ததால் பதிவு செய்யப்படவில்லை. இது புதியது.)"},
+    "wrong_ask": {"en": "Sorry about that. What is wrong? Send the right item and kg (for example: carrot 2kg), or NO to cancel.",
+                  "si": "සමාවෙන්න. වැරැද්ද කුමක්ද? නිවැරදි බෝගය සහ කිලෝ ගණන එවන්න (උදා: කැරට් කිලෝ 2), නැත්නම් අවලංගු කිරීමට NO.",
+                  "ta": "மன்னிக்கவும். என்ன தவறு? சரியான பயிரையும் கிலோவையும் அனுப்பவும் (உதா: கேரட் 2 கிலோ), அல்லது ரத்து செய்ய NO."},
+    "wrong_again": {"en": "Sorry. I read it again from the start. If it is still wrong, send one item per line, like: carrot 2kg",
+                    "si": "සමාවෙන්න. මම මුල සිට නැවත කියෙව්වා. තවමත් වැරදි නම්, එක පේළියකට එක බෝගයක් එවන්න, උදා: කැරට් කිලෝ 2",
+                    "ta": "மன்னிக்கவும். மீண்டும் முதலிலிருந்து படித்தேன். இன்னும் தவறு என்றால், ஒரு வரிக்கு ஒரு பயிர் அனுப்பவும், உதா: கேரட் 2 கிலோ"},
     "first": {"en": "First I need one thing: {q}", "si": "මුලින් එක දෙයක් අවශ්‍යයි: {q}", "ta": "முதலில் ஒரு விவரம் தேவை: {q}"},
     "replaced": {"en": "(This replaces your earlier order, which was not placed.)",
                  "si": "(මෙය නොදැමූ ඔබේ කලින් ඇණවුම වෙනුවට.)",
@@ -260,7 +266,7 @@ def merge(base: ParsedMessage, delta: ParsedMessage, text: str | None) -> Parsed
 def _defaults(p: ParsedMessage, sender: str, known: dict | None, today: date) -> ParsedMessage:
     if p.role not in ("farmer", "buyer", "reporter"):
         p.role = _role_of(sender, known) or "unknown"
-    elif not _gemini() and _role_of(sender, known) in ("farmer", "buyer") and p.role != "reporter":
+    elif (not _gemini() or demo_parser.FALLBACK in p.unclear) and _role_of(sender, known) in ("farmer", "buyer") and p.role != "reporter":
         p.role = _role_of(sender, known)  # the keyword parser only guesses the role; the account knows
     if not p.location and known and known.get("location") and p.role in ("farmer", "buyer"):
         p.location = vocab.town(known["location"])
@@ -423,12 +429,20 @@ def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type:
 
     pending = _pending(c)
     notes = []
+    guessed = demo_parser.FALLBACK in parsed.unclear
+    if guessed and _gemini():
+        notes.append(t("unsure", lang))  # Gemini failed and the keyword parser stood in: say it may be off
+    if pending and vocab.says_wrong(text):
+        if not parsed.items:
+            return Turn(t("wrong_ask", lang), parsed=pending, state=c["state"])
+        pending = None  # read the resent order on its own, not merged into the one they called wrong
+        notes.append(t("wrong_again", lang))
     if pending and parsed.intent == "chat" and not (parsed.items or parsed.location or parsed.when):
         return _remind(c, lang)
     if not pending and (c.get("last") or {}).get("what") == "expired":
         notes.append(t("expired_note", lang))
         c["last"] = None
-    if pending and parsed.intent == "order" and _gemini() and parsed.items and c["state"] == "confirming":
+    if pending and parsed.intent == "order" and _gemini() and not guessed and parsed.items and c["state"] == "confirming":
         p = parsed  # Gemini says this is a separate new order: it replaces the unplaced one
         notes.append(t("replaced", lang))
     elif pending:
@@ -453,7 +467,7 @@ def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type:
         return Turn(t("none_traded", lang, crops=names, all=every), parsed=p)
     if gone:
         notes.append(t("not_traded", lang, crops=", ".join(vocab.crop_name(g, lang) for g in gone)))
-    if p.confidence < 0.6 and (media or p.confidence > 0):
+    if p.confidence < 0.6 and (media or p.confidence > 0) and t("unsure", lang) not in notes:
         notes.append(t("unsure", lang))
     return _advance(c, sender, u or known, p, lang, today, confirm_first, notes)
 

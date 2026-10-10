@@ -502,3 +502,40 @@ def test_an_item_worth_less_than_the_collector_price_says_so(g):
     tiny = Phone("94771000048", g)
     r = tiny.say("x", P(role="farmer", loc="Jaffna", items={"cabbage": 2}))
     assert "better sold locally" in r and "You get about" not in r
+
+
+# ------------------------------------------------------------- Gemini down: the keyword parser stands in
+
+def _fallback(text):
+    from app import demo_parser
+    return demo_parser.parse(text=text, media=None, today=TODAY.isoformat())
+
+
+PATU_TEXT = "two kilo carrot, 5 kg onlon, 8kg gova need day after tomorrow"
+
+
+def test_gemini_outage_still_reads_number_words_typos_and_day_after_tomorrow(g):
+    """Patu's live test while Gemini was failing: only cabbage 8 kg came through, needed Sunday."""
+    shop = Phone("94771000049", g)
+    r = shop.say(PATU_TEXT, _fallback(PATU_TEXT))
+    for line in ("Carrot 2 kg", "Big onion 5 kg", "Cabbage 8 kg", "Mon 12/10"):
+        assert line in r, line
+    assert "not fully sure" in r  # Gemini did not read it, so the sender is told to check
+    assert "replaces" not in r
+
+
+def test_wrong_rereads_the_order_instead_of_merging_it(g):
+    shop = Phone("94771000050", g)
+    shop.say("8kg gova need", _fallback("8kg gova need"))
+    again = "wotng " + PATU_TEXT
+    r = shop.say(again, _fallback(again))
+    assert "I read it again from the start" in r and "Carrot 2 kg" in r and "replaces" not in r
+    r = shop.say("wrong", P(role="unknown", intent="edit"))
+    assert r.startswith("Sorry about that. What is wrong?") and shop.state == "confirming"
+
+
+def test_an_item_we_cannot_name_is_shown_not_dropped(g):
+    shop = Phone("94771000051", g)
+    text = "need 3 kg rambutan and tomato 5kg"
+    r = shop.say(text, _fallback(text))
+    assert "left out: rambutan" in r and "Tomato 5 kg" in r
