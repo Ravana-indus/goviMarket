@@ -117,10 +117,17 @@ def test_whatsapp_webhook_parses_and_replies(monkeypatch):
     monkeypatch.setattr(whatsapp, "fetch_media", lambda mid: b"ogg")
     monkeypatch.setattr(whatsapp, "send_text", lambda to, body: sent.append((to, body)))
     payload = {"entry": [{"changes": [{"value": {"messages": [
-        {"from": "94771234567", "type": "audio", "audio": {"id": "m1", "mime_type": "audio/ogg"}}]}}]}]}
-    assert TestClient(app).post("/webhook/whatsapp", json=payload).status_code == 200
-    assert sent and sent[0][0] == "94771234567"
-    assert len(store.listings()) == 1
+        {"from": "94771234567", "id": "wamid.1", "type": "audio", "audio": {"id": "m1", "mime_type": "audio/ogg"}}]}}]}]}
+    c = TestClient(app)
+    assert c.post("/webhook/whatsapp", json=payload).status_code == 200
+    assert sent and sent[0][0] == "94771234567" and "YES" in sent[0][1]
+    assert store.listings() == []  # nothing is listed until the farmer says YES
+    assert c.post("/webhook/whatsapp", json=payload).status_code == 200  # Meta retries the same message
+    assert len(sent) == 1
+    yes = {"entry": [{"changes": [{"value": {"messages": [
+        {"from": "94771234567", "id": "m2", "type": "text", "text": {"body": "ඔව්"}}]}}]}]}
+    assert c.post("/webhook/whatsapp", json=yes).status_code == 200
+    assert len(store.listings()) == 1 and "✅" in sent[-1][1]
 
 
 def test_whatsapp_signature(monkeypatch):
@@ -152,10 +159,9 @@ def test_both_sides_confirm_and_stock_is_held(monkeypatch):
     before = farmer["remaining_kg"]
     sent = c.get("/state").json()["outbox"]
     assert any(o["to"] == farmer["phone"] and "YES" in o["body"] for o in sent)  # farmer notified
-    assert c.post("/intake", data={"text": "ඔව්", "sender": farmer["phone"]}).json()["reply"].startswith("Thanks")
-    # the buyer may have several pending loads; keep saying yes until this one is confirmed
-    for _ in range(4):
-        c.post("/intake", data={"text": "yes", "sender": "94770000014"})
+    assert c.post("/intake", data={"text": "ඔව්", "sender": farmer["phone"]}).json()["reply"].startswith("ස්තූතියි")
+    # one YES answers every offer that went to the buyer together
+    c.post("/intake", data={"text": "yes", "sender": "94770000014"})
     assert next(x for x in store.matches() if x.id == m["id"]).status == "confirmed"
     assert store.get("listings", m["listing_id"])["remaining_kg"] == before - m["qty_kg"]
     again = c.post("/plan").json()
@@ -365,7 +371,7 @@ def test_gemini_outage_still_answers_text_and_seed_stays_offline(monkeypatch):
     assert calls and "RESOURCE_EXHAUSTED" in ai.last_error["error"]
     photo = c.post("/intake", data={"sender": "94770000004", "via": "sim"},
                    files={"file": ("p.jpg", b"\xff\xd8", "image/jpeg")})
-    assert photo.status_code == 502
+    assert photo.status_code == 200 and "could not read that photo" in photo.json()["reply"]
     assert c.get("/favicon.ico").status_code == 200
 
 

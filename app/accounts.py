@@ -114,8 +114,8 @@ def link(phone: str, *, name: str | None, role: str | None, via: str) -> dict | 
         u = {"phone": phone, "name": name or "", "role": role if role in ("farmer", "buyer") else "",
              "lang": "", "created": _now().isoformat(), "channel": via}
         store.DB.put("users", phone, u)
-    elif not u.get("name") and name:
-        u = {**u, "name": name}
+    elif (not u.get("name") and name) or (not u.get("role") and role in ("farmer", "buyer")):
+        u = {**u, "name": u.get("name") or name or "", "role": u.get("role") or role}
         store.DB.put("users", phone, u)
     return u
 

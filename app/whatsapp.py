@@ -18,6 +18,7 @@ class Inbound:
     text: Optional[str]
     media_id: Optional[str]
     mime_type: Optional[str]
+    id: str = ""
 
 
 def _token() -> str:
@@ -39,12 +40,22 @@ def unpack(payload: dict) -> list[Inbound]:
     for entry in payload.get("entry", []):
         for change in entry.get("changes", []):
             for m in change.get("value", {}).get("messages", []):
-                kind = m.get("type")
+                kind, mid = m.get("type"), m.get("id", "")
                 if kind == "text":
-                    out.append(Inbound(m["from"], m["text"]["body"], None, None))
+                    out.append(Inbound(m["from"], m["text"]["body"], None, None, mid))
                 elif kind in ("image", "audio", "document"):
                     media = m[kind]
-                    out.append(Inbound(m["from"], media.get("caption"), media["id"], media.get("mime_type")))
+                    out.append(Inbound(m["from"], media.get("caption"), media["id"], media.get("mime_type"), mid))
+                elif kind == "reaction":  # a 👍 on our summary is a YES; removing a reaction sends no emoji
+                    if m["reaction"].get("emoji"):
+                        out.append(Inbound(m["from"], m["reaction"]["emoji"], None, None, mid))
+                elif kind == "button":  # quick-reply buttons on a template message
+                    out.append(Inbound(m["from"], m["button"].get("text"), None, None, mid))
+                elif kind == "interactive":
+                    r = m["interactive"].get("button_reply") or m["interactive"].get("list_reply") or {}
+                    out.append(Inbound(m["from"], r.get("title"), None, None, mid))
+                else:  # sticker, location, contact, video: answered with what we can read
+                    out.append(Inbound(m["from"], None, None, None, mid))
     return out
 
 

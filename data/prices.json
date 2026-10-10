@@ -54,5 +54,53 @@
   "retail": 220,
   "date": "PLACEHOLDER",
   "source": "PLACEHOLDER - replace with HARTI daily price report"
+ },
+ {
+  "crop": "big onion",
+  "collector": 150,
+  "wholesale": 200,
+  "retail": 280,
+  "date": "PLACEHOLDER",
+  "source": "PLACEHOLDER - replace with HARTI daily price report"
+ },
+ {
+  "crop": "cabbage",
+  "collector": 80,
+  "wholesale": 130,
+  "retail": 200,
+  "date": "PLACEHOLDER",
+  "source": "PLACEHOLDER - replace with HARTI daily price report"
+ },
+ {
+  "crop": "potato",
+  "collector": 180,
+  "wholesale": 240,
+  "retail": 320,
+  "date": "PLACEHOLDER",
+  "source": "PLACEHOLDER - replace with HARTI daily price report"
+ },
+ {
+  "crop": "beetroot",
+  "collector": 120,
+  "wholesale": 180,
+  "retail": 260,
+  "date": "PLACEHOLDER",
+  "source": "PLACEHOLDER - replace with HARTI daily price report"
+ },
+ {
+  "crop": "pumpkin",
+  "collector": 60,
+  "wholesale": 100,
+  "retail": 160,
+  "date": "PLACEHOLDER",
+  "source": "PLACEHOLDER - replace with HARTI daily price report"
+ },
+ {
+  "crop": "brinjal",
+  "collector": 120,
+  "wholesale": 180,
+  "retail": 260,
+  "date": "PLACEHOLDER",
+  "source": "PLACEHOLDER - replace with HARTI daily price report"
  }
 ]

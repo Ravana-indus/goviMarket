@@ -217,6 +217,12 @@ def _still_ok(s: dict, today: date) -> bool:
     return True
 
 
+def asked_at(phone: str) -> str | None:
+    """When this number was last asked about a route change it has not said YES to, if any."""
+    ats = [s["at"] for s in _pending() if any(p["phone"] == phone and not p["ok"] for p in s["parties"])]
+    return max(ats) if ats else None
+
+
 def answer(phone: str, text: str, send, today: date | None = None) -> str | None:
     """YES or NO to a proposed swap. Returns the reply, or None if this phone has no swap waiting."""
     from .deals import NO, YES

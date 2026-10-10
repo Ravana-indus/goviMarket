@@ -10,12 +10,14 @@ const PEOPLE = [
   { group: "Farmers", kind: "farmer", name: "Rasan", place: "Jaffna", phone: "94770000005",
     tries: ["This is Rasan, red onion 100kg ready tomorrow, Jaffna", "ரசன், சின்ன வெங்காயம் 100 கிலோ நாளை, யாழ்ப்பாணம்"] },
   { group: "Buyers", kind: "buyer", name: "Lotus Kitchen", place: "Colombo", phone: "94770000011",
-    tries: ["Order from Lotus Kitchen: need carrot 50kg and beans 20kg by Friday, Colombo"] },
+    tries: ["Order from Lotus Kitchen: need carrot 50kg and beans 20kg by Friday, Colombo", "make carrot 80kg",
+      "நாளைக்கு 5 கிலோ வெங்காயம், 10 கிலோ தக்காளி, 2 கிலோ கேரட், 5 கிலோ லீக்ஸ் மற்றும் 2 கிலோ கோவா தேவை"] },
   { group: "Buyers", kind: "buyer", name: "Hill View Hotel", place: "Kandy", phone: "94770000015",
     tries: ["Order from Hill View Hotel: need tomato 60kg by Saturday, Kandy"] },
   { group: "Market agent", kind: "agent", name: "Dambulla agent", place: "Dambulla", phone: "94770000001",
     tries: ["Dambulla price today: tomato collector 100, beans collector 220"] },
 ];
+const QUICK = ["YES", "NO", "STATUS", "1", "2", "3"]; // one tap sends these; samples go to the text box first
 const ls = { get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
 let people = PEOPLE.concat(ls.get("sim_extra", []));
 let me = people.find((p) => p.phone === ls.get("sim_phone", "")) || people[0];
@@ -48,9 +50,9 @@ function pick(phone) {
   me = people.find((p) => p.phone === phone) || me;
   ls.set("sim_phone", me.phone);
   $("h-av").textContent = me.name[0]; $("h-name").textContent = me.name; $("h-num").textContent = "+" + me.phone;
-  $("chips").innerHTML = ["YES", "NO", "1", "2", "3", ...me.tries].map((t, i) => `<button data-i="${i}" title="${esc(t)}">${esc(t.length > 34 ? t.slice(0, 32) + "…" : t)}</button>`).join("");
-  const all = ["YES", "NO", "1", "2", "3", ...me.tries];
-  $("chips").querySelectorAll("button").forEach((b) => (b.onclick = () => { const t = all[b.dataset.i]; t.length <= 3 ? send(t) : ($("text").value = t, $("text").focus()); }));
+  $("chips").innerHTML = [...QUICK, ...me.tries].map((t, i) => `<button data-i="${i}" title="${esc(t)}">${esc(t.length > 34 ? t.slice(0, 32) + "…" : t)}</button>`).join("");
+  const all = [...QUICK, ...me.tries];
+  $("chips").querySelectorAll("button").forEach((b) => (b.onclick = () => { const t = all[b.dataset.i]; QUICK.includes(t) ? send(t) : ($("text").value = t, $("text").focus()); }));
   lastCount = -1; failNote = ""; renderPeople(); load(true);
 }
 
