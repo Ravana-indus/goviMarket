@@ -7,7 +7,7 @@ from typing import Optional
 from . import ai, audio, vocab
 from .schemas import ParsedMessage
 
-MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+MODEL = ai.MODEL
 
 _SYSTEM = """You read messages sent to Govi Market, a marketplace that connects Sri Lankan
 farmers directly with restaurants, hotels, retailers and exporters.

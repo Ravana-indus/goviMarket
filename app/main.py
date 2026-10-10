@@ -1,7 +1,9 @@
 """Govi Market API."""
 from __future__ import annotations
 
+import base64
 import logging
+import shutil
 import os
 from urllib.parse import quote
 import re
@@ -70,7 +72,8 @@ def handle(*, text: Optional[str], media: Optional[bytes], mime_type: Optional[s
     return out
 
 
-@app.get("/healthz")
+@app.get("/api/health")
+@app.get("/healthz")  # local and tests only: Cloud Run blocks paths ending in "z" on run.app
 def healthz():
     return {"ok": True, "gemini": bool(os.getenv("GEMINI_API_KEY")), "store": os.getenv("STORE", "memory"),
             "admin_locked": bool(security.admin_token()), "agent_locked": bool(security.agent_pin()),
@@ -86,6 +89,10 @@ def favicon():
            'fill="#2f7d4a"/><text x="16" y="23" font-size="20" font-family="sans-serif" font-weight="700" '
            'fill="#fff" text-anchor="middle">G</text></svg>')
     return Response(svg, media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=86400"})
+
+
+# 1x1 white PNG for the self-test photo call.
+_DIAG_PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC")
 
 
 @app.get("/admin/diag")
@@ -106,6 +113,13 @@ def diag():
             out["gemini_ok"], out["gemini_sample"] = True, p.model_dump(mode="json")
         except Exception as e:
             out["gemini_ok"], out["gemini_error"] = False, f"{type(e).__name__}: {e}"[:400]
+        try:  # photos take a different path through Gemini than text, so test one too
+            parser.parse(media=_DIAG_PNG, mime_type="image/png", today=date.today().isoformat(),
+                         client=parser._client())
+            out["gemini_photo_ok"] = True
+        except Exception as e:
+            out["gemini_photo_ok"], out["gemini_photo_error"] = False, f"{type(e).__name__}: {e}"[:400]
+    out["ffmpeg"] = bool(shutil.which("ffmpeg"))
     out["gemini_last_error"] = ai.last_error or None
     return out
 

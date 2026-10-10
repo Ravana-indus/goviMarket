@@ -5,11 +5,12 @@ from __future__ import annotations
 
 import os
 
+from . import ai
 from .lanes import load_lanes
 from .pricing import split
 from .schemas import Lang, Match
 
-MODEL = os.getenv("GEMINI_AGENT_MODEL", os.getenv("GEMINI_MODEL", "gemini-2.5-flash"))
+MODEL = os.getenv("GEMINI_AGENT_MODEL", ai.MODEL)
 LANG_NAME = {"si": "Sinhala", "ta": "Tamil", "en": "English"}
 _PRICES: dict[str, dict] = {}
 

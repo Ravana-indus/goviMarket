@@ -3,7 +3,7 @@
 set -euo pipefail
 URL="${1:?deployed URL}"
 ok() { printf '  %-28s %s\n' "$1" "$2"; }
-H="$(curl -fsS "$URL/healthz")"; ok healthz "$H"
+H="$(curl -fsS "$URL/api/health")"; ok healthz "$H"
 echo "$H" | grep -q '"gemini":true' || echo "  WARNING: Gemini key not loaded"
 echo "$H" | grep -q '"admin_locked":true' || echo "  WARNING: console is open (ADMIN_TOKEN missing)"
 for p in / /business /agent /sim /login /api/prices; do

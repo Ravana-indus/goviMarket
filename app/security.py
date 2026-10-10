@@ -4,7 +4,7 @@
   for Cloud Scheduler jobs), or a phone sign-in from a number in ADMIN_PHONES.
 - Market agents need AGENT_PIN (X-Agent-Pin header) to post prices, or a phone sign-in whose
   profile role is agent (they gave the PIN once when they took that role).
-- With a variable unset, that gate is open; /healthz reports it so nobody deploys open by accident.
+- With a variable unset, that gate is open; /api/health reports it so nobody deploys open by accident.
 - Public writes (intake, orders, listings, agent prices, login) are rate limited per IP."""
 from __future__ import annotations
 

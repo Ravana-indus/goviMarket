@@ -12,6 +12,8 @@ import math
 import os
 from datetime import date, timedelta
 
+from . import ai
+
 from . import store
 from .pricing import split
 
@@ -120,7 +122,7 @@ def _explain(rows, client, types) -> str:
     slim = [{k: r[k] for k in ("crop", "collector_now", "collector_next_week", "low", "high", "change_pct",
                                "supply_kg", "demand_kg", "signal", "source")} for r in rows]
     resp = client.models.generate_content(
-        model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
+        model=ai.MODEL,
         contents=f"Forecast table (Rs/kg, collector price; JSON): {slim}",
         config=types.GenerateContentConfig(
             system_instruction=("You brief a Sri Lankan produce marketplace's ops team. In at most 3 short "

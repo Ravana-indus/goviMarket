@@ -47,7 +47,7 @@ let entries = { collector: {}, wholesale: {}, retail: {} };
 let board = [], markets = [], pick = null;
 let pad = { crop: null, val: "" };
 let locked = false;
-fetch("/healthz").then((r) => r.json()).then((h) => { locked = h.agent_locked; $("pin-row").hidden = !locked; });
+fetch("/api/health").then((r) => r.json()).then((h) => { locked = h.agent_locked; $("pin-row").hidden = !locked; });
 
 const t = (k, ...a) => { const v = (T[lang] || T.en)[k] ?? T.en[k]; return typeof v === "function" ? v(...a) : v; };
 const cname = (c) => GOVI.name(c, lang);

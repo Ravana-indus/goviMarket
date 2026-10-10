@@ -24,7 +24,7 @@ def write(purpose: str, facts: dict, lang: str, fallback: str, *, extra: str = "
         from google.genai import types
         client = client or ai.client()
         resp = client.models.generate_content(
-            model=os.getenv("GEMINI_MODEL", "gemini-2.5-flash"),
+            model=ai.MODEL,
             contents=f"Purpose: {purpose}\nFacts (JSON): {json.dumps(facts, default=str, ensure_ascii=False)}",
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM.format(lang=LANG_NAME.get(lang, "English"), extra=extra),

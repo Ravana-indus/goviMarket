@@ -274,7 +274,7 @@ $("sim-send").onclick = (e) => busy(e.target, async () => {
   await refresh();
 });
 
-api("/healthz").then((h) => {
+api("/api/health").then((h) => {
   $("logout").hidden = !h.admin_locked;
   $("mode").textContent = h.gemini ? "Gemini live" : "Demo mode · no Gemini key";
   $("mode").className = "badge" + (h.gemini ? " live" : "");
