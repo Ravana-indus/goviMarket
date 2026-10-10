@@ -63,11 +63,18 @@ fi
 if [ -n "$FIREBASE_API_KEY" ]; then echo "Firebase web app found: SMS sign-in on"
 else echo "No Firebase web app yet: sign-in uses demo numbers and console codes. Add a web app in the Firebase console and re-run."; fi
 
+# Staff numbers for console sign-in: ADMIN_PHONES=0771234567 ./scripts/deploy.sh. Kept on re-deploys.
+if [ -z "${ADMIN_PHONES:-}" ]; then
+  ADMIN_PHONES="$(gc run services describe "$SERVICE" --region "$REGION" \
+    --format='value(spec.template.spec.containers[0].env)' 2>/dev/null \
+    | python3 -c 'import sys,re; m=re.search(r"ADMIN_PHONES.{0,20}?value.{0,6}?([0-9,;]+)", sys.stdin.read()); print(m.group(1) if m else "")' || true)"
+fi
+
 echo "== Cloud Run"
 # max-instances=1: the store caches Firestore in memory, so a second instance would read stale data.
 gc run deploy "$SERVICE" --source . --region "$REGION" --allow-unauthenticated \
   --max-instances=1 --min-instances=0 "$CPU_FLAG" --memory=512Mi --timeout=120 \
-  --set-env-vars "STORE=firestore,ALLOW_RESET=$ALLOW_RESET,GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash},GOOGLE_CLOUD_PROJECT=$PROJECT_ID,FIREBASE_PROJECT_ID=$PROJECT_ID,FIREBASE_API_KEY=$FIREBASE_API_KEY,ADMIN_PHONES=${ADMIN_PHONES:-}" \
+  --set-env-vars "STORE=firestore,ALLOW_RESET=$ALLOW_RESET,GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash},GOOGLE_CLOUD_PROJECT=$PROJECT_ID,FIREBASE_PROJECT_ID=$PROJECT_ID,FIREBASE_API_KEY=$FIREBASE_API_KEY,ADMIN_PHONES=${ADMIN_PHONES//,/;}" \
   --set-secrets "GEMINI_API_KEY=GEMINI_API_KEY:latest,ADMIN_TOKEN=ADMIN_TOKEN:latest,AGENT_PIN=AGENT_PIN:latest"
 URL="$(gc run services describe "$SERVICE" --region "$REGION" --format='value(status.url)')"
 

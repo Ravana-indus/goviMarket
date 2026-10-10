@@ -150,7 +150,7 @@ def test_agent_role_needs_the_pin_once_then_no_pin(c):
 def test_admin_phones_open_the_console(c, monkeypatch):
     sign_in(c)
     assert c.get("/state").status_code == 401
-    monkeypatch.setenv("ADMIN_PHONES", "0771230001")
+    monkeypatch.setenv("ADMIN_PHONES", "0770554201;0771230001")
     assert c.get("/state").status_code == 200 and c.get("/api/me").json()["admin"] is True
 
 

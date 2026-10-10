@@ -85,7 +85,8 @@ def demo_numbers() -> list[str]:
 
 
 def admin_phones() -> set[str]:
-    return {p for p in (vocab.phone(x) for x in os.getenv("ADMIN_PHONES", "").split(",")) if p}
+    raw = os.getenv("ADMIN_PHONES", "").replace(";", ",")  # deploy.sh joins with ; (gcloud splits on ,)
+    return {p for p in (vocab.phone(x) for x in raw.split(",")) if p}
 
 
 # ---- users
