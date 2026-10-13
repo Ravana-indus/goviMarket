@@ -2,177 +2,131 @@
 <html lang="si">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#2f7d4a">
+<meta name="theme-color" content="#2e7d4f">
 <title>Govi Market</title>
 <link rel="icon" href="/static/logo.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;550;600;650;700;750&family=Noto+Sans+Sinhala:wght@400;600;700&family=Noto+Sans+Tamil:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Abhaya+Libre:wght@500;700&family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Sinhala:wght@400;600;700&family=Noto+Sans+Tamil:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/style.css">
-<style>
-  body { -webkit-tap-highlight-color: transparent; }
-  .wrap { max-width: 560px; margin: 0 auto; padding: 0 16px calc(104px + env(safe-area-inset-bottom)); }
-  .bar { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; gap: 10px; }
-  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
-  .langs { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 3px; }
-  .langs button { border: 0; background: none; min-width: 44px; min-height: 36px; padding: 0 10px; border-radius: 9px; font-size: 14px; cursor: pointer; color: var(--muted); }
-  .langs button.on { background: var(--leaf); color: var(--leaf-ink); font-weight: 650; }
-
-  .pane { display: none; } .pane.on { display: grid; gap: 12px; animation: pop .2s ease-out; }
-  .hero { padding: 6px 0 2px; }
-  .hero h1 { font-size: 25px; line-height: 1.2; font-weight: 750; }
-  .hero p { color: var(--muted); margin: 6px 0 0; }
-  .wa { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; border-radius: 14px; background: #1fa855; color: #fff; font-weight: 650; text-decoration: none; }
-  .sec { display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px; }
-  .sec h2 { font-size: 18px; font-weight: 700; }
-
-  /* price card: lead with what the farmer gets and how much more than the collector */
-  .price { padding: 14px; display: grid; gap: 12px; }
-  .price .top { display: flex; gap: 12px; align-items: center; }
-  .price .nm { font-weight: 700; font-size: 18px; }
-  .price .get { font-size: 13px; color: var(--muted); }
-  .price .get b { font-size: 26px; line-height: 1.1; color: var(--leaf); font-weight: 750; letter-spacing: -.02em; }
-  .price .sell { margin-left: auto; min-height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--leaf); color: var(--leaf); background: var(--surface); font-weight: 650; cursor: pointer; }
-  .cmp { display: grid; gap: 6px; }
-  .cmp .r { display: grid; grid-template-columns: minmax(84px, auto) 1fr auto; gap: 10px; align-items: center; font-size: 13px; }
-  .cmp .r > span:first-child { color: var(--muted); }
-  .cmp .r b { font-variant-numeric: tabular-nums; }
-  .cmp .tr { height: 10px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; }
-  .cmp .tr i { display: block; height: 100%; border-radius: 6px; }
-  .cmp .c i { background: var(--clay); opacity: .75; } .cmp .g i { background: var(--leaf); }
-  .more { display: inline-flex; align-items: center; gap: 6px; align-self: start; justify-self: start; padding: 5px 10px; border-radius: 999px; background: var(--leaf-soft); color: var(--leaf); font-weight: 650; font-size: 14px; }
-  .price .fine { font-size: 12px; color: var(--muted); }
-
-  /* sell */
-  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
-  .seg button { min-height: 46px; border: 0; background: none; border-radius: 10px; font-weight: 650; cursor: pointer; color: var(--muted); }
-  .seg button.on { background: var(--leaf-soft); color: var(--leaf); }
-  .form { padding: 16px; display: grid; gap: 16px; }
-  .form h2 { font-size: 18px; }
-  label.f, div.f { display: grid; gap: 8px; font-size: 14px; color: var(--muted); font-weight: 600; }
-  .form input[type=text], .form input[type=tel], .form select, .form input[type=number] { width: 100%; min-height: 50px; font-size: 17px; border: 1px solid var(--line); background: var(--surface-2); border-radius: 12px; padding: 10px 12px; color: var(--ink); }
-  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .crops { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  .crops button { display: grid; justify-items: center; gap: 6px; padding: 10px 4px 8px; border-radius: 14px; border: 1.5px solid var(--line); background: var(--surface); cursor: pointer; color: var(--ink); font-weight: 600; font-size: 13.5px; line-height: 1.2; }
-  .crops button.on { border-color: var(--leaf); background: var(--leaf-soft); color: var(--leaf); box-shadow: 0 0 0 2px var(--leaf-soft); }
-  .choice { display: flex; flex-wrap: wrap; gap: 8px; }
-  .choice button { min-height: 46px; padding: 8px 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-weight: 600; cursor: pointer; color: var(--ink); }
-  .choice button.on { border-color: var(--leaf); background: var(--leaf); color: var(--leaf-ink); }
-  .qty { display: grid; grid-template-columns: 56px 1fr 56px; gap: 8px; align-items: center; }
-  .qty button { min-height: 52px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-weight: 700; font-size: 20px; cursor: pointer; color: var(--ink); }
-  .qty .box { position: relative; }
-  .qty .box input { text-align: center; font-size: 22px !important; font-weight: 700; padding-right: 36px !important; }
-  .qty .box span { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-weight: 600; }
-  .presets { display: flex; gap: 6px; } .presets button { flex: 1; min-height: 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); font-weight: 600; cursor: pointer; color: var(--muted); }
-  .big-btn { width: 100%; min-height: 56px; font-size: 17px; border-radius: 14px; }
-  .divider { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; margin: 6px 0 0; }
-  .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-  .msgbox { padding: 14px; display: grid; gap: 10px; }
-  .attach { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .attach label { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 50px; border: 1.5px dashed var(--line); border-radius: 12px; cursor: pointer; font-weight: 600; background: var(--surface-2); }
-  .result { padding: 16px; display: grid; gap: 10px; border-radius: var(--radius); animation: pop .25s ease-out; }
-  .result.ok { background: var(--leaf-soft); border: 1px solid color-mix(in srgb, var(--leaf) 30%, transparent); }
-  .result.bad { background: var(--clay-soft); border: 1px solid color-mix(in srgb, var(--clay) 30%, transparent); }
-  .result .h { display: flex; gap: 10px; align-items: flex-start; font-weight: 600; white-space: pre-line; }
-  .result .tick { width: 28px; height: 28px; border-radius: 50%; background: var(--leaf); color: var(--leaf-ink); display: grid; place-items: center; flex: none; font-weight: 800; }
-  .result.bad .tick { background: var(--clay); }
-
-  /* track */
-  .item { padding: 14px; display: grid; gap: 10px; }
-  .item .row { display: flex; gap: 12px; align-items: center; }
-  .item .title { font-weight: 700; font-size: 16px; }
-  .item .chip { margin-left: auto; }
-  .ship { font-size: 13.5px; color: var(--muted); display: grid; gap: 2px; }
-  .ship b { color: var(--ink); }
-  .track { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
-  .track span { font-size: 11px; text-align: center; padding-top: 8px; border-top: 5px solid var(--line); color: var(--muted); border-radius: 2px; }
-  .track span.on { border-top-color: var(--leaf); color: var(--leaf); font-weight: 650; }
-  .signin-ask { padding: 16px; display: grid; gap: 12px; }
-  .signin-ask p { margin: 0; color: var(--muted); }
-  .bar .right { display: flex; align-items: center; gap: 8px; }
-  .acct-wrap { position: relative; }
-  .acct-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; min-width: 200px; padding: 14px; display: grid; gap: 8px; }
-  @media (max-width: 420px) { .acct span { display: none; } .acct { padding: 0 10px; } }
-
-  .note { font-size: 12px; color: var(--muted); text-align: center; margin: 8px 0 0; }
-
-  /* bottom navigation: in thumb reach, icons plus short words */
-  .nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(10px); border-top: 1px solid var(--line); padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); }
-  .nav .in { max-width: 560px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
-  .nav button { display: grid; justify-items: center; gap: 2px; min-height: 58px; padding: 6px 2px; border: 0; background: none; border-radius: 12px; color: var(--muted); font-weight: 600; font-size: 12.5px; cursor: pointer; }
-  .nav button svg { width: 24px; height: 24px; }
-  .nav button.on { color: var(--leaf); background: var(--leaf-soft); }
-</style>
+<link rel="stylesheet" href="/static/farmer.css">
 </head>
 <body>
-<div class="wrap">
-  <div class="bar">
-    <div class="logo"><span class="mark"></span>Govi Market</div>
-    <div class="right">
-    <div class="acct-wrap"><button class="acct" id="acct" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg><span id="acct-name"></span></button>
-      <div class="card acct-menu" id="acct-menu" hidden><b id="am-name"></b><span class="small muted" id="am-phone"></span><button class="btn" id="am-out" data-t="signout"></button></div></div>
-    <div class="langs" id="langs" role="group" aria-label="Language"><button data-l="si" lang="si">සිං</button><button data-l="ta" lang="ta">தமி</button><button data-l="en" lang="en">EN</button></div>
+
+<!-- 1.01 choose language, first visit only -->
+<div class="welcome" id="welcome" hidden>
+  <div class="in">
+    <div class="photo"></div>
+    <div class="body">
+      <div class="brandrow"><span class="mark48"><span class="ic i-sparkles"></span></span>Govi</div>
+      <div class="choose"><p class="si" lang="si">භාෂාව තෝරන්න</p><p class="ta" lang="ta">மொழியைத் தேர்வுசெய்க</p><p lang="en">Choose your language</p></div>
+      <button class="langcard" data-pick="si" lang="si"><b class="si">සිංහල</b><span>Sinhala</span><i class="ic i-chev-r"></i></button>
+      <button class="langcard" data-pick="ta" lang="ta"><b class="ta">தமிழ்</b><span>Tamil</span><i class="ic i-chev-r"></i></button>
+      <button class="langcard" data-pick="en" lang="en"><b>English</b><i class="ic i-chev-r"></i></button>
+      <p class="fine">You can change this any time from the top of the home screen.</p>
     </div>
   </div>
+</div>
 
-  <section class="pane on" id="prices">
-    <div class="hero">
-      <h1 data-t="hero"></h1>
-      <p data-t="sub"></p>
+<div class="shell">
+  <!-- 1.02 home -->
+  <section class="pane home on" id="prices">
+    <div class="photo"></div>
+    <div class="home-in">
+      <div class="head">
+        <div class="logo"><span class="mk"><span class="ic i-sparkles" style="--s:18px"></span></span>Govi</div>
+        <div class="r">
+          <div class="acct-wrap"><button class="acct glass" id="acct" type="button"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg><span id="acct-name"></span></button>
+            <div class="acct-menu" id="acct-menu" hidden><b id="am-name"></b><span class="small muted" id="am-phone"></span><button class="btn" id="am-out" data-t="signout"></button></div></div>
+          <div class="langs glass" id="langs" role="group" aria-label="Language"><button data-l="si" lang="si">සිං</button><button data-l="ta" lang="ta">தமி</button><button data-l="en" lang="en">EN</button></div>
+        </div>
+      </div>
+      <div class="greet"><h1 id="greet"></h1><p id="greet-sub"></p></div>
+      <div class="sellcard">
+        <div class="top">
+          <span class="mictile" aria-hidden="true"><span class="g1"><img alt="" src="/static/img/glass-vec1.svg"></span><span class="g2"><img alt="" src="/static/img/glass-vec2.svg"></span></span>
+          <div><h2 data-t="sell_h"></h2><p data-t="sell_sub"></p></div>
+        </div>
+        <button class="cta primary" data-go="send" data-start="speak"><span class="ic i-mic" style="--s:20px"></span><span data-t="speak"></span></button>
+        <button class="cta" data-go="send"><span data-t="other"></span></button>
+      </div>
+      <a class="cta" id="wa" href="#" target="_blank" rel="noopener" hidden style="margin-top:12px"><span data-t="wa"></span></a>
+      <div class="sec"><h2 data-t="t_prices"></h2><span class="small" id="pdate"></span></div>
+      <div class="plist" id="plist"></div>
+      <p class="note" data-t="note"></p>
     </div>
-    <a class="wa" id="wa" href="#" target="_blank" rel="noopener" hidden><svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.3 14.2c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.5-3.9-4.7-4.1-.1-.2-1.1-1.5-1.1-2.9s.7-2 1-2.3c.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .5l-.3.5-.4.4c-.1.1-.3.3-.1.6.2.3.8 1.3 1.6 2.1 1.1 1 2.1 1.3 2.4 1.4.3.2.5.1.6-.1l.9-1c.2-.3.4-.2.6-.1l2 .9c.3.2.5.2.5.4.1.1.1.7-.1 1.3z"/></svg><span data-t="wa"></span></a>
-    <div class="sec"><h2 data-t="t_prices"></h2><span class="small muted" id="pdate"></span></div>
-    <div id="plist" style="display:grid;gap:12px"></div>
-    <p class="note" data-t="note"></p>
   </section>
 
+  <!-- 1.03 sell: speak, snap or type; 1.04 recording; 1.05 reading; type form; result -->
   <section class="pane" id="send">
-    <div class="seg" id="who"><button data-r="farmer" class="on" data-t="i_farmer"></button><button data-r="buyer" data-t="i_buyer"></button></div>
-    <div class="card form" id="hform">
-      <h2 data-t="h_title"></h2>
-      <div class="f"><span data-t="h_crop"></span><div class="crops" id="h-crops"></div></div>
-      <div class="f"><span data-t="h_kg"></span>
-        <div class="qty"><button type="button" data-d="-10" aria-label="-10 kg">−</button><div class="box"><input type="number" id="h-kg" inputmode="numeric" min="1" max="20000" value="100"><span>kg</span></div><button type="button" data-d="10" aria-label="+10 kg">+</button></div>
-        <div class="presets" id="presets"><button type="button">50</button><button type="button">100</button><button type="button">200</button><button type="button">500</button></div></div>
-      <div class="f"><span data-t="h_ready"></span><div class="choice" id="h-ready"></div></div>
-      <label class="f"><span data-t="h_town"></span><select id="h-town"></select></label>
-      <div class="small muted" id="h-as" hidden></div>
-      <div class="two" id="h-who">
-        <label class="f"><span data-t="h_name"></span><input type="text" id="h-name" autocomplete="name"></label>
-        <label class="f"><span data-t="phone_ph"></span><input type="tel" id="h-phone" inputmode="tel" autocomplete="tel" placeholder="077 123 4567"></label>
+    <div class="bar"><button class="back glass" type="button" id="back" aria-label="Back"><span class="ic i-chev-l"></span></button><h1 id="send-title" data-t="sell_h"></h1></div>
+
+    <div id="s-start">
+      <div class="voice">
+        <button class="ring" id="ring" type="button" aria-label=""><span class="ic i-mic"></span></button>
+        <b data-t="hold"></b><span data-t="hold_sub"></span>
       </div>
-      <button class="btn primary big-btn" id="h-go" data-t="h_post"></button>
-      <div id="h-out"></div>
-    </div>
-    <div class="card form" id="bform" hidden>
-      <h2 data-t="b_title"></h2>
-      <p class="muted" style="margin:0" data-t="b_sub"></p>
-      <a class="btn primary big-btn" href="/business" style="display:grid;place-items:center;text-decoration:none" data-t="b_go"></a>
-      <label class="f"><span data-t="phone_ph"></span><input type="tel" id="b-phone" inputmode="tel" autocomplete="tel" placeholder="077 123 4567"></label>
-    </div>
-    <div class="divider" data-t="h_or"></div>
-    <div class="card msgbox">
-      <textarea id="text" rows="3"></textarea>
-      <div class="attach">
-        <label>📷 <span data-t="photo"></span><input type="file" id="photo" accept="image/*" capture="environment" hidden></label>
-        <label>🎙️ <span data-t="voice"></span><input type="file" id="voice" accept="audio/*" capture hidden></label>
+      <div class="eg"><div class="k"><span class="ic i-info"></span><span data-t="example"></span></div><q data-t="ex_text"></q></div>
+      <div class="or"><span data-t="or1"></span></div>
+      <div class="stack">
+        <label class="cta outline" style="cursor:pointer"><span class="ic i-camera"></span><span data-t="take_photo"></span><input type="file" id="photo" accept="image/*" capture="environment" hidden></label>
+        <button class="cta" id="to-type" type="button"><span class="ic i-pencil"></span><span data-t="type_it"></span></button>
+        <p class="fine" data-t="understands"></p>
       </div>
-      <div id="picked" class="small muted" hidden></div>
-      <button class="btn primary big-btn" id="go" data-t="send"></button>
-      <div id="reply"></div>
+      <p class="buying"><a href="/business" data-t="i_buyer"></a> →</p>
     </div>
+
+    <div id="s-rec" class="listen" hidden>
+      <h2 data-t="listening"></h2><div class="clock num" id="clock">0:00</div>
+      <div class="wave" aria-hidden="true"></div>
+      <button class="ring" id="ring2" type="button" aria-label=""><span class="ic i-mic"></span></button>
+      <b data-t="let_go"></b><span class="small" data-t="slide_cancel"></span>
+    </div>
+
+    <div id="s-read" class="listen" hidden>
+      <div class="spin" role="status"></div><h2 data-t="reading" style="font-size:20px;line-height:25px"></h2>
+    </div>
+
+    <div id="s-type" hidden>
+      <div class="form" id="hform">
+        <h2 data-t="h_title"></h2>
+        <div class="f"><span data-t="h_crop"></span><div class="crops" id="h-crops"></div></div>
+        <div class="f"><span data-t="h_kg"></span>
+          <div class="qty"><button type="button" data-d="-10" aria-label="-10 kg">−</button><div class="box"><input type="number" id="h-kg" inputmode="numeric" min="1" max="20000" value="100"><span>kg</span></div><button type="button" data-d="10" aria-label="+10 kg">+</button></div>
+          <div class="presets" id="presets"><button type="button">50</button><button type="button">100</button><button type="button">200</button><button type="button">500</button></div></div>
+        <div class="f"><span data-t="h_ready"></span><div class="choice" id="h-ready"></div></div>
+        <label class="f"><span data-t="h_town"></span><select id="h-town"></select></label>
+        <div class="small muted" id="h-as" hidden></div>
+        <div class="two" id="h-who">
+          <label class="f"><span data-t="h_name"></span><input type="text" id="h-name" autocomplete="name"></label>
+          <label class="f"><span data-t="phone_ph"></span><input type="tel" id="h-phone" inputmode="tel" autocomplete="tel" placeholder="077 123 4567"></label>
+        </div>
+        <button class="cta primary" id="h-go" data-t="h_post"></button>
+        <div id="h-out"></div>
+      </div>
+      <div class="or"><span data-t="h_or"></span></div>
+      <div class="form">
+        <textarea id="text" rows="3"></textarea>
+        <div id="picked" class="picked" hidden></div>
+        <button class="cta primary" id="go" data-t="send"></button>
+        <div id="reply"></div>
+      </div>
+    </div>
+
+    <div id="s-out"></div>
   </section>
 
+  <!-- 1.10 my loads -->
   <section class="pane" id="track">
-    <div class="sec"><h2 data-t="t_track"></h2></div>
-    <div class="card signin-ask" id="t-signin" hidden><p data-t="t_need"></p><button class="btn primary big-btn" id="tgo" data-t="signin"></button></div>
-    <div id="mine" style="display:grid;gap:12px"></div>
+    <h1 class="ttl-lg" data-t="t_loads"></h1>
+    <div class="signin-ask" id="t-signin" hidden><p data-t="t_need"></p><button class="cta primary" id="tgo" data-t="signin"></button></div>
+    <div class="loads" id="mine"></div>
   </section>
 </div>
 
-<nav class="nav"><div class="in">
-  <button data-tab="prices" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg><span data-t="n_prices"></span></button>
-  <button data-tab="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg><span data-t="n_sell"></span></button>
-  <button data-tab="track"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 7h13v10H1zM14 10h4l4 4v3h-8"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg><span data-t="n_track"></span></button>
+<nav class="tabs"><div class="in glass">
+  <button data-tab="prices" class="on"><span class="ic i-house"></span><span data-t="n_home"></span></button>
+  <button data-tab="send"><span class="ic i-mic"></span><span data-t="n_sell"></span></button>
+  <button data-tab="track"><span class="ic i-truck"></span><span data-t="n_loads"></span></button>
 </div></nav>
 <script src="/static/common.js"></script>
 <script src="/static/auth.js"></script>
