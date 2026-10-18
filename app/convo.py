@@ -20,11 +20,12 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
-from . import accounts, ai, billing, deals, demo_parser, parser, replies, reroute, store, surplus, tracking, vocab
+from . import accounts, ai, billing, deals, demo_parser, dispatch, parser, replies, reroute, store, surplus, tracking, vocab
 from .schemas import Item, ParsedMessage
 
 log = logging.getLogger("govi.convo")
 KIND = "convo"
+NEW_RE = re.compile(r"\s*(?:new|අලුත්|புதிய)(?:\s*[:,\-]\s*|\s+)", re.I)
 PENDING_HOURS = 24
 DONE_GRACE = timedelta(hours=6)  # a second YES this soon after placing gets "already done"
 MAX_KG = 20000
@@ -133,6 +134,18 @@ T = {
               "ta": "Govi-யிலிருந்து வணக்கம் 👋 நீங்கள் வாங்க அல்லது விற்க விரும்புவதை கிலோவுடன் உரை, புகைப்படம் அல்லது குரல் செய்தியாக அனுப்பவும். "
                     "உதா: \"நாளைக்கு தக்காளி 10 கிலோ தேவை\". உங்கள் ஆர்டர்களைப் பார்க்க STATUS என அனுப்பவும்."},
     "thanks": {"en": "You're welcome 🙏", "si": "ස්තූතියි 🙏", "ta": "நன்றி 🙏"},
+    "handover_q": {"en": "Have you handed over {loads}? Reply DROPPED once it is on its way. "
+                         "If this is new harvest to sell, send it again starting with NEW.",
+                   "si": "ඔබ {loads} භාර දුන්නාද? යැව්වාට පසු DROPPED ලෙස පිළිතුරු දෙන්න. "
+                         "මෙය විකිණීමට නව අස්වැන්නක් නම්, NEW ලෙස පටන් ගෙන නැවත යවන්න.",
+                   "ta": "{loads} ஒப்படைத்துவிட்டீர்களா? அனுப்பியதும் DROPPED என பதில் அனுப்பவும். "
+                         "இது விற்க புதிய அறுவடை என்றால், NEW என்று தொடங்கி மீண்டும் அனுப்பவும்."},
+    "receipt_q": {"en": "Has {loads} reached you? Reply RECEIVED once you have it. "
+                        "If this is a new order, send it again starting with NEW.",
+                  "si": "{loads} ඔබට ලැබුණාද? ලැබුණු පසු RECEIVED ලෙස පිළිතුරු දෙන්න. "
+                        "මෙය නව ඇණවුමක් නම්, NEW ලෙස පටන් ගෙන නැවත යවන්න.",
+                  "ta": "{loads} உங்களுக்கு வந்துவிட்டதா? கிடைத்ததும் RECEIVED என பதில் அனுப்பவும். "
+                        "இது புதிய ஆர்டர் என்றால், NEW என்று தொடங்கி மீண்டும் அனுப்பவும்."},
     "still": {"en": "This is still waiting for your YES:", "si": "මෙය තවමත් ඔබේ YES එක බලාපොරොත්තුවෙන්:",
               "ta": "இது இன்னும் உங்கள் YES-க்காக காத்திருக்கிறது:"},
     "unread_image": {"en": "Sorry, I could not read that photo. Please send a clearer photo, or type the crop and kg.",
@@ -246,6 +259,11 @@ def context(sender: str, known: dict | None, c: dict) -> str | None:
     if role:
         bits.append(f"About the sender: this number belongs to a {role}"
                     + (f" in {known['location']}" if known and known.get("location") else "") + ".")
+    w = tracking.waiting(sender) if sender.isdigit() else None
+    if w:
+        bits.append("Waiting on this sender: we asked them to " + ("reply DROPPED once they hand over" if w[0] == "drop"
+                    else "reply RECEIVED once they get") + " these booked loads: "
+                    + "; ".join(f"{m.crop} {m.qty_kg:.0f} kg ({dispatch.code(m)})" for m in w[1]))
     p = _pending(c)
     if p:
         bits.append("Pending order from this sender, NOT placed yet (JSON): "
@@ -435,11 +453,17 @@ def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type:
     if not text and not media:
         return Turn(t("unsupported", lang), state=c["state"])
 
+    fresh = NEW_RE.match(text or "")  # "NEW carrot 40kg": new business, not about a booked load
+    if fresh and text[fresh.end():].strip():
+        text = text[fresh.end():]
+    else:
+        fresh = None
     if text and not media:
         w = vocab.norm(text)
         if sender.isdigit():  # TRACK [code] and COST [code] 1200 (a seller's shipping cost)
             r = tracking.chat_track(sender, text, lang) or tracking.chat_cost(sender, text, lang) \
-                or (None if w in vocab.YES else tracking.chat_step(sender, text, lang, deals._send))
+                or (None if w in vocab.YES or fresh or (_gemini() and not tracking.STEP_WORD.fullmatch(w))
+                    else tracking.chat_step(sender, text, lang, deals._send))  # free text goes to Gemini
             if r:
                 return Turn(r, state=c["state"])
             if w in billing.WORDS:
@@ -485,6 +509,14 @@ def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type:
             (media or (parsed.items and c["state"] == "idle")):
         lang = parsed.language  # a voice note or a new Singlish order: Gemini heard the language
 
+    if demo_parser.FALLBACK in parsed.unclear and text and not media and sender.isdigit() and not fresh:
+        r = tracking.chat_step(sender, text, lang, deals._send)  # Gemini failed: the keyword list stands in
+        if r:
+            return Turn(r, state=c["state"])
+    if parsed.intent in ("dropped", "received") and sender.isdigit() and not fresh:
+        r = (tracking.dropped if parsed.intent == "dropped" else tracking.received)(sender, lang, deals._send)
+        if r:
+            return Turn(r, parsed=parsed, state=c["state"])
     if parsed.intent in ("confirm", "cancel"):
         return _answer(c, sender, "yes" if parsed.intent == "confirm" else "cancel", lang, today)
     if parsed.intent == "status":
@@ -505,6 +537,12 @@ def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type:
                 store.DB.put("prices", rid, row)
         return Turn(replies.build(parsed, store.prices()), parsed=parsed, created=created)
 
+    if not (fresh or media or said or _pending(c)) and sender.isdigit():
+        # A booked load is waiting on this number: an unclear message, or one naming that load's crop
+        # with the train or the same kg, is about the handover. Ask, never greet or list it again.
+        w = tracking.waiting(sender)
+        if w and (parsed.intent in ("chat", "dropped", "received") or not parsed.items or _about_load(parsed, text, w)):
+            return Turn(_load_question(w, lang), parsed=parsed, state=c["state"])
     pending = _pending(c)
     if said:  # "I'm a seller" wins over what Gemini or the account guessed
         parsed.role = said
@@ -556,6 +594,24 @@ def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type:
     if p.confidence < 0.6 and (media or p.confidence > 0) and t("unsure", lang) not in notes:
         notes.append(t("unsure", lang))
     return _advance(c, sender, u or known, p, lang, today, confirm_first, notes)
+
+
+def _about_load(p: ParsedMessage, text: str | None, w) -> bool:
+    kind, loads = w
+    crops = {m.crop for m in loads}
+    if not p.items or any(i.crop not in crops for i in p.items):
+        return False
+    # A seller repeating the booked crop and kg is talking about that load; a buyer often reorders
+    # the same amount every week, so for them only the train or bus counts.
+    same_kg = kind == "drop" and any(abs(i.qty_kg - m.qty_kg) < 0.5 for i in p.items for m in loads if m.crop == i.crop)
+    return same_kg or bool(tracking.HAUL_RE.search(text or ""))
+
+
+def _load_question(w, lang: str) -> str:
+    kind, loads = w
+    names = ", ".join(t("item", lang, crop=vocab.crop_name(m.crop, lang), kg=_kg(m.qty_kg)).lstrip("• ")
+                      + f" ({dispatch.code(m)})" for m in loads)
+    return t("handover_q" if kind == "drop" else "receipt_q", lang, loads=names)
 
 
 def _advance(c, sender, known, p: ParsedMessage, lang, today, confirm_first, notes=()) -> Turn:
