@@ -34,6 +34,13 @@ Rules:
   10 kg is 12), each removed item with qty_kg 0, and location/when/sender_name only if they change
   (else null). A message that agrees AND changes something ("yes but 15kg tomato") is "edit".
   Use "order" only for a clearly separate new order, and then return all of it.
+- If "Waiting on this sender" is given, Govi asked them to hand over a booked load or to say when
+  one arrives. A message saying they handed it over, gave it, sent it or put it on the train or bus
+  is "dropped" (e.g. "dropped", "koduthuten train ku", "kuduthachu", "bara dunna", "train eke damma",
+  "கொடுத்துட்டேன்", "භාර දුන්නා"), even when it names the crop and kg of that load: then it is NOT a
+  new harvest and `items` stays empty. A message saying it arrived or they got it is "received"
+  ("kidaichathu", "vanthuchu", "labuna", "கிடைத்தது", "ලැබුණා"). Use "order" only when they clearly
+  offer more or different harvest.
 - With no pending order: "status" for questions about their orders, "chat" for greetings, thanks or
   anything with no crop in it, else "order".
 - Everything the sender sees (summary, question) is in their language only. `unclear` is internal.

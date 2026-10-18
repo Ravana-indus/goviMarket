@@ -1,6 +1,6 @@
 """After the dispatch slip: the seller says DROPPED (or YES), the buyer says RECEIVED, the shipment moves."""
 from app import convo, dispatch, store
-from tests.test_conversations import g  # noqa: F401
+from tests.test_conversations import P, TOMORROW, g  # noqa: F401
 from tests.test_dispatch import _deal
 
 
@@ -36,3 +36,75 @@ def test_one_language_for_the_whole_chat(g):
     booked = f.inbox()[-1]
     assert "பதிவு செய்யப்பட்டது" in booked and any(w in booked for w in ("ரயில்", "இரவு பேருந்து", "லாரி", "தபால்"))
     assert "ஒப்படைக்கப்பட்டது" in f.say("dropped")
+
+
+# ---------------------------------------------------------------- Patu's Telegram chat, Oct 18
+# After the booking message the seller wrote Tanglish and got the generic hello, then the same words
+# with the crop and kg were read as a brand-new harvest.
+
+
+
+def _seller(g, n):
+    f, b, m = _deal(g, farmer=f"9477160{n:04d}", buyer=f"9477161{n:04d}")
+    return f, b, m
+
+
+def test_tanglish_handover_is_understood_without_gemini(g):
+    f, b, m = _seller(g, 1)
+    r = f.say("koduthuten train ku")
+    assert "handed over" in r and dispatch.code(m) in r and "Hello" not in r
+    assert any("has handed over your" in x for x in b.inbox())
+
+
+def test_tamil_crop_and_kg_with_tanglish_handover_is_not_a_new_listing(g):
+    f, b, m = _seller(g, 2)
+    before = len(f.listings())
+    r = f.say("கேரட் 100 கிலோவை koduthuten train ku")
+    assert "ஒப்படைக்கப்பட்டது" in r and len(f.listings()) == before and f.state == "idle"
+
+
+def test_gemini_reads_a_handover_the_keywords_miss(g):
+    f, b, m = _seller(g, 3)
+    r = f.say("anju manikku train la pottachu", P(role="farmer", lang="en", intent="dropped"))
+    assert "handed over" in r
+    assert "Waiting on this sender" in g.calls[-1]["context"] and dispatch.code(m) in g.calls[-1]["context"]
+
+
+def test_load_named_again_gets_a_question_not_a_new_harvest(g):
+    f, b, m = _seller(g, 4)
+    before = len(f.listings())
+    r = f.say("carrot 100 kg train la", P(role="farmer", items={"carrot": 100}))  # Gemini misread it as harvest
+    assert "Have you handed over" in r and "DROPPED" in r and dispatch.code(m) in r
+    assert len(f.listings()) == before and f.state == "idle" and not m.dropped_at
+
+
+def test_unclear_message_with_a_load_waiting_asks_instead_of_hello(g):
+    f, b, m = _seller(g, 5)
+    r = f.say("enna aachu", P(role="farmer", intent="chat"))
+    assert "Have you handed over" in r and "Hello" not in r
+
+
+def test_new_prefix_still_lists_more_harvest(g):
+    f, b, m = _seller(g, 6)
+    r = f.say("NEW carrot 100kg ready tomorrow train", P(role="farmer", items={"carrot": 100}, loc="Nuwara Eliya"))
+    assert "Please check your harvest" in r and f.state == "confirming"
+
+
+def test_other_crop_is_a_normal_new_harvest(g):
+    f, b, m = _seller(g, 7)
+    r = f.say("tomato 50kg ready tomorrow", P(role="farmer", items={"tomato": 50}, loc="Nuwara Eliya"))
+    assert "Please check your harvest" in r
+
+
+def test_buyer_tanglish_received(g):
+    f, b, m = _seller(g, 8)
+    f.say("dropped")
+    r = b.say("vanthuchu")
+    assert "marked received" in r
+
+
+def test_buyer_same_weekly_order_is_not_held_by_a_load_in_transit(g):
+    f, b, m = _seller(g, 9)
+    f.say("dropped")
+    r = b.say("need carrot 100kg", P(items={"carrot": 100}, loc="Colombo", when=TOMORROW))
+    assert "Please check your order" in r

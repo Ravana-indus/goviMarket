@@ -284,8 +284,18 @@ STEP_SAY = {
                   "ta": "{buyer} உங்கள் {crop} {kg} கிலோவைப் பெற்றார் ✅ ({code})."},
 }
 DROP_RE = re.compile(r"\b(drop+ed|drop+ed off|dropped it|handed( it)? over|handed|loaded|put (it )?on|sent off|dispatched|gave it)\b"
-                     r"|දැම්මා|භාර දුන්නා|පැටෙව්වා|ஒப்படைத்தேன்|ஒப்படைத்துவிட்டேன்|ஏற்றினேன்|ஏற்றிவிட்டேன்", re.I)
-RECV_RE = re.compile(r"\b(received|recieved|got it|got the|arrived|it came|delivered)\b|ලැබුණා|ලැබුනා|கிடைத்தது|பெற்றேன்|வந்தது", re.I)
+                     # romanised Tamil and Sinhala: koduthuten / kuduthachu (gave), anuppiten (sent),
+                     # ethiten (loaded), bara dunna (handed over), damma (put), yawwa (sent)
+                     r"|\bk[ou]d+u?th+[ua]?(?:t+[ea]n|en|aa?chu|i?t+en)\b|\banup+i(?:t+en|nen|yachu)\b"
+                     r"|\be?th+it+en\b|\byeth+it+en\b|\bb[a]+ra dun+a\b|\bdam+a+\b|\bdem+a+\b|\by[ae]w+a\b"
+                     r"|දැම්මා|භාර දුන්නා|දුන්නා|පැටෙව්වා|යැව්වා|ஒப்படைத்தேன்|ஒப்படைத்துவிட்டேன்|ஏற்றினேன்|ஏற்றிவிட்டேன்"
+                     r"|கொடுத்தேன்|கொடுத்துட்டேன்|கொடுத்துவிட்டேன்|கொடுத்தாச்சு|அனுப்பினேன்|அனுப்பிட்டேன்|அனுப்பிவிட்டேன்", re.I)
+RECV_RE = re.compile(r"\b(received|recieved|got it|got the|arrived|it came|delivered)\b"
+                     r"|\bkidai?ch+(?:athu|uthu|udhu|iduchu|idichu|ithu)\b|\bvan+[dt]?h?(?:uchu|iruchu|iduchu)\b|\blab+una+\b"
+                     r"|ලැබුණා|ලැබුනා|கிடைத்தது|கிடைச்சுது|பெற்றேன்|வந்தது|வந்துச்சு|வந்துவிட்டது", re.I)
+# Words that tie a message to a booked load rather than to new harvest: the train, bus, station, parcel office.
+HAUL_RE = re.compile(r"\b(train|trian|bus|station|parcel|lorry|post office|rail|coach)\b|ரயில்|பேருந்து|பஸ்|நிலைய"
+                     r"|දුම්රිය|කෝච්චි|බස්|ස්ටේෂන්|පාර්සල්", re.I)
 
 
 def _facts(m: Match, lang: str) -> dict:
@@ -303,6 +313,15 @@ def awaiting_drop(phone: str) -> list[Match]:
 def awaiting_receipt(phone: str) -> list[Match]:
     return [m for m, side in _mine(phone) if side == "buyer" and not m.received_at
             and (m.dropped_at or step_of(m) in ("loaded", "in_transit", "arrived", "local"))]
+
+
+def waiting(phone: str) -> tuple[str, list[Match]] | None:
+    """What Govi is waiting on this number for: ("drop", loads to hand over) or ("recv", loads to receive)."""
+    ms = awaiting_drop(phone)
+    if ms:
+        return "drop", ms
+    ms = awaiting_receipt(phone)
+    return ("recv", ms) if ms else None
 
 
 def _move_to(sid: str | None, target: str, send) -> None:
