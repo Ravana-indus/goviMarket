@@ -174,7 +174,7 @@ $("send").onclick = () => send();
 $("text").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
 
 fetch("/api/health").then((r) => r.json()).then((h) => {
-  $("mode").textContent = h.gemini ? "Gemini live" : "Demo mode · text only";
+  $("mode").textContent = h.gemini ? "Gemini live" : "Text only · no Gemini key";
   $("mode").className = "badge" + (h.gemini ? " live" : "");
 });
 renderPeople(); pick(me.phone);
