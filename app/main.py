@@ -125,6 +125,7 @@ def diag():
         except Exception as e:
             out["gemini_photo_ok"], out["gemini_photo_error"] = False, f"{type(e).__name__}: {e}"[:400]
     out["ffmpeg"] = bool(shutil.which("ffmpeg"))
+    out["gemini_endpoint"] = ai.endpoint.get("name")
     out["gemini_last_error"] = ai.last_error or None
     return out
 
