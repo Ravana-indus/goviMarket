@@ -391,6 +391,7 @@ def latest_plan():
         out.append(row)
     plan["shipments"] = out
     plan["swaps"] = reroute.swaps()[:10]
+    plan["unmatched"] = deals.unmatched()
     open_kg = surplus._open_kg()
     offered = {o["listing_id"]: o for o in surplus.offers()}
     plan["surplus"] = [{**l.model_dump(mode="json"), "remaining_kg": open_kg[l.id], "offer": offered.get(l.id)}

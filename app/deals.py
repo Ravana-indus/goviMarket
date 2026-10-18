@@ -7,7 +7,7 @@ import uuid
 
 from . import agent, messages, shipping, store, telegram, vocab, whatsapp
 from .lanes import load_lanes
-from .matcher import bundle, impact, match
+from .matcher import bundle, impact, match, why_unmatched
 from .pricing import split
 
 log = logging.getLogger("govi")
@@ -118,6 +118,17 @@ def plan(extra_blocked: set[tuple[str, str]] = frozenset()) -> dict:
     from . import reroute
     reroute.scan(_send)  # a better route can show up after a deal is agreed
     return out
+
+
+def unmatched() -> dict[str, str]:
+    """Order id -> why its open kg found no seller, for the console."""
+    held = [m for m in store.matches() if m.status == "proposed"]
+    listings, orders = store.listings(), store.orders()
+    for x in listings + orders:
+        x.remaining_kg -= sum(m.qty_kg for m in held if x.id in (m.listing_id, m.order_id))
+    blocked = {(m.listing_id, m.order_id) for m in store.matches() if m.status in ("declined", "cancelled")}
+    prices = store.prices()
+    return {o.id: why_unmatched(o, listings, LANES, prices, blocked) for o in orders if o.remaining_kg > 0}
 
 
 def confirm(m, notify: bool = True) -> None:

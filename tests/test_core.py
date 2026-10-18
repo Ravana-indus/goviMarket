@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from app import parser, store
 from app.lanes import load_lanes, pick_lane
 from app.main import app
-from app.matcher import impact, match
+from app.matcher import impact, match, why_unmatched
 from app.pricing import load_prices, split
 from app.schemas import Listing, Order
 
@@ -51,6 +51,21 @@ def test_match_skips_unknown_crop_and_late_harvest():
                     needed_by=FRI, remaining_kg=5)]
     matches, _ = match(listings, orders, LANES, PRICES)
     assert matches == []
+
+
+def test_why_unmatched_names_the_blocker():
+    sun, mon = date(2026, 10, 18), date(2026, 10, 19)
+    potato = Listing(id="L1", farmer="Rasan", location="Jaffna", crop="potato", qty_kg=20, ready_on=mon, remaining_kg=20)
+    o = Order(id="O1", buyer="B", location="Colombo", crop="potato", qty_kg=12, needed_by=mon, remaining_kg=12)
+    assert match([potato], [o], LANES, PRICES)[0] == []
+    assert "reaches Colombo by 08:00" in why_unmatched(o, [potato], LANES, PRICES)
+    carrot = Listing(id="L2", farmer="Sunil", location="Nuwara Eliya", crop="carrot", qty_kg=100, ready_on=sun, remaining_kg=100)
+    c = Order(id="O2", buyer="Lotus", location="Colombo", crop="carrot", qty_kg=40, needed_by=mon, remaining_kg=40)
+    assert len(match([carrot], [c], LANES, PRICES)[0]) == 1
+    tight = {**PRICES, "carrot": {**PRICES["carrot"], "collector": 280, "retail": 320}}
+    assert "less than the Rs 280 collector price" in why_unmatched(c, [carrot], LANES, tight)
+    assert "declined" in why_unmatched(c, [carrot], LANES, PRICES, blocked={("L2", "O2")})
+    assert "No open potato" in why_unmatched(o, [carrot], LANES, PRICES)
 
 
 class FakeModels:

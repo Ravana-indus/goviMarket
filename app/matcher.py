@@ -66,6 +66,47 @@ def match(listings: list[Listing], orders: list[Order], lanes: list[Lane],
     return matches, surplus
 
 
+def why_unmatched(order: Order, listings: list[Listing], lanes: list[Lane], prices: dict[str, dict],
+                  blocked: set[tuple[str, str]] = frozenset()) -> str:
+    """Plain reason an order has kg nobody is supplying, checked in the same order `match` does."""
+    price = prices.get(order.crop)
+    if price is None:
+        return f"No price for {order.crop} on the board, so it cannot be priced."
+    same = [l for l in listings if l.crop == order.crop and l.remaining_kg > 0]
+    if not same:
+        return f"No open {order.crop} supply right now."
+    if all((l.id, order.id) in blocked for l in same):
+        return f"Every {order.crop} seller was already offered this order and it was declined or called off."
+    ready = [l for l in same if l.ready_on <= order.needed_by and (l.id, order.id) not in blocked]
+    if not ready:
+        first = min(l.ready_on for l in same)
+        return f"{order.crop.capitalize()} is only ready from {first:%a %d %b}, after it is needed."
+    late, poor = [], []
+    for l in ready:
+        kg = min(order.remaining_kg, l.remaining_kg)
+        ship_on = max(l.ready_on, order.needed_by - timedelta(days=1))
+        transport = 0.0
+        if l.location.lower() != order.location.lower():
+            lane = pick_lane(lanes, origin=l.location, dest=order.location, kg=kg,
+                             ship_on=ship_on, needed_by=order.needed_by)
+            if lane is None:
+                late.append(l)
+                continue
+            transport = round(lane_cost(lane, kg) / kg, 1)
+        money = split(price, transport)
+        if not money["farmer_better_off"]:
+            poor.append((l, money, transport))
+    if poor:
+        l, money, transport = max(poor, key=lambda p: p[1]["farmer_gets"])
+        return (f"{l.farmer} would get Rs {money['farmer_gets']:g}/kg after Rs {transport:g}/kg transport, "
+                f"less than the Rs {money['collector']:g} collector price, so Govi does not offer it.")
+    if late:
+        l = late[0]
+        return (f"No bus, train or lorry from {l.location} reaches {order.location} by 08:00 "
+                f"{order.needed_by:%a %d %b} when the {order.crop} is ready {l.ready_on:%a %d %b}.")
+    return "Waiting for the next matching run."
+
+
 def bundle(matches: list[Match], lanes: list[Lane], prices: dict[str, dict]) -> list[Shipment]:
     """Put loads leaving the same town for the same city on the same day into one consignment.
 

@@ -120,7 +120,7 @@ function renderState(s, plan) {
       <td class="num">${kg(l.qty_kg)}<div class="bar" title="${pct}% matched"><span style="width:${pct}%"></span></div></td><td class="small">${fmtDate(l.ready_on)}</td></tr>`;
   }).join("") : empty(4, "No harvest listed yet.");
   $("demand").innerHTML = s.orders.length ? s.orders.map((o) =>
-    `<tr><td>${esc(o.buyer)}<div class="small muted">${esc(o.location)}</div></td><td>${esc(o.crop)}</td><td class="num">${kg(o.qty_kg)}</td><td class="small">${fmtDate(o.needed_by)}</td></tr>`
+    `<tr><td>${esc(o.buyer)}<div class="small muted">${esc(o.location)}</div></td><td>${esc(o.crop)}</td><td class="num">${kg(o.qty_kg)}</td><td class="small">${fmtDate(o.needed_by)}${plan.unmatched?.[o.id] ? `<div class="muted">Not matched: ${esc(plan.unmatched[o.id])}</div>` : ""}</td></tr>`
   ).join("") : empty(4, "No orders yet.");
   const prices = Object.values(s.prices);
   $("prices").innerHTML = prices.length ? prices.map((p) =>
