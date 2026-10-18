@@ -13,6 +13,7 @@ const T = {
     big: (b) => `Big change from Rs ${b}. Check before sending.`, flagged: "Big change, will be checked before it goes live",
     sent_ok: (n) => `${n} price${n === 1 ? "" : "s"} sent. Farmers and buyers see them now.`, sent_today: "What you sent", none: "Nothing sent yet.",
     same: "Same", sending: "Sending…", live: "live", wait: "checking", phone_in: "Sign in with mobile number",
+    lanes: "Transport rates", lanes_s: "Call the bus stand, station or a farmer who sent a load, then fix the numbers or tap Still right.",
   },
   si: {
     agent: "වෙළඳපොළ නියෝජිත", pin: "නියෝජිත PIN අංකය", bad_pin: "PIN අංකය වැරදියි. Govi වෙතින් අසන්න.", si_title: "අද වෙළඳපොළ මිල", si_sub: "ඔබ කවුද සහ ඔබ ආවරණය කරන වෙළඳපොළ කුමක්ද කියන්න. මෙය එක් වරක් පමණි.",
@@ -217,6 +218,7 @@ async function loadHist() {
       <span><b>${esc(cname(p.crop))}</b> <span class="muted small">${esc(t("k_" + p.kind))} · ${new Date(p.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span></span>
       <span class="num">Rs ${rs(p.lkr_per_kg)} <span class="chip ${p.flagged ? "warn" : "farmer"}">${esc(p.flagged ? t("wait") : t("live"))}</span></span>
     </div>`).join("") : `<div class="empty">${esc(t("none"))}</div>`;
+  laneEditor($("lanes"), api, me.name).catch(() => {});
 }
 
 (async () => {

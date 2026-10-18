@@ -54,3 +54,21 @@ def test_public_page_shows_no_phone_or_address(g, clean_costs):
     assert c.get("/api/t/GV-NOPE").status_code == 404
     assert c.get(f"/t/{dispatch.code(m)}").status_code == 200
     assert c.post("/api/shipping-cost", json={"code": dispatch.code(m), "lkr": 900}).status_code == 403
+
+
+def test_agent_sets_and_confirms_lane_costs(clean_costs):
+    from app.lanes import lane_cost
+    lane = next(l for l in load_lanes() if l.origin == "Jaffna" and l.mode == "train_parcel")
+    key = tracking._key(lane)
+    c = TestClient(main.app)
+    row = c.post("/api/agent/lanes", json={"key": key, "lkr_per_kg": 6, "min_charge_lkr": 150,
+                                           "handling_lkr": 100, "pickup_lkr": 400, "who": "Mala"}).json()
+    assert row["now_lkr_per_kg"] == 6 and row["pickup_lkr"] == 400 and row["checked"]["who"] == "Mala"
+    assert "SET by agent Mala" in row["source"]
+    assert lane_cost(lane, 12) == 150 + 100 + 400  # the agent's numbers price the next match
+    c.post("/api/agent/lanes", json={"key": key, "lkr_per_kg": 6, "min_charge_lkr": 150, "handling_lkr": 100,
+                                     "pickup_lkr": 400, "confirmed": True, "who": "Mala"})
+    assert "CONFIRMED by agent Mala" in lane.source
+    assert c.post("/api/agent/lanes", json={"key": "nowhere", "lkr_per_kg": 6, "min_charge_lkr": 0,
+                                            "handling_lkr": 0}).status_code == 404
+    assert any(r["key"] == key for r in c.get("/api/agent/lanes").json())

@@ -13,7 +13,7 @@ import uuid
 from datetime import datetime, timezone
 
 from . import accounts, dispatch, store, vocab
-from .lanes import _norm, load_lanes
+from .lanes import DEST_PICKUP_LKR, _norm, load_lanes
 from .schemas import Lane, Match
 
 KIND = "lane_costs"
@@ -145,38 +145,81 @@ def report(m: Match, lkr: float, *, phone: str = "") -> tuple[Match, Lane]:
     return m, lane
 
 
-_BASE: dict[str, tuple[float, str]] = {}
+FIXED = ("min_charge_lkr", "handling_lkr", "pickup_lkr")  # per-consignment costs an agent can set
+_BASE: dict[str, dict] = {}
+
+
+def _rows() -> dict[str, list[dict]]:
+    by_lane: dict[str, list[dict]] = {}
+    for r in store.DB.all(KIND):
+        by_lane.setdefault(r["lane"], []).append(r)
+    return {k: sorted(v, key=lambda r: r["at"]) for k, v in by_lane.items()}
+
+
+def _since_agent(rows: list[dict]) -> tuple[dict | None, list[dict]]:
+    """The latest agent check of a lane and the seller reports after it. An agent's new rate
+    replaces older reports; sellers' later reports then move it again."""
+    agent = next((r for r in reversed(rows) if r.get("kind") == "agent"), None)
+    after = [r for r in rows if r.get("kind") != "agent" and (agent is None or r["at"] > agent["at"])]
+    return agent, after
 
 
 def apply() -> None:
-    """Every lane's Rs/kg: the median of its latest seller reports, else the original estimate."""
-    by_lane: dict[str, list[dict]] = {}
-    for r in store.DB.all(KIND):
-        by_lane.setdefault(r["lane"], []).append(r)
+    """Every lane's costs: the latest agent check, moved by seller reports since, else the estimate."""
+    by_lane = _rows()
     for lane in load_lanes():
         k = _key(lane)
-        _BASE.setdefault(k, (lane.lkr_per_kg, lane.source))
-        rows = sorted(by_lane.get(k, []), key=lambda r: r["at"])[-RECENT:]
-        if rows:
-            lane.lkr_per_kg = round(statistics.median(r["per_kg"] for r in rows), 2)
-            lane.source = f"REPORTED by sellers ({len(by_lane[k])} reports, latest {rows[-1]['at'][:10]})"
-        else:
-            lane.lkr_per_kg, lane.source = _BASE[k]
+        base = _BASE.setdefault(k, {"lkr_per_kg": lane.lkr_per_kg, "source": lane.source,
+                                    **{f: getattr(lane, f) for f in FIXED}})
+        agent, after = _since_agent(by_lane.get(k, []))
+        rates = ([agent["per_kg"]] if agent else []) + [r["per_kg"] for r in after]
+        rates = rates[-RECENT:]
+        lane.lkr_per_kg = round(statistics.median(rates), 2) if rates else base["lkr_per_kg"]
+        for f in FIXED:
+            setattr(lane, f, agent[f] if agent and f in agent else base[f])
+        bits = []
+        if agent:
+            bits.append(f"{'CONFIRMED' if agent.get('confirmed') else 'SET'} by agent {agent['who']} {agent['at'][:10]}")
+        if after:
+            bits.append(f"REPORTED by sellers ({len(after)} reports, latest {after[-1]['at'][:10]})")
+        lane.source = "; ".join(bits) or base["source"]
+
+
+def agent_set(key: str, *, who: str, lkr_per_kg: float, min_charge_lkr: float, handling_lkr: float,
+              pickup_lkr: float | None, confirmed: bool = False) -> Lane:
+    """An agent called the bus stand, station or farmers and set (or confirmed) a lane's costs."""
+    lane = next((l for l in load_lanes() if _key(l) == key), None)
+    if lane is None:
+        raise KeyError(key)
+    vals = [lkr_per_kg, min_charge_lkr, handling_lkr] + ([pickup_lkr] if pickup_lkr is not None else [])
+    if not all(0 <= v <= MAX_LKR for v in vals) or lkr_per_kg <= 0:
+        raise ValueError("cost out of range")
+    store.DB.put(KIND, uuid.uuid4().hex[:10], {
+        "kind": "agent", "lane": key, "origin": lane.origin, "dest": lane.dest, "mode": lane.mode,
+        "departs": lane.departs, "who": who or "agent", "confirmed": confirmed, "per_kg": lkr_per_kg,
+        "min_charge_lkr": min_charge_lkr, "handling_lkr": handling_lkr, "pickup_lkr": pickup_lkr,
+        "at": datetime.now(timezone.utc).isoformat()})
+    apply()
+    return lane
 
 
 def costs() -> list[dict]:
-    """For the console: each lane's estimate next to what sellers report."""
-    by_lane: dict[str, list[dict]] = {}
-    for r in store.DB.all(KIND):
-        by_lane.setdefault(r["lane"], []).append(r)
+    """Each lane's costs now, the estimate it started from, and who last checked it."""
+    by_lane = _rows()
     out = []
     for lane in load_lanes():
         k = _key(lane)
-        rows = sorted(by_lane.get(k, []), key=lambda r: r["at"])
-        out.append({"origin": lane.origin, "dest": lane.dest, "mode": lane.mode, "departs": lane.departs,
-                    "estimate_lkr_per_kg": _BASE.get(k, (lane.lkr_per_kg, ""))[0], "now_lkr_per_kg": lane.lkr_per_kg,
-                    "reports": len(rows), "latest": rows[-1] if rows else None, "source": lane.source})
-    return sorted(out, key=lambda r: (-r["reports"], r["origin"]))
+        rows = by_lane.get(k, [])
+        agent, after = _since_agent(rows)
+        sellers = [r for r in rows if r.get("kind") != "agent"]
+        out.append({"key": k, "origin": lane.origin, "dest": lane.dest, "mode": lane.mode, "departs": lane.departs,
+                    "estimate_lkr_per_kg": _BASE.get(k, {}).get("lkr_per_kg", lane.lkr_per_kg),
+                    "now_lkr_per_kg": lane.lkr_per_kg, "min_charge_lkr": lane.min_charge_lkr,
+                    "handling_lkr": lane.handling_lkr, "door_delivery": lane.door_delivery,
+                    "pickup_lkr": 0 if lane.door_delivery else DEST_PICKUP_LKR if lane.pickup_lkr is None else lane.pickup_lkr,
+                    "reports": len(sellers), "latest": sellers[-1] if sellers else None, "source": lane.source,
+                    "checked": {"who": agent["who"], "at": agent["at"], "confirmed": agent.get("confirmed")} if agent else None})
+    return sorted(out, key=lambda r: (r["origin"], r["dest"], r["departs"]))
 
 
 def public(code: str) -> dict | None:

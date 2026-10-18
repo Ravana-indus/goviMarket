@@ -249,12 +249,7 @@ function renderAttention(s, plan) {
 }
 
 async function loadLaneCosts() {
-  const rows = (await api("/api/lane-costs")).filter((r) => r.reports);
-  $("lane-costs").innerHTML = rows.length ? `<table><thead><tr><th>Route</th><th>Mode</th><th>Estimate</th><th>Now</th><th>Reports</th><th>Latest</th></tr></thead><tbody>${rows.map((r) => `<tr>
-    <td>${esc(r.origin)} → ${esc(r.dest)} ${esc(r.departs)}</td><td>${MODE[r.mode] || esc(r.mode)}</td><td>Rs ${r.estimate_lkr_per_kg}/kg</td>
-    <td><b>Rs ${r.now_lkr_per_kg}/kg</b></td><td>${r.reports}</td>
-    <td>${r.latest ? `${rs(r.latest.lkr)} for ${kg(r.latest.kg)} · ${esc(r.latest.code)} · ${fmtDate(r.latest.at.slice(0, 10))}` : ""}</td></tr>`).join("")}</tbody></table>`
-    : `<div class="empty">No seller has reported a shipping cost yet. Every agreed deal's dispatch slip asks for one.</div>`;
+  await laneEditor($("lane-costs"), api, "console");
 }
 
 // ---- Rs 799/month plans: unpaid first, mark a month paid (or undo a mistake)
