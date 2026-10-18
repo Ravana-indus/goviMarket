@@ -65,6 +65,7 @@ class Order(BaseModel):
     qty_kg: float
     needed_by: date
     remaining_kg: float
+    address: str = ""  # street address for the dispatch slip; empty means the account's, else the town
 
 
 class Lane(BaseModel):

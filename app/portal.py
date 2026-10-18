@@ -25,6 +25,7 @@ class OrderIn(BaseModel):
     phone: Optional[str] = None  # signed-in buyers: taken from the account
     business: Optional[str] = Field(None, max_length=80)
     location: str = Field("Colombo", max_length=60)
+    address: Optional[str] = Field(None, max_length=160)  # delivery address printed on the seller's slip
     needed_by: date
     items: list[Line] = Field(max_length=20)
     repeat_weekly: bool = False
@@ -61,7 +62,8 @@ def _create(o: OrderIn) -> list[str]:
         rid = uuid.uuid4().hex[:8]
         store.put("orders", Order(id=rid, phone=o.phone, lang=accounts.chosen_lang(o.phone) or "en", buyer=o.business, location=o.location,
                                   crop=line.crop, qty_kg=line.qty_kg, needed_by=o.needed_by,
-                                  remaining_kg=line.qty_kg).model_dump(mode="json"))
+                                  remaining_kg=line.qty_kg,
+                                  address=(o.address or "").strip()).model_dump(mode="json"))
         ids.append(rid)
     return ids
 

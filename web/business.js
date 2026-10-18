@@ -29,7 +29,8 @@ function showSignin(show) {
 }
 function signIn(u) {
   if (!u) return;
-  me = { name: u.business || u.name, phone: u.phone, location: u.location || "Colombo" };
+  me = { name: u.business || u.name, phone: u.phone, location: u.location || "Colombo", address: u.address || "" };
+  if (!$("addr").value) $("addr").value = me.address;
   showSignin(false); renderWho(); loadAll();
 }
 $("si-go").onclick = async () => signIn(await GOVI.auth.open({ role: "buyer", lang: "en" }));
@@ -104,10 +105,15 @@ $("mobilebar").onclick = () => $("cart").scrollIntoView({ behavior: "smooth" });
 
 $("place").onclick = async () => {
   const items = Object.entries(cart).map(([crop, qty_kg]) => ({ crop, qty_kg }));
+  const address = $("addr").value.trim();
   $("place").disabled = true;
+  if (address && address !== me.address) {  // remembered on the account for the next order
+    me.address = address;
+    fetch("/api/me", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address }) }).catch(() => {});
+  }
   try {
     const out = await api("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ business: me.name, location: me.location, needed_by: $("needed").value,
+      body: JSON.stringify({ business: me.name, location: me.location, address, needed_by: $("needed").value,
         items, repeat_weekly: $("weekly").checked }) });
     const farmers = new Set(out.matches.map((m) => m.farmer)).size;
     $("placed").innerHTML = `<div class="card done"><b>Order placed.</b><div class="small">${kg(out.matched_kg)} of ${kg(out.ordered_kg)} matched with ${farmers} farmer${farmers === 1 ? "" : "s"} so far.

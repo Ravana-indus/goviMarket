@@ -22,7 +22,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from . import accounts, ai, convo, deals, parser, portal, replies, reporters, reroute, rescue, security, shipping, store, surplus, telegram, vocab, whatsapp
+from . import accounts, ai, convo, deals, dispatch, parser, portal, replies, reporters, reroute, rescue, security, shipping, store, surplus, telegram, vocab, whatsapp
 from .pricing import split
 from .schemas import Listing
 
@@ -34,6 +34,15 @@ app.include_router(portal.router)
 app.include_router(reporters.router)
 app.include_router(accounts.router)
 app.middleware("http")(security.middleware)
+
+
+@app.middleware("http")
+async def learn_site(request: Request, call_next):
+    """Tracking links in chat need the public address; without PUBLIC_URL, learn it from a visit."""
+    host = request.headers.get("host", "")
+    if not dispatch.SITE and host and not host.startswith(("localhost", "127.", "0.0.0.0", "testserver")):
+        dispatch.SITE = f"https://{host}"
+    return await call_next(request)
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 
 MAX_UPLOAD = 10 * 1024 * 1024  # WhatsApp media is at most ~16 MB; photos and voice notes are far smaller

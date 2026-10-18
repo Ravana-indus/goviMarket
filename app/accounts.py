@@ -41,7 +41,7 @@ LANGS = ("si", "ta", "en")
 DEMO_PEOPLE = {
     "94770000002": {"name": "Sunil", "role": "farmer", "location": "Nuwara Eliya", "lang": "si"},
     "94770000014": {"name": "Mango Tree Cafe", "role": "buyer", "business": "Mango Tree Cafe",
-                    "location": "Colombo", "lang": "en"},
+                    "location": "Colombo", "lang": "en", "address": "No. 45, Duplication Road, Colombo 03"},
     "94770000001": {"name": "Kamal", "role": "agent", "market": "Dambulla", "lang": "si"},
 }
 
@@ -100,7 +100,7 @@ def _complete(u: dict) -> bool:
 
 
 def public(u: dict) -> dict:
-    keys = ("phone", "name", "role", "lang", "location", "business", "market", "created", "last_login")
+    keys = ("phone", "name", "role", "lang", "location", "business", "market", "address", "created", "last_login")
     return {k: u.get(k) for k in keys} | {"complete": _complete(u), "admin": u["phone"] in admin_phones()}
 
 
@@ -256,6 +256,7 @@ class ProfileIn(BaseModel):
     location: Optional[str] = Field(None, max_length=60)
     business: Optional[str] = Field(None, max_length=80)
     market: Optional[str] = Field(None, max_length=60)
+    address: Optional[str] = Field(None, max_length=160)  # where buyers want deliveries
     agent_pin: Optional[str] = Field(None, max_length=20)
 
 
