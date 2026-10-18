@@ -157,6 +157,8 @@
   <span class="grp">Insight</span>
   <a href="#analytics" data-p="analytics"><span class="ico">▥</span>Analytics</a>
   <a href="#messages" data-p="messages"><span class="ico">✉</span>Messages</a>
+  <span class="grp">Billing</span>
+  <a href="#plans" data-p="plans"><span class="ico">₨</span>Subscriptions <span class="n" id="n-unpaid"></span></a>
   <div class="foot">Demo data · prices are placeholders, lanes are estimates</div>
 </nav>
 
@@ -197,6 +199,10 @@
       <header><h2>Shipments</h2><span class="muted small"><span id="ship-count"></span> · rates are estimates</span>
         <button class="btn small" id="advance-all" title="Demo: move every shipment one step">Simulate next step ▶</button></header>
       <div id="shipments"></div>
+    </section>
+    <section class="card">
+      <header><h2>Shipping costs from sellers</h2><span class="muted small">Sellers reply COST 1200 or type it in the app after each shipment. A lane's rate is the median of its latest 5 reports.</span></header>
+      <div id="lane-costs" class="scroll-x"></div>
     </section>
   </section>
 
@@ -249,6 +255,14 @@
       <section class="card"><header><h2>From harvest to delivery</h2><span class="muted small">kg at each stage</span></header><div class="chart wide" id="a-funnel"></div></section>
     </div>
     <section class="card"><header><h2>Farmers earning the most extra</h2><span class="muted small">vs selling to the village collector</span></header><div class="scroll-x"><table><thead><tr><th>Farmer</th><th>Town</th><th>Kg sold</th><th>Extra earned</th><th>Uplift</th></tr></thead><tbody id="a-top"></tbody></table></div></section>
+  </section>
+
+  <section class="pane" id="p-plans">
+    <div class="ptitle"><h1>Subscriptions</h1><p>Every seller and buyer pays <span id="plan-price">Rs 799</span> a month for the Govi service. Mark a month paid when the money arrives; it adds 30 days.</p></div>
+    <section class="card">
+      <header><h2>Plans</h2><span class="muted small" id="plan-sum"></span></header>
+      <div class="scroll-x"><table><thead><tr><th>Account</th><th>Role</th><th>Status</th><th>Due / paid until</th><th>Last payment</th><th></th></tr></thead><tbody id="plans"></tbody></table></div>
+    </section>
   </section>
 
   <section class="pane" id="p-messages">

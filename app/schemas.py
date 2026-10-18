@@ -65,6 +65,7 @@ class Order(BaseModel):
     qty_kg: float
     needed_by: date
     remaining_kg: float
+    address: str = ""  # street address for the dispatch slip; empty means the account's, else the town
 
 
 class Lane(BaseModel):
@@ -105,6 +106,8 @@ class Match(BaseModel):
     collector_pays_lkr_per_kg: float
     market_retail_lkr_per_kg: float
     note: str = ""  # e.g. "rescue: backup buy" when a missed shipment was covered
+    shipping_paid_lkr: Optional[float] = None  # what the seller reported paying to send it
+    shipping_reported_at: Optional[str] = None
 
 
 class Shipment(BaseModel):

@@ -22,7 +22,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from . import accounts, ai, convo, deals, parser, portal, replies, reporters, reroute, rescue, security, shipping, store, surplus, telegram, vocab, whatsapp
+from . import accounts, ai, billing, convo, deals, dispatch, parser, portal, replies, reporters, reroute, rescue, security, shipping, store, surplus, telegram, tracking, vocab, whatsapp
 from .pricing import split
 from .schemas import Listing
 
@@ -33,8 +33,22 @@ app.mount("/static", StaticFiles(directory=WEB), name="static")
 app.include_router(portal.router)
 app.include_router(reporters.router)
 app.include_router(accounts.router)
+app.include_router(billing.router)
 app.middleware("http")(security.middleware)
+
+
+@app.middleware("http")
+async def learn_site(request: Request, call_next):
+    """Tracking links in chat need the public address; without PUBLIC_URL, learn it from a visit."""
+    host = request.headers.get("host", "")
+    if not dispatch.SITE and host and not host.startswith(("localhost", "127.", "0.0.0.0", "testserver")):
+        dispatch.SITE = f"https://{host}"
+    return await call_next(request)
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+try:
+    tracking.apply()  # lane rates from the shipping costs sellers have reported
+except Exception:
+    logging.getLogger("govi").exception("could not load reported shipping costs")
 
 MAX_UPLOAD = 10 * 1024 * 1024  # WhatsApp media is at most ~16 MB; photos and voice notes are far smaller
 MAX_TEXT = 2000
@@ -55,7 +69,7 @@ _plan_lock = threading.Lock()
 
 def handle(*, text: Optional[str], media: Optional[bytes], mime_type: Optional[str],
            sender: str, today: date, via: str = "web", auto_plan: bool = True,
-           confirm_first: Optional[bool] = None, deliver=None) -> dict:
+           confirm_first: Optional[bool] = None, deliver=None, lang: Optional[str] = None) -> dict:
     """One pipeline for every channel. Chat channels (WhatsApp, the simulator) show the sender the
     whole order and wait for YES before anything is stored; the web form places it at once.
     `deliver` sends the reply (real WhatsApp) before matching runs, so it arrives before any offers."""
@@ -65,7 +79,7 @@ def handle(*, text: Optional[str], media: Optional[bytes], mime_type: Optional[s
         if sender.isdigit():
             _chat(sender, "in", text or "", via, (mime_type or "").split("/")[0] or None)
         turn = convo.step(sender=sender, text=text, media=media, mime_type=mime_type, today=today,
-                          confirm_first=confirm_first, via=via)
+                          confirm_first=confirm_first, via=via, lang=lang)
         if sender.isdigit():
             _chat(sender, "out", turn.reply, via)
         if deliver:
@@ -259,8 +273,10 @@ def daily_job(today: Optional[date] = None):
 
 @app.post("/intake")
 async def intake(text: Optional[str] = Form(None), file: Optional[UploadFile] = File(None),
-                 sender: str = Form("web"), via: str = Form("web"), today: Optional[date] = Form(None)):
-    """Web portal and WhatsApp simulator: photo, voice note or text."""
+                 sender: str = Form("web"), via: str = Form("web"), today: Optional[date] = Form(None),
+                 lang: Optional[str] = Form(None)):
+    """Web portal and WhatsApp simulator: photo, voice note or text. `lang` is the language picked
+    on that screen; replies come back in it whatever language the message is in."""
     text = (text or "").strip() or None
     if text and len(text) > MAX_TEXT:
         raise HTTPException(400, f"Message is too long (max {MAX_TEXT} characters).")
@@ -279,7 +295,8 @@ async def intake(text: Optional[str] = Form(None), file: Optional[UploadFile] = 
         raise HTTPException(400, "Pick a phone number for the simulator.")
     try:
         return handle(text=text, media=media, mime_type=mime, sender=phone,
-                      today=today or date.today(), via="sim" if via == "sim" else "web")
+                      today=today or date.today(), via="sim" if via == "sim" else "web",
+                      lang=lang if lang in ("si", "ta", "en", "auto") else None)
     except Exception:
         log.exception("intake failed")
         raise HTTPException(502, "We could not read that message just now. Please try again.")
@@ -519,7 +536,8 @@ def track(request: Request, phone: Optional[str] = None):
     Needs a phone sign-in; the console can look up any number with ?phone=."""
     phone = portal.whose(request, phone)
     ships = {x.id: x.model_dump(mode="json") for x in store.shipments()}
-    live = [m.model_dump(mode="json") for m in store.matches() if m.status != "declined"]
+    live = [{**m.model_dump(mode="json"), "code": dispatch.code(m) if m.status == "confirmed" else ""}
+            for m in store.matches() if m.status != "declined"]
     def status(rid, key):
         ms = [{**m, "shipment": ships.get(m["shipment_id"])} for m in live if m[key] == rid]
         return {"matched_kg": sum(m["qty_kg"] for m in ms), "matches": ms}
@@ -527,6 +545,46 @@ def track(request: Request, phone: Optional[str] = None):
                          for l in store.listings() if l.phone == phone],
             "orders": [{**o.model_dump(mode="json"), **status(o.id, "order_id")}
                        for o in store.orders() if o.phone == phone]}
+
+
+@app.get("/t/{code}")
+def track_page(code: str):
+    """Public tracking page for a code on the bags: no phone numbers or addresses shown."""
+    return FileResponse(WEB / "track.html")
+
+
+@app.get("/api/t/{code}")
+def track_code(code: str):
+    out = tracking.public(code)
+    if not out:
+        raise HTTPException(404, "No shipment has that tracking code.")
+    return out
+
+
+class CostIn(BaseModel):
+    code: str = Field(max_length=20)
+    lkr: float = Field(gt=0, le=tracking.MAX_LKR)
+
+
+@app.post("/api/shipping-cost")
+def shipping_cost(x: CostIn, request: Request):
+    """The seller (signed in) or the console records what a shipment really cost to send."""
+    m = dispatch.find(x.code)
+    if not m or not m.lane:
+        raise HTTPException(404, "No shipment has that tracking code.")
+    u = accounts.current(request)
+    if not security.is_admin(request) or not security.admin_token():
+        if not u or not tracking.can_report(u["phone"], m):
+            raise HTTPException(403, "Only the seller of this load can report its shipping cost.")
+    m, lane = tracking.report(m, x.lkr, phone=(u or {}).get("phone", "console"))
+    return {"code": dispatch.code(m), "shipping_paid_lkr": m.shipping_paid_lkr,
+            "lane": {"origin": lane.origin, "dest": lane.dest, "mode": lane.mode, "lkr_per_kg": lane.lkr_per_kg,
+                     "source": lane.source}}
+
+
+@app.get("/api/lane-costs")
+def lane_costs():
+    return tracking.costs()
 
 
 DEMO_MESSAGES = [

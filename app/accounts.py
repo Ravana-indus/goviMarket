@@ -41,7 +41,7 @@ LANGS = ("si", "ta", "en")
 DEMO_PEOPLE = {
     "94770000002": {"name": "Sunil", "role": "farmer", "location": "Nuwara Eliya", "lang": "si"},
     "94770000014": {"name": "Mango Tree Cafe", "role": "buyer", "business": "Mango Tree Cafe",
-                    "location": "Colombo", "lang": "en"},
+                    "location": "Colombo", "lang": "en", "address": "No. 45, Duplication Road, Colombo 03"},
     "94770000001": {"name": "Kamal", "role": "agent", "market": "Dambulla", "lang": "si"},
 }
 
@@ -100,7 +100,7 @@ def _complete(u: dict) -> bool:
 
 
 def public(u: dict) -> dict:
-    keys = ("phone", "name", "role", "lang", "location", "business", "market", "created", "last_login")
+    keys = ("phone", "name", "role", "lang", "location", "business", "market", "address", "created", "last_login")
     return {k: u.get(k) for k in keys} | {"complete": _complete(u), "admin": u["phone"] in admin_phones()}
 
 
@@ -118,6 +118,29 @@ def link(phone: str, *, name: str | None, role: str | None, via: str) -> dict | 
         u = {**u, "name": u.get("name") or name or "", "role": u.get("role") or role}
         store.DB.put("users", phone, u)
     return u
+
+
+def chosen_lang(phone: str | None) -> str | None:
+    """The language this person picked (app header, settings, signup or a LANGUAGE message).
+    Every reply and message to them is in it, whatever language they write or speak in."""
+    lang = (user(phone) or {}).get("lang")
+    return lang if lang in LANGS else None
+
+
+def set_lang(phone: str, lang: str | None, via: str = "chat") -> None:
+    """Pick (or with None clear) this number's language, and move their open listings and orders
+    to it, so offers, shipment updates and reminders follow the choice too."""
+    if not phone.isdigit():
+        return
+    lang = lang if lang in LANGS else ""
+    u = user(phone) or link(phone, name=None, role=None, via=via)
+    if u.get("lang") != lang:
+        store.DB.put("users", phone, {**u, "lang": lang})
+    if lang:
+        for kind in ("listings", "orders"):
+            for doc in store.DB.all(kind):
+                if doc.get("phone") == phone and doc.get("lang") != lang:
+                    store.DB.put(kind, doc["id"], {**doc, "lang": lang})
 
 
 # ---- sessions
@@ -233,6 +256,7 @@ class ProfileIn(BaseModel):
     location: Optional[str] = Field(None, max_length=60)
     business: Optional[str] = Field(None, max_length=80)
     market: Optional[str] = Field(None, max_length=60)
+    address: Optional[str] = Field(None, max_length=160)  # where buyers want deliveries
     agent_pin: Optional[str] = Field(None, max_length=20)
 
 
@@ -327,5 +351,7 @@ def update_me(x: ProfileIn, request: Request):
         data["location"] = vocab.town(data["location"])
     u = {**u, **data}
     store.DB.put("users", u["phone"], u)
+    if data.get("lang"):
+        set_lang(u["phone"], data["lang"], via="web")
     request.state.user = u
     return public(u)

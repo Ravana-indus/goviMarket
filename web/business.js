@@ -29,7 +29,8 @@ function showSignin(show) {
 }
 function signIn(u) {
   if (!u) return;
-  me = { name: u.business || u.name, phone: u.phone, location: u.location || "Colombo" };
+  me = { name: u.business || u.name, phone: u.phone, location: u.location || "Colombo", address: u.address || "" };
+  if (!$("addr").value) $("addr").value = me.address;
   showSignin(false); renderWho(); loadAll();
 }
 $("si-go").onclick = async () => signIn(await GOVI.auth.open({ role: "buyer", lang: "en" }));
@@ -50,6 +51,12 @@ GOVI.auth.config().then((c) => {
 function renderWho() {
   $("who").innerHTML = me ? `<b>${esc(me.name)}</b>${esc(me.location)} · ${esc(GOVI.auth.pretty(me.phone))} · <a href="#" id="out">sign out</a>` : "";
   if (me) $("out").onclick = async (e) => { e.preventDefault(); await GOVI.auth.logout(); me = null; renderWho(); showSignin(true); };
+  if (me) fetch("/api/me/subscription").then((r) => r.ok ? r.json() : null).then((p) => {
+    if (!p || p.status === "none" || !me) return;
+    const d = (x) => new Date(x + "T00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+    const txt = p.status === "active" ? `Govi plan paid until ${d(p.paid_until)}` : `Govi plan ${rs(p.amount_lkr)}/month ${p.status === "due" ? "due" : "overdue since"} ${d(p.due_on)}`;
+    $("who").insertAdjacentHTML("beforeend", ` · <span class="chip ${p.status === "active" ? "farmer" : "reporter"}" title="Rs ${p.amount_lkr} a month for the Govi service. Pay your Govi contact or by bank transfer.">${esc(txt)}</span>`);
+  }).catch(() => {});
 }
 
 document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => {
@@ -104,10 +111,15 @@ $("mobilebar").onclick = () => $("cart").scrollIntoView({ behavior: "smooth" });
 
 $("place").onclick = async () => {
   const items = Object.entries(cart).map(([crop, qty_kg]) => ({ crop, qty_kg }));
+  const address = $("addr").value.trim();
   $("place").disabled = true;
+  if (address && address !== me.address) {  // remembered on the account for the next order
+    me.address = address;
+    fetch("/api/me", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address }) }).catch(() => {});
+  }
   try {
     const out = await api("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ business: me.name, location: me.location, needed_by: $("needed").value,
+      body: JSON.stringify({ business: me.name, location: me.location, address, needed_by: $("needed").value,
         items, repeat_weekly: $("weekly").checked }) });
     const farmers = new Set(out.matches.map((m) => m.farmer)).size;
     $("placed").innerHTML = `<div class="card done"><b>Order placed.</b><div class="small">${kg(out.matched_kg)} of ${kg(out.ordered_kg)} matched with ${farmers} farmer${farmers === 1 ? "" : "s"} so far.
@@ -137,7 +149,7 @@ async function loadOrders() {
     const status = !ms.length ? "Finding farmers" : ms.every((m) => m.status === "confirmed") ? "Confirmed" : "Waiting for farmer YES";
     const ships = ms.filter((m) => m.shipment).map((m) => {
       const at = STEPS.indexOf(m.shipment.status);
-      return `<div class="small muted">${kg(m.qty_kg)} from ${esc(m.farmer)} (${esc(m.shipment.origin)}) · ${esc(m.shipment.ref || "not booked yet")}</div>
+      return `<div class="small muted">${kg(m.qty_kg)} from ${esc(m.farmer)} (${esc(m.shipment.origin)}) · ${esc(m.shipment.ref || "not booked yet")}${m.code ? ` · tracking <a href="/t/${encodeURIComponent(m.code)}" target="_blank" rel="noopener"><b>${esc(m.code)}</b></a>` : ""}</div>
         <div class="track">${STEPS.map((s, i) => `<span class="${i <= at ? "on" : ""}">${STEP_NAME[s]}</span>`).join("")}</div>`;
     }).join("");
     return `<div class="card ord"><div class="row"><span class="title" style="display:flex;gap:10px;align-items:center">${GOVI.icon(o.crop, 36)}${esc(cname(o.crop))} · ${kg(o.qty_kg)}</span>

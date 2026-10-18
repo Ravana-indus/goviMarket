@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
-from . import accounts, ai, deals, demo_parser, parser, replies, reroute, store, surplus, vocab
+from . import accounts, ai, billing, deals, demo_parser, parser, replies, reroute, store, surplus, tracking, vocab
 from .schemas import Item, ParsedMessage
 
 log = logging.getLogger("govi.convo")
@@ -150,7 +150,28 @@ T = {
     "st_matched": {"en": "{kg} kg agreed ✅", "si": "කිලෝ {kg} එකඟයි ✅", "ta": "{kg} கிலோ ஒப்புக்கொள்ளப்பட்டது ✅"},
     "st_looking_buyer": {"en": "looking for a buyer", "si": "ගැනුම්කරුවෙක් සොයමින්", "ta": "வாங்குபவரைத் தேடுகிறோம்"},
     "st_looking_farmer": {"en": "looking for a farmer", "si": "ගොවියෙක් සොයමින්", "ta": "விவசாயியைத் தேடுகிறோம்"},
+    "lang_set": {"en": "Done. Govi will reply in English from now on, whatever language you write in.",
+                 "si": "හරි. ඔබ කුමන භාෂාවෙන් ලිව්වත්, මෙතැන් සිට Govi සිංහලෙන් පිළිතුරු දෙයි.",
+                 "ta": "சரி. நீங்கள் எந்த மொழியில் எழுதினாலும், இனி Govi தமிழில் பதில் அளிக்கும்."},
+    "lang_auto": {"en": "Done. Govi will reply in the language you write in.",
+                  "si": "හරි. ඔබ ලියන භාෂාවෙන්ම Govi පිළිතුරු දෙයි.",
+                  "ta": "சரி. நீங்கள் எழுதும் மொழியிலேயே Govi பதில் அளிக்கும்."},
 }
+LANGS = ("si", "ta", "en")
+# A message that is only a language name switches the chat to it ("English", "LANGUAGE ta", "සිංහල").
+LANG_WORDS = {"english": "en", "en": "en", "ingrisi": "en", "ඉංග්‍රීසි": "en", "ஆங்கிலம்": "en",
+              "sinhala": "si", "sinhalese": "si", "si": "si", "සිංහල": "si", "சிங்களம்": "si",
+              "tamil": "ta", "ta": "ta", "demala": "ta", "දෙමළ": "ta", "தமிழ்": "ta",
+              "auto": "auto"}
+
+
+def lang_word(text: str | None) -> str | None:
+    """"English", "lang si", "language: தமிழ்" -> the language code ("auto" clears the choice)."""
+    w = vocab.norm(text)
+    named = re.fullmatch(r"(?:/?lang(?:uage)?|භාෂාව|மொழி)\s+(\S+)", w)
+    if named:
+        return LANG_WORDS.get(named.group(1))
+    return LANG_WORDS.get(w) if w not in ("en", "si", "ta", "auto") else None
 
 
 def t(key: str, lang: str, **kw) -> str:
@@ -371,23 +392,43 @@ def status(sender: str, c: dict, lang: str) -> str:
                 else t("st_looking_buyer" if side == "farmer" else "st_looking_farmer", lang))
         day = x.ready_on if side == "farmer" else x.needed_by
         lines.append(f"{t('item', lang, crop=vocab.crop_name(x.crop, lang), kg=_kg(x.qty_kg))}, {_day(day, lang)}: {what}")
-    return "\n".join([t("st_head", lang), *lines]) if lines else t("st_none", lang)
+    plan = [billing.line(sender, lang)] if sender.isdigit() and billing.record(sender) else []
+    return "\n".join([t("st_head", lang), *lines, *plan]) if lines else "\n".join([t("st_none", lang), *plan])
 
 
 # ---------------------------------------------------------------- the turn
 
 def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type: Optional[str],
-         today: date, confirm_first: bool, via: str = "web") -> Turn:
+         today: date, confirm_first: bool, via: str = "web", lang: Optional[str] = None) -> Turn:
+    """`lang` is the language picked on the screen the message came from (app header or settings);
+    "auto" clears an earlier pick. Once a language is picked, every reply is in it, whatever
+    language the sender writes, speaks or photographs in."""
     c = load(sender)
+    if sender.isdigit() and (lang in LANGS or lang == "auto"):
+        accounts.set_lang(sender, None if lang == "auto" else lang, via=via)
     known = accounts.user(sender) if sender.isdigit() else None
-    lang = vocab.script(text) or c.get("lang") or (known or {}).get("lang") or "en"
-    if lang not in ("si", "ta", "en"):
+    picked = accounts.chosen_lang(sender) if sender.isdigit() else (lang if lang in LANGS else None)
+    word = lang_word(text) if text and not media else None
+    if word and sender.isdigit():
+        accounts.set_lang(sender, None if word == "auto" else word, via=via)
+        out = word if word in LANGS else (vocab.script(text) or "en")
+        c["lang"] = out
+        save(c)
+        return Turn(t("lang_set" if word in LANGS else "lang_auto", out), state=c["state"])
+    lang = picked or vocab.script(text) or c.get("lang") or "en"
+    if lang not in LANGS:
         lang = "en"
     if not text and not media:
         return Turn(t("unsupported", lang), state=c["state"])
 
     if text and not media:
         w = vocab.norm(text)
+        if sender.isdigit():  # TRACK [code] and COST [code] 1200 (a seller's shipping cost)
+            r = tracking.chat_track(sender, text, lang) or tracking.chat_cost(sender, text, lang)
+            if r:
+                return Turn(r, state=c["state"])
+            if w in billing.WORDS:
+                return Turn(billing.line(sender, lang), state=c["state"])
         if w in vocab.YES or w in vocab.NO or w in vocab.CANCEL:
             return _answer(c, sender, "yes" if w in vocab.YES else "cancel" if w in vocab.CANCEL else "no", lang, today)
         if w in vocab.STATUS:
@@ -415,7 +456,7 @@ def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type:
         log.exception("could not read message from %s", sender)
         kind = "unread_audio" if (mime_type or "").startswith("audio") else "unread_image"
         return Turn(t(kind, lang), state=c["state"])
-    if not vocab.script(text) and parsed.language in ("si", "ta", "en") and \
+    if not picked and not vocab.script(text) and parsed.language in LANGS and \
             (media or (parsed.items and c["state"] == "idle")):
         lang = parsed.language  # a voice note or a new Singlish order: Gemini heard the language
 

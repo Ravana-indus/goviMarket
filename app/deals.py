@@ -120,8 +120,9 @@ def plan(extra_blocked: set[tuple[str, str]] = frozenset()) -> dict:
     return out
 
 
-def confirm(m) -> None:
-    """Both sides said yes: lock the deal and take the kg out of open stock and demand."""
+def confirm(m, notify: bool = True) -> None:
+    """Both sides said yes: lock the deal, take the kg out of open stock and demand, and send the
+    seller the dispatch slip (tracking code and delivery address) and the buyer the tracking code."""
     m.farmer_ok = m.buyer_ok = True
     m.status = "confirmed"
     for kind, rid in (("listings", m.listing_id), ("orders", m.order_id)):
@@ -129,6 +130,9 @@ def confirm(m) -> None:
         doc["remaining_kg"] -= m.qty_kg
         store.put(kind, doc)
     store.put_match(m)
+    if notify:
+        from . import dispatch
+        dispatch.send_details(m, _send)
 
 
 def _several(ms: list, party: str, lang: str) -> str:
@@ -192,10 +196,12 @@ def answer(phone: str, text: str, lang: str | None = None) -> str | None:
             continue
         setattr(m, f"{side}_ok", True)
         if m.farmer_ok and m.buyer_ok:
-            confirm(m)
+            confirm(m, notify=False)
             other = store.get("orders" if side == "farmer" else "listings",
                               m.order_id if side == "farmer" else m.listing_id)
             _send(other.get("phone"), _say("agreed", other.get("lang"), m), m.id)
+            from . import dispatch
+            dispatch.send_details(m, _send)
         store.put_match(m)
         lines.append(_say("both" if m.status == "confirmed" else "wait", lang_, m))
     return "\n".join(lines)

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Track a load · Govi</title>
+<link rel="icon" href="/static/logo.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;550;600;650;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+<style>
+  body { max-width: 560px; margin: 0 auto; padding: 20px 16px 40px; }
+  .top { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .top img { width: 32px; height: 32px; }
+  .card { padding: 18px; }
+  .code { font: 650 22px/1.2 Inter, system-ui, sans-serif; letter-spacing: .04em; }
+  .what { display: flex; align-items: center; gap: 12px; margin: 12px 0 4px; }
+  .steps { list-style: none; padding: 0; margin: 18px 0 0; display: grid; gap: 0; }
+  .steps li { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; align-items: start; padding-bottom: 14px; position: relative; }
+  .steps li::before { content: ""; position: absolute; left: 10px; top: 20px; bottom: 0; width: 2px; background: var(--line); }
+  .steps li:last-child::before { display: none; }
+  .dot { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); background: var(--surface); display: grid; place-items: center; font-size: 12px; z-index: 1; }
+  .done .dot { background: var(--leaf); border-color: var(--leaf); color: #fff; }
+  .now .dot { border-color: var(--leaf); box-shadow: 0 0 0 4px var(--leaf-soft); }
+  .steps small { color: var(--muted); }
+  .muted { color: var(--muted); }
+  .find { display: flex; gap: 8px; margin-top: 18px; }
+  .find input { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; font: inherit; background: var(--surface); color: inherit; }
+</style>
+</head>
+<body>
+<div class="top"><img src="/static/logo.svg" alt=""><b>Govi · Track a load</b></div>
+<div class="card" id="out"><span class="muted">Loading…</span></div>
+<form class="find" id="find"><input id="q" placeholder="Tracking code, e.g. GV-1A2B3C4D" autocomplete="off"><button class="btn primary">Track</button></form>
+<script src="/static/common.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const NAME = { booked: "Booked", loaded: "Loaded at drop-off", in_transit: "On the way", arrived: "Arrived", delivered: "Delivered" };
+const STATE = { planned: "Agreed, waiting to be booked", local: "Local pickup", missed: "Missed its transport, being rescued",
+  booked: "Booked", loaded: "Loaded", in_transit: "On the way", arrived: "Arrived", delivered: "Delivered" };
+const MODE = { night_bus: "night bus", train_parcel: "train", lorry: "shared lorry", sl_post: "Sri Lanka Post" };
+const when = (iso) => iso ? new Date(iso).toLocaleString("en-GB", { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
+const code = decodeURIComponent(location.pathname.split("/").pop() || "");
+$("q").value = code;
+$("find").onsubmit = (e) => { e.preventDefault(); const v = $("q").value.trim(); if (v) location.href = "/t/" + encodeURIComponent(v.toUpperCase()); };
+(async () => {
+  const r = await fetch("/api/t/" + encodeURIComponent(code));
+  if (!r.ok) { $("out").innerHTML = `<b>No load found for ${esc(code) || "that code"}.</b><p class="muted">Check the code on the bag or in your Govi message.</p>`; return; }
+  const d = await r.json();
+  const steps = d.steps.map((s) => {
+    const done = !!s.done, now = d.status === s.status && s.status !== "delivered";
+    return `<li class="${done ? "done" : ""} ${now ? "now" : ""}"><span class="dot">${done ? "✓" : ""}</span><span><b>${NAME[s.status]}</b><br><small>${done ? when(s.done) : "planned " + when(s.planned)}</small></span></li>`;
+  }).join("");
+  $("out").innerHTML = `<div class="code">${esc(d.code)}</div>
+    <div class="what">${GOVI.icon(d.crop, 44)}<div><b>${esc(GOVI.name(d.crop, "en"))} · ${Math.round(d.kg)} kg</b><br><span class="muted">${esc(d.farmer)} → ${esc(d.buyer)}</span></div></div>
+    <p><b>${esc(STATE[d.status] || d.status)}</b>${d.origin ? ` <span class="muted">· ${esc(d.origin)} → ${esc(d.dest)} by ${esc(MODE[d.mode] || d.mode)} at ${esc(d.departs)}</span>` : ""}</p>
+    ${d.pickup ? `<p class="muted">Drop-off: ${esc(d.pickup)}${d.carrier_ref ? ` · carrier ref ${esc(d.carrier_ref)}` : ""}</p>` : ""}
+    ${steps ? `<ol class="steps">${steps}</ol>` : ""}
+    ${d.shipping_paid_lkr ? `<p class="muted">Shipping paid: Rs ${Math.round(d.shipping_paid_lkr).toLocaleString("en-LK")}</p>` : ""}`;
+})();
+</script>
+</body>
+</html>

@@ -19,7 +19,7 @@ class Backend(Protocol):
 
 
 # Accounts survive the demo reset, so "Load demo morning" does not sign everybody out.
-KEEP = {"users", "sessions", "otp", "telegram", "telegram_phone"}  # chat links survive the demo reset
+KEEP = {"users", "sessions", "otp", "telegram", "telegram_phone", "lane_costs", "subscriptions"}  # chat links survive the demo reset
 
 
 class Memory:
@@ -49,7 +49,7 @@ class Firestore:
     Every write goes to Firestore first; reads come from memory after a collection's first load.
     Run Cloud Run with --max-instances=1 so one process owns the cache (fine at pilot scale)."""
     KINDS = ["listings", "orders", "inbox", "prices", "matches", "plans", "outbox", "shipments",
-             "standing", "offers", "chat", "drafts", "convo", "seen", "swaps"]
+             "standing", "offers", "chat", "drafts", "convo", "seen", "swaps", "lane_costs", "subscriptions"]
 
     def __init__(self):
         from google.cloud import firestore

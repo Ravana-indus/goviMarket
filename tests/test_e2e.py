@@ -76,7 +76,10 @@ def test_every_role_end_to_end(c):
     assert "Waiting for the other side" in sim(c, FARMER, "yes")
     assert "Confirmed by both sides" in sim(c, BUYER, "YES")
     thread = c.get(f"/api/sim/thread?phone={BUYER}").json()
-    assert [m["dir"] for m in thread][-2:] == ["in", "out"]
+    assert [m["dir"] for m in thread][-3:] == ["in", "out", "out"]  # the tracking code, then the reply
+    assert "tracking code GV-" in thread[-2]["text"]
+    farmer_slip = c.get(f"/api/sim/thread?phone={FARMER}").json()[-1]["text"]
+    assert "Dispatch slip" in farmer_slip and "Deliver to:" in farmer_slip and "COST" in farmer_slip
 
     # 5. A simulator text from a new farmer is parsed (demo parser without a key) and stored.
     reply = sim(c, SPARE, "This is Rasan, red onion 100kg ready today, Jaffna")
