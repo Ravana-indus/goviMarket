@@ -61,6 +61,8 @@ def _send(to: str | None, body: str, match_id: str, buttons: list | None = None)
     if not to:
         return
     store.outbox(to, body, match_id)
+    from . import convo  # convo imports this module
+    convo.remember(to, "govi", body)
     if os.getenv("WHATSAPP_TOKEN") and to.isdigit():
         try:
             whatsapp.send_text(to, body)

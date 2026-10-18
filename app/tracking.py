@@ -108,10 +108,14 @@ def chat_cost(phone: str, text: str, lang: str) -> str | None:
         return None
     if not hit.group(2):
         return say("cost_bad", lang)
-    lkr = float(hit.group(2).replace(",", ""))
+    return record_cost(phone, float(hit.group(2).replace(",", "")), lang, hit.group(1))
+
+
+def record_cost(phone: str, lkr: float, lang: str, code: str | None = None) -> str:
+    """What the seller paid to send a load: goes on the newest load still without a cost."""
     mine = [m for m, side in _mine(phone) if side == "farmer" and m.lane]
-    if hit.group(1):
-        want = dispatch.find(hit.group(1).replace(" ", ""))
+    if code:
+        want = dispatch.find(code.replace(" ", ""))
         mine = [m for m in mine if want and m.id == want.id]
     else:  # the newest one that has left or is about to, still without a cost
         mine = sorted(mine, key=lambda m: (m.shipping_paid_lkr is None, step_of(m) != "planned"), reverse=True)
@@ -123,6 +127,22 @@ def chat_cost(phone: str, text: str, lang: str) -> str | None:
         return say("cost_bad", lang)
     return say("cost_ok", lang, lkr=f"{lkr:,.0f}", code=dispatch.code(m), per=f"{lkr / m.qty_kg:.1f}",
                route=f"{lane.origin} → {lane.dest}", rate=f"{lane.lkr_per_kg:g}")
+
+
+AMOUNT_RE = re.compile(r"(?:rs\.?|lkr|රු\.?|ரூ\.?)?\s*([\d,]+(?:\.\d+)?)\s*(?:/-|rs|lkr|rupees?|ரூபாய்|රුපියල්|රු)?\.?", re.I)
+
+
+def awaiting_cost(phone: str) -> list[Match]:
+    """Loads this seller handed over and was asked to send a COST for."""
+    return [m for m, side in _mine(phone) if side == "farmer" and m.lane and m.dropped_at and m.shipping_paid_lkr is None]
+
+
+def bare_cost(phone: str, text: str, lang: str) -> str | None:
+    """'2000' or 'Rs 2,000' right after we asked for the COST: that is the cost."""
+    hit = AMOUNT_RE.fullmatch((text or "").strip())
+    if not hit or float(hit.group(1).replace(",", "") or 0) < 50 or not awaiting_cost(phone):
+        return None  # 1, 2, 3 are answers to other questions (surplus offers, quantities)
+    return record_cost(phone, float(hit.group(1).replace(",", "")), lang)
 
 
 def _key(lane: Lane) -> str:

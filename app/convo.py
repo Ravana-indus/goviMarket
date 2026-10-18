@@ -25,6 +25,8 @@ from .schemas import Item, ParsedMessage
 
 log = logging.getLogger("govi.convo")
 KIND = "convo"
+CTX = "convo_ctx"
+RECENT = 8  # chat lines Gemini sees
 NEW_RE = re.compile(r"\s*(?:new|අලුත්|புதிய)(?:\s*[:,\-]\s*|\s+)", re.I)
 PENDING_HOURS = 24
 DONE_GRACE = timedelta(hours=6)  # a second YES this soon after placing gets "already done"
@@ -240,6 +242,23 @@ def save(c: dict) -> None:
         store.DB.put(KIND, c["phone"], c)
 
 
+def remember(phone: str, who: str, text: str | None) -> None:
+    """The last few lines of this number's chat, both ways (offers and slips included), kept so
+    Gemini reads a short reply against what Govi just asked. Kept apart from the conversation
+    state, which a turn loads once and saves at its end."""
+    if not phone.isdigit() or not text:
+        return
+    d = store.DB.one(CTX, phone) or {"phone": phone}
+    d["recent"] = [*(d.get("recent") or [])[-(RECENT - 1):], {"who": who, "text": text[:500], "at": _now().isoformat()}]
+    store.DB.put(CTX, phone, d)
+
+
+def recent(phone: str) -> list[dict]:
+    d = store.DB.one(CTX, phone) if phone.isdigit() else None
+    cut = (_now() - timedelta(hours=PENDING_HOURS)).isoformat()
+    return [x for x in (d or {}).get("recent") or [] if x["at"] >= cut]
+
+
 def _pending(c: dict) -> Optional[ParsedMessage]:
     return ParsedMessage(**c["parsed"]) if c.get("state") != "idle" and c.get("parsed") else None
 
@@ -259,6 +278,16 @@ def context(sender: str, known: dict | None, c: dict) -> str | None:
     if role:
         bits.append(f"About the sender: this number belongs to a {role}"
                     + (f" in {known['location']}" if known and known.get("location") else "") + ".")
+    lines = recent(sender)
+    if any(x["who"] == "govi" for x in lines):  # nothing to answer before Govi has said anything
+        bits.append("Recent chat, oldest first; the last Sender line is the message below, and it most likely "
+                    "answers the Govi line before it:\n"
+                    + "\n".join(f"{'Govi' if x['who'] == 'govi' else 'Sender'}: {x['text']}" for x in lines))
+    owed = tracking.awaiting_cost(sender) if sender.isdigit() else []
+    if owed:
+        bits.append("Waiting on this sender: we asked them to reply COST with the rupees they paid to send "
+                    + "; ".join(f"{m.crop} {m.qty_kg:.0f} kg ({dispatch.code(m)})" for m in owed)
+                    + ". A message giving that amount is intent 'cost' with amount_lkr.")
     w = tracking.waiting(sender) if sender.isdigit() else None
     if w:
         bits.append("Waiting on this sender: we asked them to " + ("reply DROPPED once they hand over" if w[0] == "drop"
@@ -489,6 +518,9 @@ def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type:
             n = float(re.match(r"\d+(\.\d+)?", w).group())
             next(i for i in p.items if not i.qty_kg or i.qty_kg <= 0 or i.qty_kg > MAX_KG).qty_kg = n
             return _advance(c, sender, known, p, lang, today, confirm_first)
+        r = tracking.bare_cost(sender, text, lang) if sender.isdigit() else None
+        if r:
+            return Turn(r, state=c["state"])
         if w.isdigit():
             r = surplus.answer(sender, w)
             if r:
@@ -513,6 +545,8 @@ def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type:
         r = tracking.chat_step(sender, text, lang, deals._send)  # Gemini failed: the keyword list stands in
         if r:
             return Turn(r, state=c["state"])
+    if parsed.intent == "cost" and parsed.amount_lkr and sender.isdigit() and tracking.awaiting_cost(sender):
+        return Turn(tracking.record_cost(sender, parsed.amount_lkr, lang), parsed=parsed, state=c["state"])
     if parsed.intent in ("dropped", "received") and sender.isdigit() and not fresh:
         r = (tracking.dropped if parsed.intent == "dropped" else tracking.received)(sender, lang, deals._send)
         if r:
@@ -541,7 +575,7 @@ def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type:
         # A booked load is waiting on this number: an unclear message, or one naming that load's crop
         # with the train or the same kg, is about the handover. Ask, never greet or list it again.
         w = tracking.waiting(sender)
-        if w and (parsed.intent in ("chat", "dropped", "received") or not parsed.items or _about_load(parsed, text, w)):
+        if w and (parsed.intent in ("chat", "dropped", "received", "cost") or not parsed.items or _about_load(parsed, text, w)):
             return Turn(_load_question(w, lang), parsed=parsed, state=c["state"])
     pending = _pending(c)
     if said:  # "I'm a seller" wins over what Gemini or the account guessed

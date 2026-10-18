@@ -41,6 +41,9 @@ Rules:
   new harvest and `items` stays empty. A message saying it arrived or they got it is "received"
   ("kidaichathu", "vanthuchu", "labuna", "கிடைத்தது", "ලැබුණා"). Use "order" only when they clearly
   offer more or different harvest.
+- "Recent chat" shows what Govi last said. A short reply ("2000", "ok", "tomorrow", "ow") answers Govi's
+  last question: read it as that answer, never as a new order. When Govi asked for the COST of sending
+  a load, an amount ("2000", "Rs 1,500 koduthen") is intent "cost" with `amount_lkr`, and `items` empty.
 - With no pending order: "status" for questions about their orders, "chat" for greetings, thanks or
   anything with no crop in it, else "order".
 - Everything the sender sees (summary, question) is in their language only. `unclear` is internal.

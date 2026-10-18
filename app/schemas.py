@@ -10,7 +10,7 @@ Role = Literal["farmer", "buyer", "reporter", "unknown"]
 PriceKind = Literal["collector", "wholesale", "retail"]
 ShipStatus = Literal["planned", "booked", "loaded", "in_transit", "arrived", "delivered", "missed"]
 Lang = Literal["si", "ta", "en"]
-Intent = Literal["order", "edit", "confirm", "cancel", "status", "chat", "dropped", "received"]
+Intent = Literal["order", "edit", "confirm", "cancel", "status", "chat", "dropped", "received", "cost"]
 
 
 class Item(BaseModel):
@@ -29,7 +29,9 @@ class ParsedMessage(BaseModel):
         "offer (yes, ok, go ahead, ow, ஆம்). 'cancel': says no or cancel. 'status': asks about their orders. "
         "'dropped': says a load Govi is waiting on was handed over, sent or put on the train or bus. "
         "'received': says a load Govi is waiting on has arrived or reached them. "
+        "'cost': gives the rupees they paid to send a load Govi asked them to report (amount in amount_lkr). "
         "'chat': greeting, thanks or anything else with no order in it."))
+    amount_lkr: Optional[float] = Field(None, description="For intent 'cost' only: the rupees paid, else null.")
     role: Role = Field(description="'farmer' if offering harvest, 'buyer' if placing an order, 'reporter' if reporting today's market prices.")
     language: Lang = Field(description="Language the sender wrote or spoke in.")
     sender_name: Optional[str] = Field(description="Business or person name if visible, else null.")
