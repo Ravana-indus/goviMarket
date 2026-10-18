@@ -57,6 +57,7 @@ The script enables the APIs, creates Firestore, asks for the Gemini key (hidden 
 - One instance only: the Firestore store keeps a write-through cache in memory.
 - `ALLOW_RESET=1` keeps the demo reset button working. Deploy with `ALLOW_RESET=0` before real users arrive.
 - Real WhatsApp (optional): add `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_VERIFY_TOKEN` and `WHATSAPP_APP_SECRET`, then set the Meta webhook to `https://<cloud-run-url>/webhook/whatsapp` and subscribe to `messages`.
+- Telegram bot (optional): create a bot with @BotFather, then run `TELEGRAM=1 PROJECT_ID=... ./scripts/deploy.sh`. It asks for the bot token with hidden input, stores it as the `TELEGRAM_BOT_TOKEN` secret and points the bot at `/webhook/telegram`. Each chat shares its phone number once with a button, so it is the same account as WhatsApp and the app; text, photos and voice notes run the same YES-to-confirm conversation, and match offers reach the chat too.
 
 ## Data status
 `data/lanes.json` and `data/prices.json` are **placeholders** until the field-checked transport rates and HARTI daily prices are filled in.

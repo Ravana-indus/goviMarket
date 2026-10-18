@@ -5,7 +5,7 @@ import logging
 import os
 import uuid
 
-from . import agent, messages, shipping, store, vocab, whatsapp
+from . import agent, messages, shipping, store, telegram, vocab, whatsapp
 from .lanes import load_lanes
 from .matcher import bundle, impact, match
 from .pricing import split
@@ -50,6 +50,7 @@ def _send(to: str | None, body: str, match_id: str) -> None:
             whatsapp.send_text(to, body)
         except Exception:
             log.exception("whatsapp send failed")
+    telegram.send_to_phone(to, body)
 
 
 def plan(extra_blocked: set[tuple[str, str]] = frozenset()) -> dict:

@@ -40,9 +40,21 @@ NEW_PIN="$(printf '%06d' $(( $(od -An -N4 -tu4 /dev/urandom) % 1000000 )))"
 secret ADMIN_TOKEN "$NEW_TOKEN" && echo "Console token (keep it safe): $NEW_TOKEN" || true
 secret AGENT_PIN "$NEW_PIN" && echo "Market agent PIN: $NEW_PIN" || true
 
+# Telegram bot (optional): TELEGRAM=1 ./scripts/deploy.sh asks for the BotFather token once.
+if [ "${TELEGRAM:-0}" = "1" ] && ! gc secrets describe TELEGRAM_BOT_TOKEN >/dev/null 2>&1; then
+  read -rsp "Telegram bot token from BotFather (input hidden): " KEY; echo
+  [ -n "$KEY" ] || { echo "no token given"; exit 1; }
+  secret TELEGRAM_BOT_TOKEN "$KEY"; unset KEY
+fi
+SECRETS="GEMINI_API_KEY=GEMINI_API_KEY:latest,ADMIN_TOKEN=ADMIN_TOKEN:latest,AGENT_PIN=AGENT_PIN:latest"
+SECRET_NAMES="GEMINI_API_KEY ADMIN_TOKEN AGENT_PIN"
+if gc secrets describe TELEGRAM_BOT_TOKEN >/dev/null 2>&1; then
+  SECRETS="$SECRETS,TELEGRAM_BOT_TOKEN=TELEGRAM_BOT_TOKEN:latest"; SECRET_NAMES="$SECRET_NAMES TELEGRAM_BOT_TOKEN"
+fi
+
 PROJECT_NUMBER="$(gc projects describe "$PROJECT_ID" --format='value(projectNumber)')"
 RUN_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
-for s in GEMINI_API_KEY ADMIN_TOKEN AGENT_PIN; do
+for s in $SECRET_NAMES; do
   gc secrets add-iam-policy-binding "$s" --member="serviceAccount:$RUN_SA" \
     --role=roles/secretmanager.secretAccessor >/dev/null
 done
@@ -75,7 +87,7 @@ echo "== Cloud Run"
 gc run deploy "$SERVICE" --source . --region "$REGION" --allow-unauthenticated \
   --max-instances=1 --min-instances=0 "$CPU_FLAG" --memory=512Mi --timeout=120 \
   --set-env-vars "STORE=firestore,ALLOW_RESET=$ALLOW_RESET,GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.5-flash-lite},GOOGLE_CLOUD_PROJECT=$PROJECT_ID,FIREBASE_PROJECT_ID=$PROJECT_ID,FIREBASE_API_KEY=$FIREBASE_API_KEY,ADMIN_PHONES=${ADMIN_PHONES//,/;}" \
-  --set-secrets "GEMINI_API_KEY=GEMINI_API_KEY:latest,ADMIN_TOKEN=ADMIN_TOKEN:latest,AGENT_PIN=AGENT_PIN:latest"
+  --set-secrets "$SECRETS"
 URL="$(gc run services describe "$SERVICE" --region "$REGION" --format='value(status.url)')"
 
 if [ -n "$FIREBASE_API_KEY" ]; then
@@ -96,6 +108,12 @@ JOB=(--location "$REGION" --schedule "0 6 * * *" --time-zone "Asia/Colombo" --ur
      --http-method POST)
 gc scheduler jobs update http govi-daily "${JOB[@]}" --update-headers "X-Admin-Token=$TOKEN" >/dev/null 2>&1 \
   || gc scheduler jobs create http govi-daily "${JOB[@]}" --headers "X-Admin-Token=$TOKEN" >/dev/null
+if [[ "$SECRETS" == *TELEGRAM_BOT_TOKEN* ]]; then
+  echo "== Telegram webhook"
+  curl -fsS -X POST -H "X-Admin-Token: $TOKEN" "$URL/admin/telegram/setup?url=$URL" \
+    || echo "Telegram setup failed: check the token with  gcloud secrets versions access latest --secret=TELEGRAM_BOT_TOKEN"
+  echo
+fi
 unset TOKEN
 
 echo "== Done: $URL"
