@@ -55,7 +55,7 @@ function renderPlan(plan) {
     const canMiss = x.status === "booked" || x.status === "loaded";
     const backup = "backup" in x ? (x.backup ? `<span class="chip" title="if this departure is missed">backup: ${esc(x.backup)}</span>`
       : `<span class="chip warn" title="no later transport arrives in time; a miss means other farmers or a wholesale backup buy">no later transport</span>`) : "";
-    const miss = canMiss ? `<button class="btn small miss" data-miss="${x.id}" title="Demo: the load did not make this departure">Missed ✕</button>` : "";
+    const miss = canMiss ? `<button class="btn small miss" data-miss="${x.id}" title="The load did not make this departure">Missed ✕</button>` : "";
     const action = x.status === "missed" ? `<span class="chip warn">missed · ${esc(x.rescue.action || "")}</span>`
       : x.status === "delivered" ? `<span class="chip farmer">delivered</span>`
       : x.status === "planned" && waiting.length
@@ -65,7 +65,7 @@ function renderPlan(plan) {
       <div class="row"><span class="mode">${MODE[x.lane.mode] || x.lane.mode}</span>
         <span>${esc(x.origin)} → ${esc(x.dest)} · ${fmtDate(x.ship_on)} ${x.lane.departs}</span>
         <span class="chip">${kg(x.total_kg)} · ${x.farmers.length} farmer${x.farmers.length > 1 ? "s" : ""} → ${x.buyers.length} buyer${x.buyers.length > 1 ? "s" : ""}</span>
-        ${x.ref ? `<span class="chip" title="carrier booking reference (demo)">${esc(x.ref)}</span>` : ""}
+        ${x.ref ? `<span class="chip" title="carrier booking reference">${esc(x.ref)}</span>` : ""}
         ${backup}<span style="margin-left:auto;display:flex;gap:6px">${miss}${action}</span></div>
       ${x.status === "missed" ? `<div class="rescue"><b>Missed the ${esc(x.rescue.missed)}.</b> ${esc(x.rescue.summary)}</div>` : ""}
       <ol class="steps">${steps}</ol>
@@ -94,7 +94,7 @@ function renderPlan(plan) {
       <td>${esc(m.crop)}</td><td class="num">${kg(m.qty_kg)}</td>
       <td class="num">${rs(m.farmer_gets_lkr_per_kg)}<div class="delta up">+${rs(up)} vs collector</div></td>
       <td class="num">${rs(m.buyer_pays_lkr_per_kg)}<div class="delta muted">−${rs(down)} vs retail</div></td></tr>`;
-  }).join("") : empty(5, "No matches yet. Load the demo morning or send messages, then run matching.");
+  }).join("") : empty(5, "No matches yet. Send messages, then run matching.");
   $("surplus").innerHTML = plan.surplus.length
     ? plan.surplus.map((l) => {
       const o = l.offer;
@@ -162,7 +162,7 @@ function spark(r) {
 async function loadForecast() {
   const f = await api("/api/forecast");
   $("fc-summary").textContent = f.summary;
-  $("fc-note").textContent = f.crops.some((c) => c.source === "synthetic") ? "next 7 days · demo price history" : "next 7 days";
+  $("fc-note").textContent = f.crops.some((c) => c.source === "synthetic") ? "next 7 days · sample price history" : "next 7 days";
   $("forecast").innerHTML = f.crops.map((r) => {
     const tot = r.supply_kg + r.demand_kg || 1;
     return `<tr><td style="text-transform:capitalize">${esc(r.crop)}<div><span class="chip ${r.signal === "rising" ? "warn" : r.signal === "falling" ? "farmer" : ""}">${r.signal} ${r.change_pct > 0 ? "+" : ""}${r.change_pct}%</span></div></td>
@@ -196,7 +196,7 @@ function renderSwaps(swaps) {
     const [cls, label] = SWAP_STATE[s.status] || ["", s.status];
     const people = s.parties.map((p) => p.ok || s.status !== "proposed"
       ? `<span class="chip ${p.ok ? "farmer" : ""}">${p.ok ? "✓" : "·"} ${esc(p.name)}</span>`
-      : `<button class="btn small" data-swap="${s.id}" data-phone="${esc(p.phone)}" title="Demo: ${esc(p.name)} replies YES on WhatsApp">YES as ${esc(p.name)}</button>`).join(" ");
+      : `<button class="btn small" data-swap="${s.id}" data-phone="${esc(p.phone)}" title="${esc(p.name)} replies YES on WhatsApp">YES as ${esc(p.name)}</button>`).join(" ");
     return `<div class="ship">
       <div class="row"><b>${kg(s.kg)} ${esc(s.crop)}</b><span class="chip ${cls}">${label}</span>
         <span class="up">${esc(s.why)}</span>${s.farmer_gain_lkr_per_kg > 0 ? `<span class="chip farmer">farmer +Rs ${s.farmer_gain_lkr_per_kg}/kg</span>` : ""}</div>
@@ -297,7 +297,11 @@ $("clear").onclick = (e) => {
   if (!confirm("Delete every listing, order, deal, shipment and chat? Accounts stay.")) return;
   busy(e.currentTarget, async () => { await api("/demo/clear", { method: "POST" }); await refresh(); });
 };
-$("seed").onclick = (e) => busy(e.currentTarget, async () => { await api("/demo/seed", { method: "POST" }); await refresh(); await loadForecast(); });
+// Sample data loader stays off screen: /admin?demo=1 shows the button for this tab, Shift+Alt+D loads it directly.
+const seed = (btn) => busy(btn, async () => { await api("/demo/seed", { method: "POST" }); await refresh(); await loadForecast(); });
+$("seed").onclick = (e) => seed(e.currentTarget);
+try { if (new URLSearchParams(location.search).has("demo")) sessionStorage.setItem("show_seed", "1"); $("seed").hidden = !sessionStorage.getItem("show_seed"); } catch {}
+document.addEventListener("keydown", (e) => { if (e.shiftKey && e.altKey && e.code === "KeyD") { e.preventDefault(); seed($("seed")); } });
 $("sim-send").onclick = (e) => busy(e.target, async () => {
   const fd = new FormData();
   const text = $("sim-text").value.trim(), file = $("sim-file").files[0];
@@ -313,10 +317,10 @@ $("sim-send").onclick = (e) => busy(e.target, async () => {
 
 api("/api/health").then((h) => {
   $("logout").hidden = !h.admin_locked;
-  $("mode").textContent = h.gemini ? "Gemini live" : "Demo mode · no Gemini key";
+  $("mode").textContent = h.gemini ? "Gemini live" : "Keyword parser · no Gemini key";
   $("mode").className = "badge" + (h.gemini ? " live" : "");
-  $("sent-note").textContent = h.gemini ? "written by the Gemini agent" : "templates (demo mode)";
-  $("inbox-note").textContent = h.gemini ? "what Gemini understood" : "keyword parser (demo mode)";
+  $("sent-note").textContent = h.gemini ? "written by the Gemini agent" : "templates (no Gemini key)";
+  $("inbox-note").textContent = h.gemini ? "what Gemini understood" : "keyword parser (no Gemini key)";
 });
 refresh();
 loadForecast();

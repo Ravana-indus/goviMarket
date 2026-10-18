@@ -10,9 +10,9 @@
   const T = {
     en: { title: "Sign in with your mobile number", sub: "We'll send you a 6-digit code. New to Govi? This creates your account.",
       phone: "Mobile number", send: "Send code", code_h: "Enter the code", code_sub: "We sent a 6-digit code to {p}.", code_sim: "This site cannot send SMS yet. Govi staff can read your code from the console.",
-      code_wa: "Check WhatsApp for the code.", code_demo: "Demo account: the code is {c}.", verify: "Verify", change: "Change number", resend: "Send a new code",
+      code_wa: "Check WhatsApp for the code.", code_demo: "Test account: the code is {c}.", verify: "Verify", change: "Change number", resend: "Send a new code",
       prof_h: "Welcome to Govi", prof_sub: "Tell us who you are. You only do this once.", name: "Your name", role: "I am a", farmer: "Farmer", buyer: "Buyer", agent: "Market agent",
-      business: "Business name", pin: "Agent PIN (from Govi)", save: "Save", demo: "Or try a demo account", bad_phone: "Enter a valid mobile number.", bad_code: "Enter the 6-digit code.",
+      business: "Business name", pin: "Agent PIN (from Govi)", save: "Save", demo: "Or try a test account", bad_phone: "Enter a valid mobile number.", bad_code: "Enter the 6-digit code.",
       need_name: "Please enter your name.", err: "Something went wrong. Please try again.", close: "Close",
       fb_invalid: "That number does not look right.", fb_many: "Too many tries. Please wait a little and try again.", fb_code: "That code is not right.", fb_expired: "That code has expired. Ask for a new one.", fb_setup: "Phone sign-in is not switched on for this site yet.", fb_net: "We could not reach the SMS service. Check your connection and try again." },
     si: { title: "ජංගම දුරකථන අංකයෙන් පිවිසෙන්න", sub: "අපි ඔබට ඉලක්කම් 6ක කේතයක් එවන්නෙමු. Govi වලට අලුත් නම්, මෙයින් ඔබේ ගිණුම සෑදේ.",

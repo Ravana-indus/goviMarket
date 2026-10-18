@@ -6,7 +6,7 @@ const CHECK = 0.35; // same threshold as the server
 const T = {
   en: {
     agent: "Market agent", pin: "Agent PIN", bad_pin: "That PIN is not right. Ask Govi for the agent PIN.", si_title: "Today's market prices", si_sub: "Tell us who you are and which market you cover. You only do this once.",
-    name: "Your name", phone: "WhatsApp number", market: "Market", start: "Start", demo: "Use demo agent (Dambulla)", switch: "change",
+    name: "Your name", phone: "WhatsApp number", market: "Market", start: "Start", demo: "Try it as the Dambulla agent", switch: "change",
     k_collector: "Farm gate", k_collector_s: "collector pays", k_wholesale: "Wholesale", k_wholesale_s: "economic centre", k_retail: "Retail", k_retail_s: "shop price",
     tap: "Tap to enter", board: "Board", last: "you sent", skip: "Skip", next: "Next ›", done_btn: "Done",
     send: (n) => `Send ${n} price${n === 1 ? "" : "s"}`, nothing: "Tap a crop to enter its price",

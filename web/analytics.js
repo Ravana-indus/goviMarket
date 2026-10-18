@@ -31,7 +31,7 @@
     const all = plan.matches;
     const farm = all.filter((m) => m.listing_id !== "backup");
     const ships = plan.shipments || [];
-    const empty = `<div class="empty">Load the demo morning or run matching to see analytics.</div>`;
+    const empty = `<div class="empty">Run matching to see analytics.</div>`;
     if (!farm.length) {
       ["a-farmer", "a-split", "a-routes", "a-funnel"].forEach((id) => ($(id).innerHTML = empty));
       $("a-hero").innerHTML = ""; $("a-top").innerHTML = ""; return;
