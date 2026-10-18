@@ -39,6 +39,7 @@ T = {
 }
 COMMANDS = [{"command": "start", "description": "Start / ආරම්භය / தொடங்கு"},
             {"command": "status", "description": "My orders / මගේ ඇණවුම් / என் ஆர்டர்கள்"},
+            {"command": "edit", "description": "Change my last order / වෙනස් කරන්න / மாற்று"},
             {"command": "language", "description": "Change language / භාෂාව / மொழி"},
             {"command": "restart", "description": "Register again / නැවත ලියාපදිංචිය / மீண்டும் பதிவு"},
             {"command": "help", "description": "How to use Govi / උදව් / உதவி"}]
@@ -117,7 +118,7 @@ def _answer_step(chat: str, phone: str, step: str, msg: telegram.Inbound, handle
             telegram.send_text(chat, convo.t("lang_set", pick), keyboard=menu(pick))
             return
     elif step == "role":
-        role = ROLE_WORDS.get(text) or ROLE_WORDS.get(text.lower())
+        role = ROLE_WORDS.get(text) or ROLE_WORDS.get(text.lower()) or vocab.role_said(text)
         if not role:
             return _reask(chat, phone, step, msg, lang)
         store.DB.put("users", phone, {**u, "role": role})
@@ -205,8 +206,8 @@ def process(msg: telegram.Inbound, handle) -> None:
         if not cmd:
             _hold(chat, msg)
         return _start_or_resume(chat, phone, handle)
-    if cmd in ("/status", "m_status"):
-        return _order(chat, phone, telegram.Inbound(chat, "STATUS"), handle)
+    if cmd in ("/status", "m_status", "/edit"):
+        return _order(chat, phone, telegram.Inbound(chat, "EDIT" if cmd == "/edit" else "STATUS"), handle)
     if cmd:  # /start, /help and anything unknown
         telegram.send_text(chat, convo.t("hello", lang), keyboard=menu(lang))
         return

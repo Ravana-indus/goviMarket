@@ -120,6 +120,13 @@ def link(phone: str, *, name: str | None, role: str | None, via: str) -> dict | 
     return u
 
 
+def set_role(phone: str, role: str, via: str = "chat") -> None:
+    """The sender said which side they are on: it becomes the default for their next orders."""
+    u = user(phone) or link(phone, name=None, role=None, via=via)
+    if u and role in ("farmer", "buyer") and u.get("role") != role:
+        store.DB.put("users", phone, {**u, "role": role})
+
+
 def chosen_lang(phone: str | None) -> str | None:
     """The language this person picked (app header, settings, signup or a LANGUAGE message).
     Every reply and message to them is in it, whatever language they write or speak in."""
