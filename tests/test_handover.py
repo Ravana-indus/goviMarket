@@ -1,5 +1,5 @@
 """After the dispatch slip: the seller says DROPPED (or YES), the buyer says RECEIVED, the shipment moves."""
-from app import convo, dispatch, store
+from app import convo, demo_parser, dispatch, store
 from tests.test_conversations import P, TOMORROW, g  # noqa: F401
 from tests.test_dispatch import _deal
 
@@ -8,11 +8,11 @@ def test_free_text_drop_then_received(g):
     f, b, m = _deal(g, farmer="94771500001", buyer="94771500002")
     slip = next(x for x in f.inbox() if "Dispatch slip" in x)
     assert "reply DROPPED" in slip
-    r = f.say("both shippment droped in train")
+    r = f.say("both shippment droped in train", P(role="farmer", intent="dropped"))
     assert "handed over" in r and dispatch.code(m) in r and "COST" in r
     assert any("has handed over your" in x for x in b.inbox())
     assert next(x for x in store.shipments() if m.id in x.match_ids).status == "loaded"
-    r = b.say("RECEIVED")
+    r = b.say("RECEIVED")  # the button word: answered without asking Gemini
     assert "marked received" in r
     assert any("received your" in x for x in f.inbox())
     assert next(x for x in store.shipments() if m.id in x.match_ids).status == "delivered"
@@ -49,9 +49,15 @@ def _seller(g, n):
     return f, b, m
 
 
-def test_tanglish_handover_is_understood_without_gemini(g):
+def _gemini_down(text):
+    p = P(role="unknown", intent="chat")
+    p.unclear = [demo_parser.FALLBACK]
+    return p
+
+
+def test_tanglish_handover_is_understood_when_gemini_fails(g):
     f, b, m = _seller(g, 1)
-    r = f.say("koduthuten train ku")
+    r = f.say("koduthuten train ku", _gemini_down("koduthuten train ku"))
     assert "handed over" in r and dispatch.code(m) in r and "Hello" not in r
     assert any("has handed over your" in x for x in b.inbox())
 
@@ -59,7 +65,7 @@ def test_tanglish_handover_is_understood_without_gemini(g):
 def test_tamil_crop_and_kg_with_tanglish_handover_is_not_a_new_listing(g):
     f, b, m = _seller(g, 2)
     before = len(f.listings())
-    r = f.say("கேரட் 100 கிலோவை koduthuten train ku")
+    r = f.say("கேரட் 100 கிலோவை koduthuten train ku", P(role="farmer", lang="ta", intent="dropped"))
     assert "ஒப்படைக்கப்பட்டது" in r and len(f.listings()) == before and f.state == "idle"
 
 
@@ -99,7 +105,7 @@ def test_other_crop_is_a_normal_new_harvest(g):
 def test_buyer_tanglish_received(g):
     f, b, m = _seller(g, 8)
     f.say("dropped")
-    r = b.say("vanthuchu")
+    r = b.say("vanthuchu", P(intent="received"))
     assert "marked received" in r
 
 
@@ -108,3 +114,15 @@ def test_buyer_same_weekly_order_is_not_held_by_a_load_in_transit(g):
     f.say("dropped")
     r = b.say("need carrot 100kg", P(items={"carrot": 100}, loc="Colombo", when=TOMORROW))
     assert "Please check your order" in r
+
+
+def test_not_yet_dropped_is_not_a_handover(g):
+    f, b, m = _seller(g, 10)
+    r = f.say("I have not dropped it yet, train is late", P(role="farmer", intent="chat"))
+    assert "Have you handed over" in r and not any("has handed over your" in x for x in b.inbox())
+
+
+def test_keywords_alone_when_there_is_no_gemini_key(g, monkeypatch):
+    f, b, m = _seller(g, 11)
+    monkeypatch.setattr(convo, "_gemini", lambda: False)
+    assert "handed over" in f.say("koduthuten train ku")

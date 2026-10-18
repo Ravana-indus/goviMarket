@@ -462,7 +462,8 @@ def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type:
         w = vocab.norm(text)
         if sender.isdigit():  # TRACK [code] and COST [code] 1200 (a seller's shipping cost)
             r = tracking.chat_track(sender, text, lang) or tracking.chat_cost(sender, text, lang) \
-                or (None if w in vocab.YES or fresh else tracking.chat_step(sender, text, lang, deals._send))
+                or (None if w in vocab.YES or fresh or (_gemini() and not tracking.STEP_WORD.fullmatch(w))
+                    else tracking.chat_step(sender, text, lang, deals._send))  # free text goes to Gemini
             if r:
                 return Turn(r, state=c["state"])
             if w in billing.WORDS:
@@ -508,6 +509,10 @@ def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type:
             (media or (parsed.items and c["state"] == "idle")):
         lang = parsed.language  # a voice note or a new Singlish order: Gemini heard the language
 
+    if demo_parser.FALLBACK in parsed.unclear and text and not media and sender.isdigit() and not fresh:
+        r = tracking.chat_step(sender, text, lang, deals._send)  # Gemini failed: the keyword list stands in
+        if r:
+            return Turn(r, state=c["state"])
     if parsed.intent in ("dropped", "received") and sender.isdigit() and not fresh:
         r = (tracking.dropped if parsed.intent == "dropped" else tracking.received)(sender, lang, deals._send)
         if r:

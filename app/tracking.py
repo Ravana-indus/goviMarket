@@ -293,6 +293,9 @@ DROP_RE = re.compile(r"\b(drop+ed|drop+ed off|dropped it|handed( it)? over|hande
 RECV_RE = re.compile(r"\b(received|recieved|got it|got the|arrived|it came|delivered)\b"
                      r"|\bkidai?ch+(?:athu|uthu|udhu|iduchu|idichu|ithu)\b|\bvan+[dt]?h?(?:uchu|iruchu|iduchu)\b|\blab+una+\b"
                      r"|ලැබුණා|ලැබුනා|கிடைத்தது|கிடைச்சுது|பெற்றேன்|வந்தது|வந்துச்சு|வந்துவிட்டது", re.I)
+# The bare button or command words: answered at once. Any other wording is read by Gemini with the
+# waiting loads as context ("I have NOT dropped it yet" must not count); the lists above are its fallback.
+STEP_WORD = re.compile(r"\W*(drop+ed|received|recieved|delivered)\W*", re.I)
 # Words that tie a message to a booked load rather than to new harvest: the train, bus, station, parcel office.
 HAUL_RE = re.compile(r"\b(train|trian|bus|station|parcel|lorry|post office|rail|coach)\b|ரயில்|பேருந்து|பஸ்|நிலைய"
                      r"|දුම්රිය|කෝච්චි|බස්|ස්ටේෂන්|පාර්සල්", re.I)
