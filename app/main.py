@@ -22,7 +22,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from . import accounts, ai, billing, convo, deals, dispatch, parser, portal, replies, reporters, reroute, rescue, security, shipping, store, surplus, telegram, tracking, vocab, whatsapp
+from . import accounts, ai, billing, convo, deals, dispatch, parser, portal, replies, reporters, reroute, rescue, security, shipping, store, surplus, telegram, tgbot, tracking, vocab, whatsapp
 from .pricing import split
 from .schemas import Listing
 
@@ -341,47 +341,6 @@ async def whatsapp_inbound(request: Request, background: BackgroundTasks):
     return {"ok": True}
 
 
-def _process_telegram(msg: telegram.Inbound) -> None:
-    if msg.id:  # Telegram re-sends an update it thinks we missed
-        if store.DB.one("seen", f"tg{msg.id}"):
-            return
-        store.DB.put("seen", f"tg{msg.id}", {"at": datetime.now(timezone.utc).isoformat()})
-    chat = msg.chat_id
-    send = lambda body: telegram.send_text(chat, body)  # noqa: E731
-    phone = telegram.phone_for(chat)
-    if msg.contact:
-        telegram.link(chat, msg.contact)
-        send(telegram.WELCOME.format(phone=msg.contact))
-        held = (store.DB.one("telegram_pending", chat) or {})
-        if not held.get("text") and not held.get("file_id"):
-            return
-        store.DB.delete("telegram_pending", chat)
-        phone, msg = msg.contact, telegram.Inbound(chat, held.get("text"), held.get("file_id"), held.get("mime_type"))
-    elif not phone:
-        if (msg.text or msg.file_id) and not (msg.text or "").startswith("/"):
-            store.DB.put("telegram_pending", chat, {"text": msg.text, "file_id": msg.file_id, "mime_type": msg.mime_type})
-        telegram.send_text(chat, telegram.ASK_PHONE, ask_phone=True)
-        return
-    elif (msg.text or "").startswith("/"):  # /start, /help
-        send(telegram.WELCOME.format(phone=phone))
-        return
-    if not msg.text and not msg.file_id:
-        send("Send a message, a photo or a voice note.")
-        return
-    try:
-        media = telegram.fetch_media(msg.file_id) if msg.file_id else None
-        handle(text=(msg.text or "").strip()[:MAX_TEXT] or None, media=media, mime_type=msg.mime_type,
-               sender=phone, today=date.today(), via="telegram", deliver=send)
-    except Exception:
-        log.exception("telegram message failed")
-        try:
-            lang = convo.load(phone).get("lang") or "en"
-            send(convo.t("unread_audio" if (msg.mime_type or "").startswith("audio") else "unread_image", lang)
-                 if msg.file_id else "Sorry, we could not read that. Please try again.")
-        except Exception:
-            log.exception("telegram apology failed")
-
-
 @app.post("/webhook/telegram")
 def telegram_inbound(update: dict, request: Request):
     """Runs before it answers: Telegram waits for the reply, so this works with request-based CPU."""
@@ -389,7 +348,7 @@ def telegram_inbound(update: dict, request: Request):
         raise HTTPException(403)
     msg = telegram.unpack(update)
     if msg:
-        _process_telegram(msg)
+        tgbot.process(msg, handle)
     return {"ok": True}
 
 
@@ -400,7 +359,7 @@ def telegram_setup(request: Request, url: Optional[str] = None):
         raise HTTPException(400, "TELEGRAM_BOT_TOKEN is not set on this service.")
     url = url or f"https://{request.headers.get('host')}"
     try:
-        telegram.set_webhook(url.rstrip("/") + "/webhook/telegram")
+        telegram.set_webhook(url.rstrip("/") + "/webhook/telegram", tgbot.COMMANDS)
         me = telegram._call("getMe")
     except Exception:
         log.exception("telegram setup failed")
