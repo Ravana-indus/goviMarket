@@ -3,12 +3,16 @@ from __future__ import annotations
 
 import os
 import uuid
+from contextvars import ContextVar
 from datetime import date, datetime, timezone
 from typing import Protocol
 
 from .pricing import load_prices
 from .schemas import Listing, Match, Order, ParsedMessage, Shipment
 
+
+# True while the console loads the sample morning, so its canned messages are marked as such.
+SEEDING: ContextVar[bool] = ContextVar("seeding", default=False)
 
 class Backend(Protocol):
     def put(self, kind: str, key: str, doc: dict) -> None: ...
@@ -155,7 +159,8 @@ def record(parsed: ParsedMessage, *, default_date: date, sender: str = "",
             continue
         ids.append(rid)
     DB.put("inbox", uuid.uuid4().hex[:8], {"at": now, "sender": sender,
-                                           "parsed": parsed.model_dump(mode="json"), "created": ids})
+                                           "parsed": parsed.model_dump(mode="json"), "created": ids,
+                                           **({"seeded": True} if SEEDING.get() else {})})
     return ids
 
 

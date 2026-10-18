@@ -701,8 +701,12 @@ def demo_seed():
     except RuntimeError as e:
         raise HTTPException(400, str(e))
     try:
-        with ai.offline():  # canned messages: built-in parser and templates, no Gemini quota spent
-            return _seed()
+        seeding = store.SEEDING.set(True)
+        try:
+            with ai.offline():  # canned messages: built-in parser and templates, no Gemini quota spent
+                return _seed()
+        finally:
+            store.SEEDING.reset(seeding)
     except Exception as e:
         log.exception("demo seed failed")
         raise HTTPException(500, f"Demo load failed: {type(e).__name__}: {e}"[:300])

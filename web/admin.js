@@ -3,6 +3,7 @@ const rs = (n) => "Rs " + Math.round(n).toLocaleString("en-LK");
 const kg = (n) => Math.round(n).toLocaleString("en-LK") + " kg";
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const MODE = { night_bus: "🚌 Night bus", train_parcel: "🚆 Train parcel", sl_post: "📮 SL Post", lorry: "🚚 Shared lorry" };
+const FALLBACK = "read by the keyword parser"; // app/demo_parser.FALLBACK
 const STEPS = ["planned", "booked", "loaded", "in_transit", "arrived", "delivered"];
 const STEP_NAME = { planned: "Planned", booked: "Booked", loaded: "Loaded", in_transit: "In transit", arrived: "Arrived", delivered: "Delivered" };
 const hm = (iso) => new Date(iso).toLocaleString("en-GB", { weekday: "short", hour: "2-digit", minute: "2-digit" });
@@ -130,7 +131,10 @@ function renderState(s, plan) {
   $("inbox").innerHTML = s.inbox.length ? [...s.inbox].reverse().map((m) => {
     const p = m.parsed;
     const items = p.items.map((it) => `<span class="chip">${esc(it.crop)} ${it.price_lkr_per_kg ? "Rs " + it.price_lkr_per_kg + " " + (it.price_kind || "") : kg(it.qty_kg)}</span>`).join("");
-    const unclear = p.unclear.map((u) => `<span class="chip warn">? ${esc(u)}</span>`).join("");
+    // How a live message was read: Gemini, or the keyword fallback. Sample-morning rows carry no parser tag.
+    const fallback = p.unclear.includes(FALLBACK);
+    const how = m.seeded ? "" : fallback ? `<span class="chip warn" title="Gemini was unavailable; read by keywords">keyword fallback</span>` : `<span class="chip farmer">✦ Gemini</span>`;
+    const unclear = how + p.unclear.filter((u) => u !== FALLBACK).map((u) => `<span class="chip warn">? ${esc(u)}</span>`).join("");
     return `<div class="msg">
       <div class="meta"><span class="chip ${p.role}">${p.role}</span><span>${esc(p.sender_name || m.sender)}</span>
         ${p.location ? `<span>· ${esc(p.location)}</span>` : ""}<span>· ${p.language}</span>
