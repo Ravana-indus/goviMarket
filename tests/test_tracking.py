@@ -33,11 +33,15 @@ def test_seller_cost_updates_the_lane_rate(g, clean_costs):
     f, b, m = _deal(g, farmer="94771300003", buyer="94771300004")
     lane = next(l for l in load_lanes() if tracking._key(l) == tracking._key(m.lane))
     before = lane.lkr_per_kg
-    r = f.say("COST 1,500")
-    per = round(1500 / m.qty_kg, 2)
-    assert "Recorded Rs 1,500" in r and f"Rs {per:g}/kg" in r
-    assert lane.lkr_per_kg == per and lane.source.startswith("REPORTED") and per != before
-    assert next(x for x in store.matches() if x.id == m.id).shipping_paid_lkr == 1500
+    paid = 1500 + lane.handling_lkr + lane.min_charge_lkr  # above the minimum, so it says something per kg
+    r = f.say(f"COST {paid:,.0f}")
+    per = round(paid / m.qty_kg, 2)
+    assert f"Recorded Rs {paid:,.0f}" in r and f"({per:.1f}/kg)" in r
+    # The lane takes the freight part only (handling off), held within half to double the estimate.
+    want = tracking.freight_rate(lane, paid, m.qty_kg)
+    assert lane.lkr_per_kg == want and lane.source.startswith("REPORTED") and want != before
+    assert before * 0.5 <= want <= before * 2
+    assert next(x for x in store.matches() if x.id == m.id).shipping_paid_lkr == paid
     assert "no agreed shipment" in b.say("COST 900")  # buyers do not report the seller's cost
     assert "amount in rupees" in f.say("cost")
     store.DB.data[tracking.KIND].clear()

@@ -107,7 +107,7 @@ def advance(sid: str, send) -> Shipment:
     if x.status in ("delivered", "missed"):
         return x
     if x.status == "planned":
-        waiting = [m for m in store.matches() if m.id in x.match_ids and m.status != "confirmed"]
+        waiting = [m for m in store.matches() if m.id in x.match_ids and m.status == "proposed"]
         if waiting:
             names = ", ".join(sorted({f"{m.farmer}/{m.buyer}" for m in waiting}))
             raise ValueError(f"waiting for YES from {names}")

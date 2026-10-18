@@ -129,6 +129,19 @@ def _key(lane: Lane) -> str:
     return "|".join([_norm(lane.origin), _norm(lane.dest), lane.mode, lane.departs])
 
 
+def freight_rate(lane: Lane, lkr: float, kg: float) -> float | None:
+    """The Rs/kg freight a seller's COST implies, for the lane's rate. What the seller paid covers
+    the freight and the loading at their end (handling), never the city pickup, so handling comes
+    off first. A load on the minimum charge says nothing about the per-kg rate (None). One report
+    can move the rate at most to half or double what Govi has now, so a typo cannot close a route."""
+    freight = lkr - lane.handling_lkr
+    if freight <= lane.min_charge_lkr:
+        return None
+    agent, _ = _since_agent(_rows().get(_key(lane), []))  # an agent's number, else the estimate
+    base = agent["per_kg"] if agent else _BASE.get(_key(lane), {}).get("lkr_per_kg", lane.lkr_per_kg)
+    return round(min(max(freight / kg, base * 0.5), base * 2), 2)
+
+
 def report(m: Match, lkr: float, *, phone: str = "") -> tuple[Match, Lane]:
     """Store what the seller paid to send this deal's load and refresh that lane's rate."""
     if not m.lane or not (0 < lkr <= MAX_LKR) or m.qty_kg <= 0:
@@ -136,9 +149,11 @@ def report(m: Match, lkr: float, *, phone: str = "") -> tuple[Match, Lane]:
     now = datetime.now(timezone.utc).isoformat()
     m.shipping_paid_lkr, m.shipping_reported_at = lkr, now
     store.put_match(m)
+    lane = next((l for l in load_lanes() if _key(l) == _key(m.lane)), m.lane)
     store.DB.put(KIND, uuid.uuid4().hex[:10], {"lane": _key(m.lane), "origin": m.lane.origin, "dest": m.lane.dest,
                                                "mode": m.lane.mode, "departs": m.lane.departs, "kg": m.qty_kg,
-                                               "lkr": lkr, "per_kg": round(lkr / m.qty_kg, 2), "match_id": m.id,
+                                               "lkr": lkr, "per_kg": freight_rate(lane, lkr, m.qty_kg),
+                                               "paid_per_kg": round(lkr / m.qty_kg, 2), "match_id": m.id,
                                                "code": dispatch.code(m), "phone": phone, "at": now})
     apply()
     lane = next((l for l in load_lanes() if _key(l) == _key(m.lane)), m.lane)
@@ -172,7 +187,7 @@ def apply() -> None:
         base = _BASE.setdefault(k, {"lkr_per_kg": lane.lkr_per_kg, "source": lane.source,
                                     **{f: getattr(lane, f) for f in FIXED}})
         agent, after = _since_agent(by_lane.get(k, []))
-        rates = ([agent["per_kg"]] if agent else []) + [r["per_kg"] for r in after]
+        rates = ([agent["per_kg"]] if agent else []) + [r["per_kg"] for r in after if r.get("per_kg") is not None]
         rates = rates[-RECENT:]
         lane.lkr_per_kg = round(statistics.median(rates), 2) if rates else base["lkr_per_kg"]
         for f in FIXED:

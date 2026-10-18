@@ -8,6 +8,7 @@ import threading
 import uuid
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from . import accounts, agent, messages, shipping, store, telegram, vocab, whatsapp
 from .lanes import _norm, load_lanes
@@ -16,6 +17,7 @@ from .pricing import split
 
 log = logging.getLogger("govi")
 LANES = load_lanes()
+SL_TZ = ZoneInfo("Asia/Colombo")
 YES = vocab.YES
 NO = vocab.NO
 SAY = {  # Sinhala and Tamil need a native speaker's read before the demo video.
@@ -32,6 +34,15 @@ SAY = {  # Sinhala and Tamil need a native speaker's read before the demo video.
     "off": {"en": "The offer for {kg} kg {crop} is off: the other side withdrew. We will look for another match.",
             "si": "{crop} කිලෝ {kg} සඳහා වූ ගැළපීම අවලංගුයි: අනෙක් පාර්ශවය ඉවත් විය. වෙනත් ගැළපීමක් සොයනවා.",
             "ta": "{crop} {kg} கிலோ பொருத்தம் ரத்து: மறுதரப்பு விலகியது. வேறு பொருத்தம் தேடுவோம்."},
+    "expired": {"en": "That offer ({kg} kg {crop}) has expired. We will look for another match.",
+                "si": "එම ගැළපීම ({crop} කිලෝ {kg}) කල් ඉකුත් විය. වෙනත් ගැළපීමක් සොයනවා.",
+                "ta": "அந்த பொருத்தம் ({crop} {kg} கிலோ) காலாவதியானது. வேறு பொருத்தம் தேடுவோம்."},
+    "too_much": {"en": "The offer is for {kg} kg {crop}. Reply YES, or YES and a smaller amount.",
+                 "si": "ගැළපීම {crop} කිලෝ {kg} සඳහායි. YES, හෝ YES සහ අඩු ප්‍රමාණයක් එවන්න.",
+                 "ta": "பொருத்தம் {crop} {kg} கிலோவுக்கு. YES, அல்லது YES உடன் குறைந்த அளவு அனுப்பவும்."},
+    "too_small": {"en": "{part} kg {crop} is too small to send on its own: transport would cost more than the collector pays. Reply YES for all {kg} kg or NO.",
+                  "si": "{crop} කිලෝ {part} තනිව යැවීමට ඉතා අඩුයි: ප්‍රවාහන වියදම එකතු කරන්නාගේ මිලට වඩා වැඩියි. කිලෝ {kg} ම සඳහා YES හෝ NO එවන්න.",
+                  "ta": "{crop} {part} கிலோ தனியாக அனுப்ப மிகக் குறைவு: போக்குவரத்து செலவு சேகரிப்பாளர் விலையை விட அதிகம். {kg} கிலோ முழுவதற்கும் YES அல்லது NO அனுப்பவும்."},
     "many": {"en": "Reply YES to accept all {n}, NO to decline all, or e.g. YES 1 or NO 2 to pick.",
              "si": "සියල්ල ({n}) පිළිගැනීමට YES, ප්‍රතික්ෂේප කිරීමට NO, හෝ තෝරාගැනීමට YES 1 / NO 2 ලෙස පිළිතුරු දෙන්න.",
              "ta": "அனைத்தையும் ({n}) ஏற்க YES, நிராகரிக்க NO, அல்லது தெரிவுசெய்ய YES 1 / NO 2 என பதில் அனுப்பவும்."},
@@ -58,13 +69,15 @@ def _send(to: str | None, body: str, match_id: str, buttons: list | None = None)
     telegram.send_to_phone(to, body, keyboard=buttons)
 
 
-_plan_lock = threading.Lock()
+_plan_lock = threading.RLock()  # re-entrant: a rescue inside plan() re-plans on the same thread
 
 
 def plan(extra_blocked: set[tuple[str, str]] = frozenset(), today: date | None = None) -> dict:
     """Propose matches for stock not already held by a pending or confirmed match, and notify."""
     with _plan_lock:  # ponytail: process lock ensures no overlapping plans race on inventory
         now = datetime.now(timezone.utc)
+        # Every caller gets the past-date rules, not just chat: Sri Lanka's date, not the server's UTC one.
+        today = today or datetime.now(SL_TZ).date()
         from . import rescue
         rescue.watchdog(now=now, send=_send)
         # ponytail: release stale proposed matches past their TTL and send reminder/expiry notices
@@ -124,14 +137,28 @@ def plan(extra_blocked: set[tuple[str, str]] = frozenset(), today: date | None =
             m.expires_at = (now + timedelta(hours=ttl_hours)).isoformat()
             store.put_match(m)
         live = [m for m in store.matches() if m.status not in ("declined", "cancelled", "expired")]
-        # Shipments already booked are locked; only loads still being planned get re-bundled.
-        frozen = [x for x in store.shipments() if x.status != "planned"]
-        prev_ids = {tuple(sorted(x.match_ids)): x.id for x in store.shipments() if x.status == "planned"}
+        # Shipments already booked are locked, and so is any load someone has agreed to: its seller
+        # already has a dispatch slip naming the bus, the stand and the time. Only loads still
+        # waiting for a YES get re-bundled.
+        status = {m.id: m.status for m in store.matches()}
+        frozen = []
         for x in store.shipments():
-            if x.status == "planned":
+            if x.status == "planned" and not any(status.get(i) == "confirmed" for i in x.match_ids):
+                continue
+            keep = [i for i in x.match_ids if status.get(i) in ("proposed", "confirmed")]
+            if x.status == "planned" and keep != x.match_ids:  # drop loads that were declined or expired
+                x.match_ids = keep
+                x.total_kg = sum(m.qty_kg for m in live if m.id in keep)
+                store.put_shipment(x)
+            frozen.append(x)
+        frozen_sids = {x.id for x in frozen}
+        prev_ids = {tuple(sorted(x.match_ids)): x.id for x in store.shipments()
+                    if x.status == "planned" and x.id not in frozen_sids}
+        for x in store.shipments():
+            if x.status == "planned" and x.id not in frozen_sids:
                 store.delete_shipment(x.id)
         frozen_ids = {mid for x in frozen for mid in x.match_ids}
-        movable = [m for m in live if m.id not in frozen_ids]
+        movable = [m for m in live if m.id not in frozen_ids and m.status != "confirmed"]
         for m in movable:  # every run starts from each load's own cheapest lane, then re-bundles
             m.lane = m.solo_lane or m.lane
             m.transport_lkr_per_kg = m.solo_transport_lkr_per_kg or m.transport_lkr_per_kg
@@ -276,28 +303,78 @@ def _parse_partial_qty(text: str, total: int) -> tuple[int, float] | None:
     return None
 
 
+def _numbered(phone: str, pending: list[tuple]) -> list[tuple]:
+    """Waiting offers in the order the newest numbered message showed them, so "YES 1" means that
+    message's 1; offers it did not list follow after."""
+    by_id = {m.id: row for row in pending for m in [row[0]]}
+    for o in reversed(store.sent()):
+        ids = (o.get("match_id") or "").split(",")
+        if o["to"] == phone and len(ids) > 1 and set(ids) & set(by_id):
+            first = [by_id[i] for i in ids if i in by_id]
+            return first + [row for row in pending if row[0].id not in ids]
+    return pending
+
+
+def _reprice(m, kg: float) -> bool:
+    """Re-cost a smaller load on its own (fixed charges weigh more per kg). False if the farmer
+    would no longer beat the collector price."""
+    from .lanes import lane_cost, pick_lane
+    prices = store.prices()
+    if m.crop not in prices:
+        return False
+    lane, transport = None, 0.0
+    if m.lane:
+        lane = pick_lane(LANES, origin=m.lane.origin, dest=m.lane.dest, kg=kg, ship_on=m.ship_on, needed_by=m.needed_by)
+        if lane is None:
+            return False
+        transport = round(lane_cost(lane, kg) / kg, 1)
+    money = split(prices[m.crop], transport)
+    if not money["farmer_better_off"]:
+        return False
+    m.qty_kg, m.lane, m.solo_lane = kg, lane, lane
+    m.transport_lkr_per_kg = m.solo_transport_lkr_per_kg = transport
+    m.farmer_gets_lkr_per_kg, m.buyer_pays_lkr_per_kg = money["farmer_gets"], money["buyer_pays"]
+    return True
+
+
 def answer(phone: str, text: str, lang: str | None = None) -> str | None:
     """YES, NO, selective pick (e.g. YES 1, NO 2), or partial accept (e.g. YES 50kg) to match offers.
     Returns the reply, or None if this is not an answer or nothing is waiting."""
     pending = _mine(phone)
     if not pending:
         return None
+    now = datetime.now(timezone.utc)
+    live = []
+    for m, side, own_lang in pending:  # an offer past its time is gone, even if no run has expired it yet
+        if m.expires_at and datetime.fromisoformat(m.expires_at) <= now:
+            m.status = "expired"
+            store.put_match(m)
+        else:
+            live.append((m, side, own_lang))
+    if not live:
+        return _say("expired", lang or pending[0][2], pending[0][0])
+    pending = _numbered(phone, live)
     partial = _parse_partial_qty(text, len(pending))
-    if partial:
+    if partial and partial[1] != pending[partial[0] - 1][0].qty_kg:  # "YES 100kg" on a 100 kg offer is a plain YES
         idx, partial_kg = partial
         m, side, own_lang = pending[idx - 1]
-        if 0 < partial_kg <= m.qty_kg:
-            m.qty_kg = partial_kg
-            lang_ = lang or own_lang
-            setattr(m, f"{side}_ok", True)
-            if m.farmer_ok and m.buyer_ok:
-                confirm(m)
-                other = store.get("orders" if side == "farmer" else "listings",
-                                  m.order_id if side == "farmer" else m.listing_id)
-                _send(other.get("phone"), _say("agreed", other.get("lang"), m), m.id)
-            store.put_match(m)
-            return _say("both" if m.status == "confirmed" else "wait", lang_, m)
-    actions = _parse_selection(text, len(pending))
+        lang_ = lang or own_lang
+        if not 0 < partial_kg < m.qty_kg:
+            return _say("too_much", lang_, m)
+        if not _reprice(m, partial_kg):
+            return _say("too_small", lang_, m, part=f"{partial_kg:.0f}")
+        # The other side agreed to the full amount, not this one: ask them again.
+        other_side = "buyer" if side == "farmer" else "farmer"
+        setattr(m, f"{side}_ok", True)
+        setattr(m, f"{other_side}_ok", False)
+        store.put_match(m)
+        other = store.get("orders" if side == "farmer" else "listings",
+                          m.order_id if side == "farmer" else m.listing_id) or {}
+        if other.get("phone"):
+            olang = accounts.reply_lang(other.get("phone"), other.get("lang"))
+            _send(other["phone"], agent.explain(m, party=other_side, lang=olang, prices=store.prices()), m.id)
+        return _say("wait", lang_, m)
+    actions = {partial[0]: True} if partial else _parse_selection(text, len(pending))
     if not actions:
         return None
     lines = []

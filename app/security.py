@@ -17,7 +17,8 @@ from fastapi import Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 COOKIE = "govi_admin"
-ADMIN_PREFIXES = ("/admin", "/state", "/demo/", "/shipments/", "/surplus/", "/api/offers", "/api/plan", "/api/swaps", "/jobs/", "/api/lane-costs", "/api/subscriptions")
+ADMIN_PREFIXES = ("/admin", "/state", "/demo/", "/shipments/", "/surplus/", "/api/offers", "/api/plan", "/api/swaps", "/jobs/", "/api/lane-costs", "/api/subscriptions",
+                  "/rescue/", "/api/lanes/reload")
 ADMIN_EXACT = {("POST", "/plan")}
 LIMITED = {"/intake", "/api/shipping-cost", "/api/orders", "/api/listings", "/api/agent/prices", "/login",
            "/api/auth/start", "/api/auth/verify"}
