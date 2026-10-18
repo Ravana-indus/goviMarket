@@ -23,8 +23,7 @@ ASK_PHONE = ("Govi needs your phone number once, so this chat is the same accoun
              "Tap the button below.\n"
              "ඔබේ දුරකථන අංකය එක් වරක් බෙදාගන්න: පහත බොත්තම ඔබන්න.\n"
              "உங்கள் தொலைபேசி எண்ணை ஒருமுறை பகிருங்கள்: கீழே உள்ள பொத்தானை அழுத்தவும்.")
-WELCOME = ("Linked to +{phone}. Send your harvest or order as a message, a photo or a voice note, "
-           "in Sinhala, Tamil or English.")
+LINKED = "Linked to +{phone} ✅"
 SHARE = {"keyboard": [[{"text": "📱 Share my phone number", "request_contact": True}]],
          "one_time_keyboard": True, "resize_keyboard": True}
 
@@ -95,12 +94,22 @@ def fetch_media(file_id: str) -> bytes:
         return c.get(f"{API}/file/bot{_token()}/{f['file_path']}").raise_for_status().content
 
 
-def send_text(chat_id: str, body: str, *, ask_phone: bool = False) -> None:
-    markup = SHARE if ask_phone else {"remove_keyboard": True}
-    _call("sendMessage", chat_id=chat_id, text=body[:4000], reply_markup=markup)
+def send_text(chat_id: str, body: str, *, ask_phone: bool = False, keyboard: Optional[list] = None) -> None:
+    """`keyboard` rows of button labels replace the chat's buttons ([] removes them); without it
+    the buttons already showing stay."""
+    payload = {"chat_id": chat_id, "text": body[:4000]}
+    if ask_phone:
+        payload["reply_markup"] = SHARE
+    elif keyboard == []:
+        payload["reply_markup"] = {"remove_keyboard": True}
+    elif keyboard:
+        payload["reply_markup"] = {"keyboard": [[{"text": b} for b in row] for row in keyboard],
+                                   "resize_keyboard": True, "is_persistent": True}
+    _call("sendMessage", **payload)
 
 
-def set_webhook(url: str) -> dict:
+def set_webhook(url: str, commands: list[dict]) -> dict:
+    _call("setMyCommands", commands=commands)
     return _call("setWebhook", url=url, secret_token=webhook_secret(),
                  allowed_updates=["message"], drop_pending_updates=True)
 

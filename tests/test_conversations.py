@@ -539,3 +539,31 @@ def test_an_item_we_cannot_name_is_shown_not_dropped(g):
     text = "need 3 kg rambutan and tomato 5kg"
     r = shop.say(text, _fallback(text))
     assert "left out: rambutan" in r and "Tomato 5 kg" in r
+
+
+def test_saying_seller_flips_a_buyer_account_and_the_pending_order(g):
+    from app import accounts
+    a = Phone("94770554201", g)
+    store.DB.put("users", a.number, {"phone": a.number, "name": "Patu", "role": "buyer", "lang": "en"})
+    assert "you are selling" in a.say("i'm a seller", P(role="unknown", intent="chat"))
+    assert accounts.user(a.number)["role"] == "farmer"
+    reply = a.say("potato 1200kg", P(role="buyer", items={"potato": 1200}, loc="Dambulla"))
+    assert "YES" in reply and a.state == "confirming"
+    a.say("i have it to be sold im a seller", P(role="buyer", intent="chat"))
+    a.say("YES")
+    assert a.listings() and not a.orders()
+
+
+def test_edit_after_placing_and_the_console_sees_the_placed_quantity(g):
+    a = Phone("94770554202", g)
+    a.say("potato 1200kg", P(items={"potato": 1200}, loc="Colombo"))
+    a.say("12kg potato", P(items={"potato": 12}))
+    a.say("YES")
+    assert [o.qty_kg for o in a.orders()] == [12]
+    assert store.inbox()[-1]["parsed"]["summary_in_sender_language"] == "Ordered: potato 12 kg"
+    assert "EDIT" in a.say("YES")
+    reply = a.say("EDIT")
+    assert "withdrawn" in reply and "12" in reply and a.state == "confirming" and not a.orders()
+    a.say("potato 20kg", P(items={"potato": 20}))
+    a.say("YES")
+    assert [o.qty_kg for o in a.orders()] == [20]

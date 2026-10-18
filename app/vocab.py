@@ -115,6 +115,7 @@ NO = {"no", "n", "nope", "nah", "no thanks", "don't", "dont", "not now",
       "இல்லை", "இல்ல", "வேண்டாம்", "venam", "vendam", "illa", "illai", "👎", "❌"}
 CANCEL = {"cancel", "cancel it", "cancel order", "stop", "delete", "අවලංගු", "අවලංගු කරන්න", "කැන්සල්",
           "ரத்து", "ரத்து செய்", "ரத்து செய்யவும்", "கேன்சல்"}
+EDIT = {"edit", "change", "change order", "edit order", "modify", "වෙනස් කරන්න", "மாற்று", "மாற்றவும்"}
 STATUS = {"status", "my orders", "orders", "my order", "order status", "where is my order", "track",
           "තත්ත්වය", "මගේ ඇණවුම්", "ඇණවුම්", "நிலை", "என் ஆர்டர்", "என் ஆர்டர்கள்", "ஆர்டர் நிலை"}
 HELLO = {"hi", "hello", "hey", "helo", "hii", "help", "menu", "start", "ayubowan", "vanakkam", "good morning",
@@ -125,6 +126,18 @@ SELLING = {"selling", "sell", "i am selling", "farmer", "seller", "vikunanawa", 
            "விற்கிறேன்", "விற்பனை", "விவசாயி"}
 BUYING = {"buying", "buy", "i am buying", "buyer", "order", "ganna", "gannawa", "ගන්නවා", "මිලදී ගන්නවා", "ගැනුම්කරු",
           "வாங்குகிறேன்", "வாங்க", "வாங்குபவர்"}
+_SAYS_SELLER = re.compile(r"\b(i'?m|i am|im)\s+(a\s+)?(seller|farmer|grower)\b|\bi\s+(want\s+to\s+|wanna\s+|will\s+)?sell\b|"
+                          r"\bselling\b|\bto\s+(be\s+)?sold\b|\bfor\s+sale\b|විකුණනවා|විකිණීමට|විකුණන්න|விற்கிறேன்|விற்பனைக்கு|விற்க", re.I)
+_SAYS_BUYER = re.compile(r"\b(i'?m|i am|im)\s+(a\s+)?buyer\b|\bi\s+(want\s+to\s+|wanna\s+|will\s+)?buy\b|\bbuying\b|"
+                         r"මිලදී\s*ගන්නවා|வாங்குகிறேன்", re.I)
+
+
+def role_said(text: str | None) -> str | None:
+    """ "I'm a seller", "potato to be sold", "i want to buy": the side the sender says they are on."""
+    sell, buy = bool(_SAYS_SELLER.search(text or "")), bool(_SAYS_BUYER.search(text or ""))
+    return "farmer" if sell and not buy else "buyer" if buy and not sell else None
+
+
 # "That's wrong" about the order we showed: read the message again from scratch, or ask what to fix.
 WRONG = {"wrong", "wrng", "worng", "incorrect", "not correct", "not right", "mistake", "thats wrong", "that's wrong",
          "වැරදියි", "වැරදි", "වැරැද්දක්", "தவறு", "பிழை", "சரியில்லை"}

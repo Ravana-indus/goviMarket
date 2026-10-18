@@ -89,9 +89,17 @@ T = {
     "nothing": {"en": "Nothing is waiting for your answer right now. To buy or sell, send the crop and kg (for example: tomato 10kg tomorrow).",
                 "si": "දැනට ඔබේ පිළිතුර බලාපොරොත්තුවෙන් කිසිවක් නැහැ. ගන්න හෝ විකුණන්න, බෝගය සහ කිලෝ ගණන එවන්න (උදා: තක්කාලි කිලෝ 10 හෙට).",
                 "ta": "இப்போது உங்கள் பதிலுக்காக எதுவும் காத்திருக்கவில்லை. வாங்க அல்லது விற்க, பயிரும் கிலோவும் அனுப்பவும் (உதா: தக்காளி 10 கிலோ நாளை)."},
-    "done": {"en": "That is already done (ref {ref}). Nothing else is waiting for a YES.",
-             "si": "එය දැනටමත් සිදු කර ඇත (අංකය {ref}). තවත් YES එකක් බලාපොරොත්තු වන දෙයක් නැහැ.",
-             "ta": "அது ஏற்கனவே முடிந்தது (எண் {ref}). வேறு எதுவும் YES-க்காக காத்திருக்கவில்லை."},
+    "done": {"en": "That is already done (ref {ref}). Nothing else is waiting for a YES. To change it, send EDIT; to withdraw it, send CANCEL.",
+             "si": "එය දැනටමත් සිදු කර ඇත (අංකය {ref}). තවත් YES එකක් බලාපොරොත්තු වන දෙයක් නැහැ. වෙනස් කිරීමට EDIT, ඉවත් කිරීමට CANCEL එවන්න.",
+             "ta": "அது ஏற்கனவே முடிந்தது (எண் {ref}). வேறு எதுவும் YES-க்காக காத்திருக்கவில்லை. மாற்ற EDIT, திரும்பப் பெற CANCEL அனுப்பவும்."},
+    "role_farmer": {"en": "Got it, you are selling. Send the crop and kg (for example: carrot 200kg ready Friday).",
+                    "si": "හරි, ඔබ විකුණනවා. බෝගය සහ කිලෝ ගණන එවන්න (උදා: කැරට් කිලෝ 200 සිකුරාදා).",
+                    "ta": "சரி, நீங்கள் விற்கிறீர்கள். பயிரும் கிலோவும் அனுப்பவும் (உதா: கேரட் 200 கிலோ வெள்ளிக்கிழமை)."},
+    "role_buyer": {"en": "Got it, you are buying. Send the crop and kg (for example: tomato 10kg tomorrow).",
+                   "si": "හරි, ඔබ මිලදී ගන්නවා. බෝගය සහ කිලෝ ගණන එවන්න (උදා: තක්කාලි කිලෝ 10 හෙට).",
+                   "ta": "சரி, நீங்கள் வாங்குகிறீர்கள். பயிரும் கிலோவும் அனுப்பவும் (உதா: தக்காளி 10 கிலோ நாளை)."},
+    "editing": {"en": "Ref {ref} is withdrawn so you can change it.", "si": "වෙනස් කිරීමට අංකය {ref} ඉවත් කළා.",
+                "ta": "மாற்றுவதற்காக எண் {ref} திரும்பப் பெறப்பட்டது."},
     "expired": {"en": "Your earlier order was not placed: it waited more than {h} hours without a YES. Please send it again.",
                 "si": "පැය {h}කට වඩා YES නොලැබුණු නිසා ඔබේ කලින් ඇණවුම දැම්මේ නැහැ. කරුණාකර නැවත එවන්න.",
                 "ta": "{h} மணி நேரத்திற்கு மேல் YES வராததால் உங்கள் முந்தைய ஆர்டர் பதிவு செய்யப்படவில்லை. மீண்டும் அனுப்பவும்."},
@@ -435,6 +443,8 @@ def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type:
             return Turn(status(sender, c, lang), state=c["state"])
         if w in vocab.HELLO or w in vocab.THANKS:
             return _chatter(c, "hello" if w in vocab.HELLO else "thanks", lang)
+        if w in vocab.EDIT and c["state"] == "idle" and (c.get("last") or {}).get("what") == "placed":
+            return _edit_placed(c, sender, lang)
         if c["state"] == "asking" and c.get("qkind") == "role" and w in vocab.SELLING | vocab.BUYING:
             p = _pending(c)
             p.role = "farmer" if w in vocab.SELLING else "buyer"
@@ -449,6 +459,10 @@ def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type:
             if r:
                 return Turn(r)
 
+    said = vocab.role_said(text) if text else None
+    if said and sender.isdigit():
+        accounts.set_role(sender, said, via=via)
+        known = accounts.user(sender)
     try:
         parsed = parser.parse(text=text, media=media, mime_type=mime_type, today=today.isoformat(),
                               context=context(sender, known, c))
@@ -469,6 +483,14 @@ def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type:
         return Turn(replies.build(parsed, store.prices()), parsed=parsed, created=created)
 
     pending = _pending(c)
+    if said:  # "I'm a seller" wins over what Gemini or the account guessed
+        parsed.role = said
+        if pending:
+            pending.role = said
+            if not parsed.items:
+                return _advance(c, sender, known, pending, lang, today, confirm_first)
+        elif not parsed.items:
+            return Turn(t("role_" + said, lang), state=c["state"])
     notes = []
     guessed = demo_parser.FALLBACK in parsed.unclear
     if guessed and _gemini():
@@ -534,12 +556,15 @@ def _advance(c, sender, known, p: ParsedMessage, lang, today, confirm_first, not
 
 
 def _place(c, sender, p: ParsedMessage, lang, today, show=False, notes=()) -> Turn:
+    p.summary_in_sender_language = ("Selling: " if p.role == "farmer" else "Ordered: ") + \
+        ", ".join(f"{i.crop} {_kg(i.qty_kg)} kg" for i in p.items)  # what was placed, not the first guess
     created = store.record(p, default_date=today, sender=sender)
     if sender.isdigit():
         accounts.link(sender, name=p.sender_name, role=p.role, via="chat")
     ref = created[0].upper()[:6] if created else "-"
     c.update(state="idle", parsed=None, question=None, qkind=None, asked_at=None, lang=lang,
-             last={"what": "placed", "at": _now().isoformat(), "ref": ref, "ids": created, "role": p.role})
+             last={"what": "placed", "at": _now().isoformat(), "ref": ref, "ids": created, "role": p.role,
+                   "parsed": p.model_dump(mode="json")})
     save(c)
     placed = t("placed_farmer" if p.role == "farmer" else "placed_buyer", lang, ref=ref)
     card = summary(p, lang)
@@ -573,7 +598,7 @@ def _answer(c: dict, sender: str, word: str, lang: str, today: date) -> Turn:
     asks = []
     if c["state"] != "idle" and c.get("asked_at"):
         asks.append((c["asked_at"], "own"))
-    elif word == "cancel" and _recent_placement(c):
+    elif word == "cancel" and (c.get("last") or {}).get("what") == "placed":
         return _cancel_placed(c, c["last"], lang)  # "cancel" means the order, not just one offer on it
     if (a := deals.asked_at(sender)):
         asks.append((a, "match"))
@@ -612,6 +637,22 @@ def _nothing_waiting(c: dict, sender: str, word: str, lang: str) -> Turn:
     if recent and word == "yes":
         return Turn(t("done", lang, ref=last["ref"]))
     return Turn(t("nothing", lang))
+
+
+def _edit_placed(c: dict, sender: str, lang: str) -> Turn:
+    """EDIT after placing: withdraw it (unless a deal is agreed) and show it again as a draft to change."""
+    last = c["last"]
+    if not last.get("parsed"):
+        return Turn(t("nothing", lang))
+    out = _cancel_placed(c, last, lang)
+    if c["last"].get("what") != "withdrawn":
+        return out  # already agreed: cannot change here
+    p = ParsedMessage(**last["parsed"])
+    p.language = lang
+    _hold(c, "confirming", p)
+    return Turn("\n".join([t("editing", lang, ref=last["ref"]), *summary(p, lang),
+                           t("ask_farmer" if p.role == "farmer" else "ask_buyer", lang)]),
+                parsed=p, state="confirming", plan=out.plan)
 
 
 def _cancel_placed(c: dict, last: dict, lang: str) -> Turn:
