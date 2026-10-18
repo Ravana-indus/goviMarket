@@ -32,7 +32,7 @@ DEST_PICKUP_LKR = float(os.getenv("DEST_PICKUP_LKR", "1500"))
 
 def lane_cost(lane: Lane, kg: float) -> float:
     """Door-to-door cost of one consignment: freight, plus fixed handling at each end."""
-    pickup = 0 if lane.door_delivery else DEST_PICKUP_LKR
+    pickup = 0 if lane.door_delivery else DEST_PICKUP_LKR if lane.pickup_lkr is None else lane.pickup_lkr
     return max(lane.min_charge_lkr, lane.lkr_per_kg * kg) + lane.handling_lkr + pickup
 
 

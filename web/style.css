@@ -85,3 +85,10 @@ button, .btn { transition: background-color .15s, border-color .15s, transform .
 .acct { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-weight: 650; font-size: 14px; cursor: pointer; color: var(--ink); max-width: 46vw; }
 .acct span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acct svg { width: 18px; height: 18px; flex: none; }
+
+/* transport rates editor (lanes.js), agent page and console */
+.lane-row { padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.lane-fs { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin: 8px 0 6px; }
+.lane-f { display: flex; flex-direction: column; font-size: 12px; gap: 2px; }
+.lane-f input { width: 100%; padding: 8px; font-size: 16px; border: 1px solid var(--line); border-radius: 8px; }
+.lane-acts { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }

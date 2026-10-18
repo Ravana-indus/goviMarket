@@ -547,6 +547,39 @@ def lane_costs():
     return tracking.costs()
 
 
+class LaneIn(BaseModel):
+    key: str = Field(max_length=120)
+    lkr_per_kg: float = Field(gt=0, le=tracking.MAX_LKR)
+    min_charge_lkr: float = Field(ge=0, le=tracking.MAX_LKR)
+    handling_lkr: float = Field(ge=0, le=tracking.MAX_LKR)
+    pickup_lkr: Optional[float] = Field(default=None, ge=0, le=tracking.MAX_LKR)
+    confirmed: bool = False  # True: the agent checked and the numbers stand
+    who: str = Field(default="", max_length=60)
+
+
+@app.get("/api/agent/lanes")
+def agent_lanes(request: Request):
+    if not security.is_agent(request):
+        raise HTTPException(403, "Agent PIN needed.")
+    return tracking.costs()
+
+
+@app.post("/api/agent/lanes")
+def agent_lane_set(x: LaneIn, request: Request):
+    """An agent sets or confirms a lane's freight rate, minimum, handling and city pickup cost."""
+    if not security.is_agent(request):
+        raise HTTPException(403, "Agent PIN needed.")
+    u = accounts.current(request)
+    who = (x.who or "").strip() or (u or {}).get("name") or ("console" if security.is_admin(request) else "agent")
+    try:
+        tracking.agent_set(x.key, who=who, lkr_per_kg=x.lkr_per_kg, min_charge_lkr=x.min_charge_lkr,
+                           handling_lkr=x.handling_lkr, pickup_lkr=x.pickup_lkr, confirmed=x.confirmed)
+    except KeyError:
+        raise HTTPException(404, "No such route.")
+    deals.plan()  # new costs can open or close matches
+    return next(r for r in tracking.costs() if r["key"] == x.key)
+
+
 DEMO_MESSAGES = [
     ("94770000001", "Dambulla price today: carrot collector 150, beans collector 210, tomato collector 95, leeks collector 115"),
     ("94770000002", "This is Sunil, carrot 280kg ready tomorrow, Nuwara Eliya"),

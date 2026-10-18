@@ -80,6 +80,7 @@ class Lane(BaseModel):
     handling_lkr: float = 0  # loading, booking and getting the load to the station or stand
     pickup: str = ""  # where the farmer hands the load over
     door_delivery: bool = False  # carrier delivers to the buyer, so no Colombo pickup run
+    pickup_lkr: Optional[float] = None  # run from the city station to the buyers; None means DEST_PICKUP_LKR
     source: str  # where the number came from; "ESTIMATE" until field-checked
 
 
