@@ -51,6 +51,12 @@ GOVI.auth.config().then((c) => {
 function renderWho() {
   $("who").innerHTML = me ? `<b>${esc(me.name)}</b>${esc(me.location)} · ${esc(GOVI.auth.pretty(me.phone))} · <a href="#" id="out">sign out</a>` : "";
   if (me) $("out").onclick = async (e) => { e.preventDefault(); await GOVI.auth.logout(); me = null; renderWho(); showSignin(true); };
+  if (me) fetch("/api/me/subscription").then((r) => r.ok ? r.json() : null).then((p) => {
+    if (!p || p.status === "none" || !me) return;
+    const d = (x) => new Date(x + "T00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+    const txt = p.status === "active" ? `Govi plan paid until ${d(p.paid_until)}` : `Govi plan ${rs(p.amount_lkr)}/month ${p.status === "due" ? "due" : "overdue since"} ${d(p.due_on)}`;
+    $("who").insertAdjacentHTML("beforeend", ` · <span class="chip ${p.status === "active" ? "farmer" : "reporter"}" title="Rs ${p.amount_lkr} a month for the Govi service. Pay your Govi contact or by bank transfer.">${esc(txt)}</span>`);
+  }).catch(() => {});
 }
 
 document.querySelectorAll("#tabs button").forEach((b) => (b.onclick = () => {

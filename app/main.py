@@ -22,7 +22,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from . import accounts, ai, convo, deals, dispatch, parser, portal, replies, reporters, reroute, rescue, security, shipping, store, surplus, telegram, tracking, vocab, whatsapp
+from . import accounts, ai, billing, convo, deals, dispatch, parser, portal, replies, reporters, reroute, rescue, security, shipping, store, surplus, telegram, tracking, vocab, whatsapp
 from .pricing import split
 from .schemas import Listing
 
@@ -33,6 +33,7 @@ app.mount("/static", StaticFiles(directory=WEB), name="static")
 app.include_router(portal.router)
 app.include_router(reporters.router)
 app.include_router(accounts.router)
+app.include_router(billing.router)
 app.middleware("http")(security.middleware)
 
 

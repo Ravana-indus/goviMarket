@@ -16,6 +16,7 @@ const T = {
     selling: "Selling", ordering: "Ordering", sent: "Sending…",
     s_booked: "Booked", s_loaded: "Loaded", s_in_transit: "On the way", s_arrived: "Arrived", s_delivered: "Delivered", ref: "Ref", dropoff: "Drop-off", eta: "Arrives", code: "Tracking code", track_it: "Track", cost_q: "Shipping cost you paid (Rs)", cost_save: "Save", cost_saved: "Shipping cost saved: Rs {n}. Thank you, this keeps transport prices up to date.",
     before_transport: "before transport", transport_off: "Transport already taken off", shared: "shared with neighbours",
+    plan_active: "Govi plan · Rs {p}/month · paid until {d} ✓", plan_due: "Govi plan · Rs {p}/month · due {d}. Pay your Govi agent or by bank transfer.", plan_overdue: "Govi plan · Rs {p}/month · overdue since {d}. Pay your Govi agent or by bank transfer.",
     signin: "Sign in", signout: "Sign out", posting_as: "Posting as {n} · {p}", t_need: "Sign in with your mobile number to see your harvests and orders, including the ones you sent on WhatsApp.",
     greet_am: "Good morning", greet_pm: "Good afternoon", greet_eve: "Good evening", sell_h: "Sell your harvest", sell_sub: "We find the buyer and the bus or train.", speak: "Speak your harvest", other: "Send a photo or type it", prices_at: "prices at 06:00",
     hold: "Hold to speak", hold_sub: "Say the crop, kilos and when it's ready", example: "For example", ex_text: "\u201cCarrot, 280 kilos, ready tomorrow, Kandapola.\u201d", or1: "or", take_photo: "Take a photo of your note", type_it: "Type it instead", understands: "Govi understands Sinhala, Tamil and English.",
@@ -38,6 +39,7 @@ const T = {
     selling: "විකිණීම", ordering: "ඇණවුම", sent: "යවමින්…",
     s_booked: "වෙන් කළා", s_loaded: "පැටෙව්වා", s_in_transit: "යමින්", s_arrived: "ළඟා විය", s_delivered: "භාර දුන්නා", ref: "අංකය", dropoff: "භාර දෙන තැන", eta: "ලැබෙන වේලාව", code: "ලුහුබැඳීමේ අංකය", track_it: "ලුහුබඳින්න", cost_q: "ඔබ ගෙවූ ප්‍රවාහන ගාස්තුව (රු.)", cost_save: "සුරකින්න", cost_saved: "ප්‍රවාහන ගාස්තුව සුරැකුණා: රු. {n}. ස්තූතියි, මෙයින් ප්‍රවාහන මිල යාවත්කාලීන වේ.",
     before_transport: "ප්‍රවාහනයට පෙර", transport_off: "ප්‍රවාහන වියදම දැනටමත් අඩු කර ඇත", shared: "අසල්වැසියන් සමඟ බෙදාගත්",
+    plan_active: "Govi සැලැස්ම · මසකට රු. {p} · {d} දක්වා ගෙවා ඇත ✓", plan_due: "Govi සැලැස්ම · මසකට රු. {p} · ගෙවිය යුත්තේ {d}. Govi නියෝජිතයාට හෝ බැංකු මාරුවකින් ගෙවන්න.", plan_overdue: "Govi සැලැස්ම · මසකට රු. {p} · {d} සිට ප්‍රමාදයි. Govi නියෝජිතයාට හෝ බැංකු මාරුවකින් ගෙවන්න.",
     signin: "පිවිසෙන්න", signout: "ඉවත් වන්න", posting_as: "{n} ලෙස දමයි · {p}", t_need: "ඔබේ අස්වැන්න සහ ඇණවුම් බැලීමට, WhatsApp හරහා එවූ ඒවා ද ඇතුළුව, ඔබේ ජංගම අංකයෙන් පිවිසෙන්න.",
     greet_am: "සුබ උදෑසනක්", greet_pm: "සුබ දහවලක්", greet_eve: "සුභ සන්ධ්‍යාවක්", sell_h: "ඔබේ අස්වැන්න විකුණන්න", sell_sub: "ගැනුම්කරුත් බස් හෝ දුම්රියත් අපි සොයා දෙන්නෙමු.", speak: "කතා කරලා කියන්න", other: "ඡායාරූපයක් එවන්න, නැතහොත් ටයිප් කරන්න", prices_at: "උදේ 06:00 මිල",
     hold: "කතා කිරීමට අල්ලාගෙන සිටින්න", hold_sub: "බෝගය, කිලෝ ගණන සහ සූදානම් වන දිනය කියන්න", example: "උදාහරණයක්", ex_text: "\u201cකැරට් කිලෝ 280ක්, හෙට සූදානම්, කඳපොල.\u201d", or1: "හෝ", take_photo: "සටහනේ ඡායාරූපයක් ගන්න", type_it: "ටයිප් කරන්න", understands: "Govi සිංහල, දෙමළ සහ ඉංග්‍රීසි තේරුම් ගනී.",
@@ -60,6 +62,7 @@ const T = {
     selling: "விற்பனை", ordering: "ஆர்டர்", sent: "அனுப்புகிறது…",
     s_booked: "பதிவு", s_loaded: "ஏற்றப்பட்டது", s_in_transit: "வழியில்", s_arrived: "வந்தடைந்தது", s_delivered: "வழங்கப்பட்டது", ref: "எண்", dropoff: "ஒப்படைக்கும் இடம்", eta: "வந்தடையும் நேரம்", code: "கண்காணிப்பு எண்", track_it: "கண்காணி", cost_q: "நீங்கள் செலுத்திய போக்குவரத்து கட்டணம் (ரூ.)", cost_save: "சேமி", cost_saved: "போக்குவரத்து கட்டணம் சேமிக்கப்பட்டது: ரூ. {n}. நன்றி, இது போக்குவரத்து விலைகளை புதுப்பிக்கிறது.",
     before_transport: "போக்குவரத்துக்கு முன்", transport_off: "போக்குவரத்து செலவு ஏற்கனவே கழிக்கப்பட்டது", shared: "அயலவர்களுடன் பகிர்ந்தது",
+    plan_active: "Govi திட்டம் · மாதம் ரூ. {p} · {d} வரை செலுத்தப்பட்டது ✓", plan_due: "Govi திட்டம் · மாதம் ரூ. {p} · செலுத்த வேண்டிய நாள் {d}. Govi முகவரிடம் அல்லது வங்கி மாற்றம் மூலம் செலுத்தவும்.", plan_overdue: "Govi திட்டம் · மாதம் ரூ. {p} · {d} முதல் நிலுவையில். Govi முகவரிடம் அல்லது வங்கி மாற்றம் மூலம் செலுத்தவும்.",
     signin: "உள்நுழை", signout: "வெளியேறு", posting_as: "{n} ஆகப் பதிவிடுகிறது · {p}", t_need: "உங்கள் அறுவடைகளையும் ஆர்டர்களையும் (WhatsApp இல் அனுப்பியவை உட்பட) பார்க்க உங்கள் மொபைல் எண்ணுடன் உள்நுழையுங்கள்.",
     greet_am: "காலை வணக்கம்", greet_pm: "மதிய வணக்கம்", greet_eve: "மாலை வணக்கம்", sell_h: "உங்கள் அறுவடையை விற்கவும்", sell_sub: "வாங்குபவரையும் பேருந்து அல்லது ரயிலையும் நாங்கள் கண்டுபிடிப்போம்.", speak: "பேசிச் சொல்லுங்கள்", other: "புகைப்படம் அனுப்புங்கள் அல்லது தட்டச்சு செய்யுங்கள்", prices_at: "காலை 06:00 விலை",
     hold: "பேச அழுத்திப் பிடிக்கவும்", hold_sub: "பயிர், கிலோ, தயாராகும் நாளைச் சொல்லுங்கள்", example: "உதாரணம்", ex_text: "\u201cகேரட், 280 கிலோ, நாளை தயார், கந்தபொல.\u201d", or1: "அல்லது", take_photo: "குறிப்பின் புகைப்படம் எடுங்கள்", type_it: "தட்டச்சு செய்யுங்கள்", understands: "Govi சிங்களம், தமிழ், ஆங்கிலம் புரிந்துகொள்ளும்.",
@@ -171,7 +174,7 @@ async function signIn() {
   if (u) { account = u; useAccountLang(u); renderAccount(); if ($("track").classList.contains("on")) loadTrack(); }
   return u;
 }
-$("acct").onclick = (e) => { e.stopPropagation(); if (account) $("acct-menu").hidden = !$("acct-menu").hidden; else signIn(); };
+$("acct").onclick = (e) => { e.stopPropagation(); if (account) { $("acct-menu").hidden = !$("acct-menu").hidden; loadPlan(); } else signIn(); };
 document.addEventListener("click", (e) => { if (!e.target.closest(".acct-wrap")) $("acct-menu").hidden = true; });
 $("am-out").onclick = async () => {
   await GOVI.auth.logout(); account = null; $("acct-menu").hidden = true; renderAccount();
@@ -323,8 +326,20 @@ function stepsHtml(x, kind) {
       <div class="tx"><b>${t("s_" + st)}</b>${sub(i)}</div></div>`;
   }).join("")}</div>`;
 }
+// The Rs 799/month service plan: paid until, or due / overdue since.
+async function loadPlan() {
+  $("plan").hidden = true; $("am-plan").textContent = "";
+  if (!account) return;
+  const r = await fetch("/api/me/subscription").catch(() => null);
+  const p = r && r.ok ? await r.json() : null;
+  if (!p || p.status === "none") return;
+  const txt = fill(t("plan_" + p.status), { p: n0(p.amount_lkr), d: day(p.status === "active" ? p.paid_until : p.due_on) });
+  $("am-plan").textContent = txt;
+  $("plan").textContent = txt; $("plan").className = "plan " + p.status; $("plan").hidden = false;
+}
 async function loadTrack() {
   $("t-signin").hidden = !!account;
+  loadPlan();
   if (!account) { $("mine").innerHTML = ""; return; }
   $("mine").dataset.loaded = "1";
   const r = await fetch("/api/track");

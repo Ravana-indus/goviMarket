@@ -211,7 +211,7 @@ function renderSwaps(swaps) {
 }
 
 // ---- console navigation
-const PANES = ["overview", "matches", "shipments", "unsold", "market", "prices", "forecast", "analytics", "messages"];
+const PANES = ["overview", "matches", "shipments", "unsold", "market", "prices", "forecast", "analytics", "messages", "plans"];
 function show(p) {
   if (!PANES.includes(p)) p = "overview";
   document.querySelectorAll(".pane").forEach((el) => el.classList.toggle("on", el.id === "p-" + p));
@@ -257,9 +257,38 @@ async function loadLaneCosts() {
     : `<div class="empty">No seller has reported a shipping cost yet. Every agreed deal's dispatch slip asks for one.</div>`;
 }
 
+// ---- Rs 799/month plans: unpaid first, mark a month paid (or undo a mistake)
+async function loadPlans() {
+  const d = await api("/api/subscriptions");
+  const s = d.summary;
+  $("plan-price").textContent = rs(d.price_lkr);
+  $("plan-sum").textContent = `${s.active}/${s.accounts} paid · ${rs(s.owed_lkr)} owed · ${rs(s.monthly_lkr)} a month from paid plans`;
+  $("n-unpaid").textContent = s.unpaid || "";
+  const pretty = (p) => p.startsWith("94") && p.length === 11 ? "0" + p.slice(2) : p;
+  const chip = { active: '<span class="chip farmer">paid</span>', due: '<span class="chip reporter">due</span>', overdue: '<span class="chip warn">overdue</span>' };
+  $("plans").innerHTML = d.rows.length ? d.rows.map((r) => {
+    const last = r.payments.at(-1);
+    return `<tr><td><b>${esc(r.name || "—")}</b><br><span class="muted small">${esc(pretty(r.phone))}</span></td><td>${esc(r.role)}</td>
+      <td>${chip[r.status]}</td><td>${r.status === "active" ? "paid until " + fmtDate(r.paid_until) : "due " + fmtDate(r.due_on)}</td>
+      <td>${last ? `${rs(last.amount_lkr)} · ${esc(last.method)} · ${fmtDate(last.at.slice(0, 10))}` : '<span class="muted">none</span>'}</td>
+      <td style="white-space:nowrap"><button class="btn small" data-pay="${r.phone}">Mark ${rs(r.amount_lkr)} paid</button>
+        ${last ? `<button class="btn small" data-undo="${r.phone}" title="Undo the last payment">Undo</button>` : ""}</td></tr>`;
+  }).join("") : `<tr><td colspan="6" class="empty">No sellers or buyers yet.</td></tr>`;
+  document.querySelectorAll("[data-pay]").forEach((b) => (b.onclick = () => busy(b, async () => {
+    const method = prompt("How was it paid? (cash, bank transfer, eZ Cash, mCash)", "cash");
+    if (method === null) return;
+    await api(`/api/subscriptions/${b.dataset.pay}/paid`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ method: method || "cash" }) });
+    await loadPlans();
+  })));
+  document.querySelectorAll("[data-undo]").forEach((b) => (b.onclick = () => busy(b, async () => {
+    if (!confirm("Undo the last payment for this account?")) return;
+    await api(`/api/subscriptions/${b.dataset.undo}/undo`, { method: "POST" }); await loadPlans();
+  })));
+}
+
 async function refresh() {
   const [s, plan] = await Promise.all([api("/state"), api("/api/plan")]);
-  renderState(s, plan); renderPlan(plan); await loadReports(); renderAttention(s, plan); await loadLaneCosts();
+  renderState(s, plan); renderPlan(plan); await loadReports(); renderAttention(s, plan); await loadLaneCosts(); await loadPlans();
   window.renderAnalytics?.(s, plan);
   $("plan-note").textContent = plan.matches.length ? "from last matching run" : "";
 }

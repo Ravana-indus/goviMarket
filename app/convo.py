@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
-from . import accounts, ai, deals, demo_parser, parser, replies, reroute, store, surplus, tracking, vocab
+from . import accounts, ai, billing, deals, demo_parser, parser, replies, reroute, store, surplus, tracking, vocab
 from .schemas import Item, ParsedMessage
 
 log = logging.getLogger("govi.convo")
@@ -392,7 +392,8 @@ def status(sender: str, c: dict, lang: str) -> str:
                 else t("st_looking_buyer" if side == "farmer" else "st_looking_farmer", lang))
         day = x.ready_on if side == "farmer" else x.needed_by
         lines.append(f"{t('item', lang, crop=vocab.crop_name(x.crop, lang), kg=_kg(x.qty_kg))}, {_day(day, lang)}: {what}")
-    return "\n".join([t("st_head", lang), *lines]) if lines else t("st_none", lang)
+    plan = [billing.line(sender, lang)] if sender.isdigit() and billing.record(sender) else []
+    return "\n".join([t("st_head", lang), *lines, *plan]) if lines else "\n".join([t("st_none", lang), *plan])
 
 
 # ---------------------------------------------------------------- the turn
@@ -426,6 +427,8 @@ def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type:
             r = tracking.chat_track(sender, text, lang) or tracking.chat_cost(sender, text, lang)
             if r:
                 return Turn(r, state=c["state"])
+            if w in billing.WORDS:
+                return Turn(billing.line(sender, lang), state=c["state"])
         if w in vocab.YES or w in vocab.NO or w in vocab.CANCEL:
             return _answer(c, sender, "yes" if w in vocab.YES else "cancel" if w in vocab.CANCEL else "no", lang, today)
         if w in vocab.STATUS:
