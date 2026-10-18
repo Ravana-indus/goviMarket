@@ -134,6 +134,14 @@ def chosen_lang(phone: str | None) -> str | None:
     return lang if lang in LANGS else None
 
 
+def reply_lang(phone: str | None, fallback: str | None = None) -> str:
+    """The one language every message to this number uses: the picked one, else the language
+    they last chatted in, else the language of the order or harvest the message is about."""
+    lang = chosen_lang(phone) or (store.DB.one("convo", phone) or {}).get("lang") if phone else None
+    lang = lang or fallback
+    return lang if lang in LANGS else "en"
+
+
 def set_lang(phone: str, lang: str | None, via: str = "chat") -> None:
     """Pick (or with None clear) this number's language, and move their open listings and orders
     to it, so offers, shipment updates and reminders follow the choice too."""

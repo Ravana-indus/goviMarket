@@ -73,8 +73,7 @@ def booking_ref(x: Shipment) -> str:
 
 def _lang(doc: dict) -> str:
     """The language the person picked, else the one they wrote their order in."""
-    lang = accounts.chosen_lang(doc.get("phone")) or doc.get("lang")
-    return lang if lang in ("si", "ta", "en") else "en"
+    return accounts.reply_lang(doc.get("phone"), doc.get("lang"))
 
 
 def _fmt(iso: str) -> str:
@@ -95,7 +94,9 @@ def _notify(x: Shipment, status: str, send) -> None:
         for doc, table in ((l, FARMER), (o, BUYER)):
             if status in table:
                 lang = _lang(doc)
-                send(doc.get("phone"), table[status][lang].format(**{**facts, "crop": vocab.crop_name(m.crop, lang)}), mid)
+                from .dispatch import MODE
+                send(doc.get("phone"), table[status][lang].format(**{**facts, "crop": vocab.crop_name(m.crop, lang),
+                                                                     "mode": MODE.get(x.lane.mode, {}).get(lang, facts["mode"])}), mid)
 
 
 def advance(sid: str, send) -> Shipment:

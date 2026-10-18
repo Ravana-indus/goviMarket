@@ -123,7 +123,7 @@ def link(chat_id: str, phone: str) -> None:
     store.DB.put("telegram_phone", phone, {"chat_id": chat_id})
 
 
-def send_to_phone(phone: str, body: str) -> bool:
+def send_to_phone(phone: str, body: str, keyboard: Optional[list] = None) -> bool:
     """Deliver a Govi message to the Telegram chat linked to this number, if there is one."""
     if not enabled() or not phone:
         return False
@@ -131,7 +131,7 @@ def send_to_phone(phone: str, body: str) -> bool:
     if not chat:
         return False
     try:
-        send_text(chat, body)
+        send_text(chat, body, keyboard=keyboard)
         return True
     except Exception:
         log.exception("telegram send failed")

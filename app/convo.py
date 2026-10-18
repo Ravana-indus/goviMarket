@@ -432,7 +432,8 @@ def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type:
     if text and not media:
         w = vocab.norm(text)
         if sender.isdigit():  # TRACK [code] and COST [code] 1200 (a seller's shipping cost)
-            r = tracking.chat_track(sender, text, lang) or tracking.chat_cost(sender, text, lang)
+            r = tracking.chat_track(sender, text, lang) or tracking.chat_cost(sender, text, lang) \
+                or (None if w in vocab.YES else tracking.chat_step(sender, text, lang, deals._send))
             if r:
                 return Turn(r, state=c["state"])
             if w in billing.WORDS:
@@ -628,6 +629,10 @@ def _recent_placement(c: dict) -> bool:
 
 
 def _nothing_waiting(c: dict, sender: str, word: str, lang: str) -> Turn:
+    if word == "yes" and sender.isdigit():  # after a dispatch slip: handed over, or received
+        r = tracking.yes(sender, lang, deals._send)
+        if r:
+            return Turn(r)
     last = c.get("last") or {}
     recent = _recent_placement(c)
     if last.get("what") == "expired" and word == "yes":

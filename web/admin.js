@@ -42,7 +42,7 @@ function renderPlan(plan) {
     + (resc.length ? ` · ${resc.length} missed, all rescued · Govi covered ${rs(i.rescue_cost_lkr || 0)}` : "");
   $("shipments").innerHTML = ships.length ? ships.map((x) => {
     const loads = plan.matches.filter((m) => x.match_ids.includes(m.id));
-    const bars = loads.map((m) => `<span style="flex:${m.qty_kg}" title="${esc(m.farmer)} → ${esc(m.buyer)}: ${kg(m.qty_kg)} ${esc(m.crop)}${m.status === "confirmed" ? " · GV-" + m.id.toUpperCase() : ""}${m.shipping_paid_lkr ? " · seller paid " + rs(m.shipping_paid_lkr) : ""}">${esc(m.farmer)} ${Math.round(m.qty_kg)}${m.shipping_paid_lkr ? " · " + rs(m.shipping_paid_lkr) : ""}</span>`).join("");
+    const bars = loads.map((m) => `<span style="flex:${m.qty_kg}" title="${esc(m.farmer)} → ${esc(m.buyer)}: ${kg(m.qty_kg)} ${esc(m.crop)}${m.status === "confirmed" ? " · GV-" + m.id.toUpperCase() : ""}${m.shipping_paid_lkr ? " · seller paid " + rs(m.shipping_paid_lkr) : ""}${m.dropped_at ? " · seller handed over" : m.status === "confirmed" ? " · not handed over yet" : ""}${m.received_at ? " · buyer received" : ""}">${m.received_at ? "📦 " : m.dropped_at ? "✓ " : ""}${esc(m.farmer)} ${Math.round(m.qty_kg)}${m.shipping_paid_lkr ? " · " + rs(m.shipping_paid_lkr) : ""}</span>`).join("");
     const waiting = loads.filter((m) => m.status !== "confirmed");
     const at = STEPS.indexOf(x.status);
     const steps = STEPS.slice(1).map((st, i) => {

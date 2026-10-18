@@ -247,3 +247,116 @@ def can_report(phone: str, m: Match) -> bool:
 
 def lang_for(phone: str, fallback: str = "en") -> str:
     return accounts.chosen_lang(phone) or fallback
+
+
+# ---- chat steps after the dispatch slip: the seller hands the load over, the buyer gets it
+
+STEP_SAY = {
+    "dropped": {"en": "Thanks, noted: {crop} {kg} kg handed over at {pickup} ({code}). {buyer} is told it is on its way.",
+                "si": "ස්තූතියි, සටහන් කළා: {crop} කිලෝ {kg} {pickup} හිදී භාර දුන්නා ({code}). {buyer} ට එය එමින් පවතින බව දන්වා ඇත.",
+                "ta": "நன்றி, பதிவு செய்தோம்: {crop} {kg} கிலோ {pickup} இல் ஒப்படைக்கப்பட்டது ({code}). {buyer} க்கு அது வருவதாக தெரிவிக்கப்பட்டது."},
+    "cost_next": {"en": "Now reply COST and what you paid to send it (for example: COST 1200).",
+                  "si": "දැන් යැවීමට ගෙවූ මුදල COST ලෙස එවන්න (උදා: COST 1200).",
+                  "ta": "இப்போது அனுப்ப செலுத்திய தொகையை COST என அனுப்பவும் (உதா: COST 1200)."},
+    "to_buyer": {"en": "{farmer} has handed over your {kg} kg {crop} at {pickup} ({code}). It goes by {mode} at {departs}. Reply RECEIVED when it reaches you.",
+                 "si": "{farmer} ඔබේ {crop} කිලෝ {kg} {pickup} හිදී භාර දුන්නා ({code}). {departs} ට {mode} මගින් යයි. ලැබුණු විට RECEIVED ලෙස පිළිතුරු දෙන්න.",
+                 "ta": "{farmer} உங்கள் {crop} {kg} கிலோவை {pickup} இல் ஒப்படைத்தார் ({code}). {departs} மணிக்கு {mode} மூலம் செல்கிறது. வந்ததும் RECEIVED என பதில் அனுப்பவும்."},
+    "received": {"en": "Thanks, {crop} {kg} kg from {farmer} marked received ✅ ({code}).",
+                 "si": "ස්තූතියි, {farmer} ගෙන් {crop} කිලෝ {kg} ලැබුණු ලෙස සටහන් කළා ✅ ({code}).",
+                 "ta": "நன்றி, {farmer} இடமிருந்து {crop} {kg} கிலோ பெறப்பட்டதாக பதிவு செய்தோம் ✅ ({code})."},
+    "to_seller": {"en": "{buyer} received your {kg} kg {crop} ✅ ({code}).",
+                  "si": "{buyer} ඔබේ {crop} කිලෝ {kg} ලබා ගත්තා ✅ ({code}).",
+                  "ta": "{buyer} உங்கள் {crop} {kg} கிலோவைப் பெற்றார் ✅ ({code})."},
+}
+DROP_RE = re.compile(r"\b(drop+ed|drop+ed off|dropped it|handed( it)? over|handed|loaded|put (it )?on|sent off|dispatched|gave it)\b"
+                     r"|දැම්මා|භාර දුන්නා|පැටෙව්වා|ஒப்படைத்தேன்|ஒப்படைத்துவிட்டேன்|ஏற்றினேன்|ஏற்றிவிட்டேன்", re.I)
+RECV_RE = re.compile(r"\b(received|recieved|got it|got the|arrived|it came|delivered)\b|ලැබුණා|ලැබුනා|கிடைத்தது|பெற்றேன்|வந்தது", re.I)
+
+
+def _facts(m: Match, lang: str) -> dict:
+    return dict(crop=vocab.crop_name(m.crop, lang), kg=f"{m.qty_kg:.0f}", code=dispatch.code(m), farmer=m.farmer,
+                buyer=m.buyer, pickup=(m.lane.pickup or m.lane.origin) if m.lane else "",
+                mode=dispatch.MODE.get(m.lane.mode, {}).get(lang, m.lane.mode) if m.lane else "",
+                departs=m.lane.departs if m.lane else "")
+
+
+def awaiting_drop(phone: str) -> list[Match]:
+    return [m for m, side in _mine(phone) if side == "farmer" and m.lane and not m.dropped_at
+            and step_of(m) in ("planned", "booked", "loaded")]
+
+
+def awaiting_receipt(phone: str) -> list[Match]:
+    return [m for m, side in _mine(phone) if side == "buyer" and not m.received_at
+            and (m.dropped_at or step_of(m) in ("loaded", "in_transit", "arrived", "local"))]
+
+
+def _move_to(sid: str | None, target: str, send) -> None:
+    """Advance a shipment step by step (each step tells everyone on it) until it reaches `target`."""
+    from . import shipping
+    for _ in range(6):
+        x = next((s for s in store.shipments() if s.id == sid), None)
+        if not x or x.status in ("missed", "delivered") or shipping.STEPS.index(x.status) >= shipping.STEPS.index(target):
+            return
+        try:
+            shipping.advance(sid, send)
+        except ValueError:  # someone on the bundle has not said YES yet
+            return
+
+
+def dropped(phone: str, lang: str, send) -> str | None:
+    """The seller handed over every load still waiting: tell the buyers, and once everyone on a
+    bundle has handed over, the shipment moves to loaded."""
+    ms = awaiting_drop(phone)
+    if not ms:
+        return None
+    now = datetime.now(timezone.utc).isoformat()
+    lines = []
+    for m in ms:
+        m.dropped_at = now
+        store.put_match(m)
+        lines.append(STEP_SAY["dropped"][lang].format(**_facts(m, lang)))
+        o = store.get("orders", m.order_id) or {}
+        if o.get("phone"):
+            bl = accounts.reply_lang(o["phone"], o.get("lang"))
+            send(o["phone"], STEP_SAY["to_buyer"][bl].format(**_facts(m, bl)), m.id, buttons=[["📦 RECEIVED", "TRACK"]])
+        mates = [y for y in store.matches() if y.shipment_id and y.shipment_id == m.shipment_id]
+        if mates and all(y.dropped_at for y in mates):
+            _move_to(m.shipment_id, "loaded", send)
+    if not any(m.shipping_paid_lkr for m in ms):
+        lines.append(STEP_SAY["cost_next"][lang])
+    return "\n".join(lines)
+
+
+def received(phone: str, lang: str, send) -> str | None:
+    """The buyer has it: the seller is told, and a bundle everyone has received is delivered."""
+    ms = awaiting_receipt(phone)
+    if not ms:
+        return None
+    now = datetime.now(timezone.utc).isoformat()
+    lines = []
+    for m in ms:
+        m.received_at = now
+        store.put_match(m)
+        lines.append(STEP_SAY["received"][lang].format(**_facts(m, lang)))
+        l = store.get("listings", m.listing_id) or {}
+        if l.get("phone"):
+            fl = accounts.reply_lang(l["phone"], l.get("lang"))
+            send(l["phone"], STEP_SAY["to_seller"][fl].format(**_facts(m, fl)), m.id)
+        mates = [y for y in store.matches() if y.shipment_id and y.shipment_id == m.shipment_id]
+        if mates and all(y.received_at for y in mates):
+            _move_to(m.shipment_id, "delivered", send)
+    return "\n".join(lines)
+
+
+def chat_step(phone: str, text: str, lang: str, send) -> str | None:
+    """'dropped', 'both loaded on the train', 'RECEIVED', 'got it' from someone with a load waiting."""
+    if DROP_RE.search(text or "") and awaiting_drop(phone):
+        return dropped(phone, lang, send)
+    if RECV_RE.search(text or "") and awaiting_receipt(phone):
+        return received(phone, lang, send)
+    return None
+
+
+def yes(phone: str, lang: str, send) -> str | None:
+    """A YES with nothing else waiting, right after a dispatch slip, means handed over (or received)."""
+    return dropped(phone, lang, send) or received(phone, lang, send)
