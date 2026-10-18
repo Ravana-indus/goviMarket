@@ -85,10 +85,12 @@ def handle(*, text: Optional[str], media: Optional[bytes], mime_type: Optional[s
     with _locks[sender]:  # two messages from one phone at once must not race on its pending order
         if sender.isdigit():
             _chat(sender, "in", text or "", via, (mime_type or "").split("/")[0] or None)
+            convo.remember(sender, "sender", text or ("(voice note)" if (mime_type or "").startswith("audio") else "(photo)"))
         turn = convo.step(sender=sender, text=text, media=media, mime_type=mime_type, today=today,
                           confirm_first=confirm_first, via=via, lang=lang)
         if sender.isdigit():
             _chat(sender, "out", turn.reply, via)
+            convo.remember(sender, "govi", turn.reply)
         if deliver:
             deliver(turn.reply)
     if turn.plan and auto_plan:
