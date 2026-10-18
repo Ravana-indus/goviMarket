@@ -4,3 +4,5 @@ __pycache__/
 *.pyc
 .commandcode/
 
+e2e-*.md
+parse-score-*.md
