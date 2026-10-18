@@ -12,7 +12,7 @@ import statistics
 import uuid
 from datetime import datetime, timezone
 
-from . import accounts, dispatch, store, vocab
+from . import accounts, dispatch, store, vocab, who
 from .lanes import DEST_PICKUP_LKR, _norm, load_lanes
 from .schemas import Lane, Match
 
@@ -97,7 +97,7 @@ def chat_track(phone: str, text: str, lang: str) -> str | None:
         eta = say("eta", lang, at=datetime.fromisoformat(x.schedule["arrived"]).strftime("%a %H:%M")) \
             if x and st in ("booked", "loaded", "in_transit") and x.schedule.get("arrived") else ""
         lines.append(say("row", lang, code=dispatch.code(m), crop=vocab.crop_name(m.crop, lang), kg=f"{m.qty_kg:.0f}",
-                         farmer=m.farmer, buyer=m.buyer, step=STEP[st].get(lang, STEP[st]["en"]), eta=eta))
+                         **who.both(m, lang), step=STEP[st].get(lang, STEP[st]["en"]), eta=eta))
     return "\n".join(lines)
 
 
@@ -269,7 +269,7 @@ def public(code: str) -> dict | None:
         done = {e["status"]: e["at"] for e in x.events}
         steps = [{"status": s, "planned": x.schedule.get(s), "done": done.get(s)}
                  for s in ("booked", "loaded", "in_transit", "arrived", "delivered")]
-    return {"code": dispatch.code(m), "crop": m.crop, "kg": m.qty_kg, "farmer": m.farmer, "buyer": m.buyer,
+    return {"code": dispatch.code(m), "crop": m.crop, "kg": m.qty_kg, **who.both(m),
             "status": st, "origin": x.origin if x else None, "dest": x.dest if x else None,
             "mode": m.lane.mode if m.lane else None, "departs": m.lane.departs if m.lane else None,
             "pickup": (m.lane.pickup or m.lane.origin) if m.lane else None, "ship_on": m.ship_on, "needed_by": m.needed_by,
@@ -299,9 +299,9 @@ STEP_SAY = {
     "received": {"en": "Thanks, {crop} {kg} kg from {farmer} marked received ✅ ({code}).",
                  "si": "ස්තූතියි, {farmer} ගෙන් {crop} කිලෝ {kg} ලැබුණු ලෙස සටහන් කළා ✅ ({code}).",
                  "ta": "நன்றி, {farmer} இடமிருந்து {crop} {kg} கிலோ பெறப்பட்டதாக பதிவு செய்தோம் ✅ ({code})."},
-    "to_seller": {"en": "{buyer} received your {kg} kg {crop} ✅ ({code}).",
-                  "si": "{buyer} ඔබේ {crop} කිලෝ {kg} ලබා ගත්තා ✅ ({code}).",
-                  "ta": "{buyer} உங்கள் {crop} {kg} கிலோவைப் பெற்றார் ✅ ({code})."},
+    "to_seller": {"en": "{buyer} received your {kg} kg {crop} ✅ ({code}). Rs {amount} will be paid to you.",
+                  "si": "{buyer} ඔබේ {crop} කිලෝ {kg} ලබා ගත්තා ✅ ({code}). ඔබට රු. {amount} ගෙවනු ලැබේ.",
+                  "ta": "{buyer} உங்கள் {crop} {kg} கிலோவைப் பெற்றார் ✅ ({code}). உங்களுக்கு ரூ. {amount} செலுத்தப்படும்."},
 }
 DROP_RE = re.compile(r"\b(drop+ed|drop+ed off|dropped it|handed( it)? over|handed|loaded|put (it )?on|sent off|dispatched|gave it)\b"
                      # romanised Tamil and Sinhala: koduthuten / kuduthachu (gave), anuppiten (sent),
@@ -322,8 +322,8 @@ HAUL_RE = re.compile(r"\b(train|trian|bus|station|parcel|lorry|post office|rail|
 
 
 def _facts(m: Match, lang: str) -> dict:
-    return dict(crop=vocab.crop_name(m.crop, lang), kg=f"{m.qty_kg:.0f}", code=dispatch.code(m), farmer=m.farmer,
-                buyer=m.buyer, pickup=(m.lane.pickup or m.lane.origin) if m.lane else "",
+    return dict(crop=vocab.crop_name(m.crop, lang), kg=f"{m.qty_kg:.0f}", code=dispatch.code(m), **who.both(m, lang),
+                amount=f"{round(m.farmer_gets_lkr_per_kg * m.qty_kg):,}", pickup=(m.lane.pickup or m.lane.origin) if m.lane else "",
                 mode=dispatch.MODE.get(m.lane.mode, {}).get(lang, m.lane.mode) if m.lane else "",
                 departs=m.lane.departs if m.lane else "")
 
@@ -347,9 +347,12 @@ def waiting(phone: str) -> tuple[str, list[Match]] | None:
     return ("recv", ms) if ms else None
 
 
-def _move_to(sid: str | None, target: str, send) -> None:
-    """Advance a shipment step by step (each step tells everyone on it) until it reaches `target`."""
+def _move_to(sid: str | None, target: str) -> None:
+    """Catch a shipment up to `target` after a handover or receipt. The steps it passes are logged
+    but not messaged: the handover or receipt message already told each side what happened, and a
+    burst of "Booked", "Loaded", "On the way" after it would arrive late and out of order."""
     from . import shipping
+    send = lambda *a, **k: None  # noqa: E731
     for _ in range(6):
         x = next((s for s in store.shipments() if s.id == sid), None)
         if not x or x.status in ("missed", "delivered") or shipping.STEPS.index(x.status) >= shipping.STEPS.index(target):
@@ -371,14 +374,14 @@ def dropped(phone: str, lang: str, send) -> str | None:
     for m in ms:
         m.dropped_at = now
         store.put_match(m)
-        lines.append(STEP_SAY["dropped"][lang].format(**_facts(m, lang)))
+        lines.append(who.tidy(STEP_SAY["dropped"][lang].format(**_facts(m, lang))))
         o = store.get("orders", m.order_id) or {}
         if o.get("phone"):
             bl = accounts.reply_lang(o["phone"], o.get("lang"))
-            send(o["phone"], STEP_SAY["to_buyer"][bl].format(**_facts(m, bl)), m.id, buttons=[["📦 RECEIVED", "TRACK"]])
+            send(o["phone"], who.tidy(STEP_SAY["to_buyer"][bl].format(**_facts(m, bl))), m.id, buttons=[["📦 RECEIVED", "TRACK"]])
         mates = [y for y in store.matches() if y.shipment_id and y.shipment_id == m.shipment_id]
         if mates and all(y.dropped_at for y in mates):
-            _move_to(m.shipment_id, "loaded", send)
+            _move_to(m.shipment_id, "loaded")
     if not any(m.shipping_paid_lkr for m in ms):
         lines.append(STEP_SAY["cost_next"][lang])
     return "\n".join(lines)
@@ -394,14 +397,14 @@ def received(phone: str, lang: str, send) -> str | None:
     for m in ms:
         m.received_at = now
         store.put_match(m)
-        lines.append(STEP_SAY["received"][lang].format(**_facts(m, lang)))
+        lines.append(who.tidy(STEP_SAY["received"][lang].format(**_facts(m, lang))))
         l = store.get("listings", m.listing_id) or {}
         if l.get("phone"):
             fl = accounts.reply_lang(l["phone"], l.get("lang"))
-            send(l["phone"], STEP_SAY["to_seller"][fl].format(**_facts(m, fl)), m.id)
+            send(l["phone"], who.tidy(STEP_SAY["to_seller"][fl].format(**_facts(m, fl))), m.id)
         mates = [y for y in store.matches() if y.shipment_id and y.shipment_id == m.shipment_id]
         if mates and all(y.received_at for y in mates):
-            _move_to(m.shipment_id, "delivered", send)
+            _move_to(m.shipment_id, "delivered")
     return "\n".join(lines)
 
 

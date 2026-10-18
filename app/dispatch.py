@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 from datetime import datetime
 
-from . import accounts, store, vocab
+from . import accounts, store, vocab, who
 from .schemas import Match
 
 MODE = {"night_bus": {"en": "night bus", "si": "රාත්‍රී බසය", "ta": "இரவு பேருந்து"},
@@ -68,19 +68,22 @@ def url(m: Match) -> str:
 
 
 def address(o: dict) -> str:
-    """Where the buyer wants it: the order's address, else the account's, else name and town."""
+    """Where the buyer wants it: the order's address, else the account's, else name and town, then
+    the buyer's phone once, as the delivery contact (the one number the seller needs)."""
     u = accounts.user(o.get("phone")) or {}
     where = o.get("address") or u.get("address") or o.get("location") or ""
     phone = o.get("phone") or ""
     pretty = "0" + phone[2:] if phone.startswith("94") and len(phone) == 11 else phone
-    return ", ".join(x for x in [o.get("buyer"), where] if x) + (f" · {pretty}" if pretty else "")
+    name = o.get("buyer") if not who.is_phone(o.get("buyer")) else u.get("business") or u.get("name")
+    name = None if who.is_phone(name) else name
+    return ", ".join(x for x in [name, where] if x) + (f" · {pretty}" if pretty else "")
 
 
 def slip(m: Match, lang: str) -> str:
     """The seller's message: everything needed to label and hand over the load."""
     o = store.get("orders", m.order_id) or {}
     crop = vocab.crop_name(m.crop, lang)
-    lines = [say("seller_head", lang, kg=f"{m.qty_kg:.0f}", crop=crop, buyer=m.buyer),
+    lines = [say("seller_head", lang, kg=f"{m.qty_kg:.0f}", crop=crop, buyer=who.buyer(m, lang)),
              say("code", lang, code=code(m)), say("to", lang, address=address(o))]
     x = next((s for s in store.shipments() if s.id == m.shipment_id), None)
     if m.lane:
@@ -96,13 +99,19 @@ def slip(m: Match, lang: str) -> str:
     return "\n".join(lines)
 
 
-def send_details(m: Match, send) -> None:
-    """Both sides said YES: the seller gets the dispatch slip, the buyer the tracking code."""
+def send_details(m: Match, send, head: dict[str, str] | None = None) -> None:
+    """Both sides said YES: the seller gets the dispatch slip, the buyer the tracking code, each in
+    one message. `head` (phone -> line) goes on top of that person's message, so the side that did
+    not send the last YES hears "Confirmed" and the details together, not as two messages."""
     l, o = store.get("listings", m.listing_id) or {}, store.get("orders", m.order_id) or {}
+    head = head or {}
     if l.get("phone"):
-        send(l["phone"], slip(m, lang_of(l)), m.id, buttons=[["✅ DROPPED", "TRACK"]] if m.lane else None)
+        body = slip(m, lang_of(l))
+        send(l["phone"], "\n".join(x for x in [head.get(l["phone"]), body] if x), m.id,
+             buttons=[["✅ DROPPED", "TRACK"]] if m.lane else None)
     if o.get("phone"):
         lang = lang_of(o)
-        line = say("buyer", lang, kg=f"{m.qty_kg:.0f}", crop=vocab.crop_name(m.crop, lang), farmer=m.farmer, code=code(m))
-        send(o["phone"], "\n".join([line, say("link", lang, url=url(m)) if url(m) else say("track_cmd", lang),
-                                     say("recv_ask", lang)]), m.id, buttons=[["📦 RECEIVED", "TRACK"]])
+        line = say("buyer", lang, kg=f"{m.qty_kg:.0f}", crop=vocab.crop_name(m.crop, lang), farmer=who.farmer(m, lang), code=code(m))
+        send(o["phone"], who.tidy("\n".join(x for x in [head.get(o["phone"]), line, say("link", lang, url=url(m)) if url(m)
+                                                      else say("track_cmd", lang), say("recv_ask", lang)] if x)),
+             m.id, buttons=[["📦 RECEIVED", "TRACK"]])

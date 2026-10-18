@@ -513,6 +513,18 @@ def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type:
             p = _pending(c)
             p.role = "farmer" if w in vocab.SELLING else "buyer"
             return _advance(c, sender, known, p, lang, today, confirm_first)
+        if c["state"] == "confirming" and w in vocab.SELLING | vocab.BUYING and _pending(c):
+            # "selling" under an order summary (or "buying" under a harvest): Govi guessed the side
+            # wrong. Flip the draft, never read it as NO.
+            p = _pending(c)
+            want = "farmer" if w in vocab.SELLING else "buyer"
+            if p.role != want:
+                p.role = want
+                if want == "farmer" and p.location == "Colombo" and not (known or {}).get("location"):
+                    p.location = None  # the buyer default; a seller's town is asked, never assumed
+                if sender.isdigit():
+                    accounts.set_role(sender, want, via=via)
+                return _advance(c, sender, known, p, lang, today, confirm_first)
         if c["state"] == "asking" and c.get("qkind") == "qty" and re.fullmatch(r"\d+(\.\d+)?\s*(kg|kilo|කිලෝ|கிலோ)?", w):
             p = _pending(c)
             n = float(re.match(r"\d+(\.\d+)?", w).group())

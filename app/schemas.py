@@ -32,7 +32,7 @@ class ParsedMessage(BaseModel):
         "'cost': gives the rupees they paid to send a load Govi asked them to report (amount in amount_lkr). "
         "'chat': greeting, thanks or anything else with no order in it."))
     amount_lkr: Optional[float] = Field(None, description="For intent 'cost' only: the rupees paid, else null.")
-    role: Role = Field(description="'farmer' if offering harvest, 'buyer' if placing an order, 'reporter' if reporting today's market prices.")
+    role: Role = Field(description="'farmer' if offering harvest, 'buyer' if placing an order, 'reporter' if reporting today's market prices, 'unknown' if nothing says whether they buy or sell.")
     language: Lang = Field(description="Language the sender wrote or spoke in.")
     sender_name: Optional[str] = Field(description="Business or person name if visible, else null.")
     location: Optional[str] = Field(description="Town or district in English, e.g. 'Nuwara Eliya', 'Colombo 03'.")
@@ -124,6 +124,7 @@ class Match(BaseModel):
     created_at: Optional[str] = None
     expires_at: Optional[str] = None
     reminded: bool = False
+    part_of_kg: Optional[float] = None  # one side said "YES 100kg" to this offer of part_of_kg
 
 
 class Shipment(BaseModel):

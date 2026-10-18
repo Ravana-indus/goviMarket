@@ -26,7 +26,10 @@ Rules:
   "Next week" (heta sathiya, அடுத்த வாரம்) means Monday of next week. No date at all: `when` null.
   A resolved date is not unclear.
 - Role: if "About the sender" says this number is a farmer or a buyer, use that unless the message
-  plainly says the opposite. Never ask the sender who they are.
+  plainly says the opposite. Otherwise read it from the message: buying words (need, want, order, ona,
+  venum, ඕන, தேவை) mean "buyer"; selling words (sell, ready, harvest, vikunanna, විකුණන්න, விற்க) mean
+  "farmer". A new sender whose message has neither ("tomato 100kg tomorrow") is role "unknown": Govi
+  asks them. Never guess the side, and never write the question yourself.
 - If "Pending order" is given, it is NOT placed yet; the sender is replying to it. Pick `intent`:
   "confirm" for yes/ok/go ahead/ow/hari/ஆம்/சரி (also in a voice note), "cancel" for no/cancel,
   "edit" when the message adds, removes or changes anything in it or answers our question. For "edit"

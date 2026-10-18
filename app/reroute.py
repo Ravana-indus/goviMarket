@@ -14,7 +14,7 @@ import os
 import uuid
 from datetime import date, datetime, timezone
 
-from . import agent, store
+from . import agent, store, who
 from .matcher import match
 from .schemas import Listing, Match, Order
 
@@ -141,10 +141,10 @@ def find(today: date | None = None) -> list[dict]:
 
 def _record(a, b, L1, O1, L2, O2, kg, key, ev) -> dict:
     x, y = ev["x"], ev["y"]
-    parties = [{"role": "farmer", "name": L1.farmer, "phone": L1.phone, "lang": L1.lang, "ok": False},
-               {"role": "buyer", "name": O1.buyer, "phone": O1.phone, "lang": O1.lang, "ok": False},
-               {"role": "farmer", "name": L2.farmer, "phone": L2.phone, "lang": L2.lang, "ok": False},
-               {"role": "buyer", "name": O2.buyer, "phone": O2.phone, "lang": O2.lang, "ok": False}]
+    parties = [{"role": "farmer", "name": who.name_of(L1.farmer, L1.phone, "farmer", L1.location), "phone": L1.phone, "lang": L1.lang, "ok": False},
+               {"role": "buyer", "name": who.name_of(O1.buyer, O1.phone, "buyer", O1.location), "phone": O1.phone, "lang": O1.lang, "ok": False},
+               {"role": "farmer", "name": who.name_of(L2.farmer, L2.phone, "farmer", L2.location), "phone": L2.phone, "lang": L2.lang, "ok": False},
+               {"role": "buyer", "name": who.name_of(O2.buyer, O2.phone, "buyer", O2.location), "phone": O2.phone, "lang": O2.lang, "ok": False}]
     why = (f"saves Rs {ev['saved']:,} in transport" if b else
            f"sells {kg:.0f} kg that had no buyer and fills an order that had no supplier")
     return {

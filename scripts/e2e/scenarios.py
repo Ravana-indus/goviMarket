@@ -11,6 +11,11 @@ A scenario is a list of steps. Each step is one message from one actor (`say`) o
     inbox   a pattern that must appear in what Govi sent this actor during the step (offers, slips)
     peer    (actor, pattern): the same, for another actor's inbox
     grab    {"name": pattern}: save the first group (or match) from reply + inbox, used as {name} later
+    quiet   patterns that must not appear in anything Govi sent this actor during the step
+    peer_max  the most messages the peer may get during the step (one event, one message)
+
+Every step also checks that no actor sees another actor's phone number, except the buyer's number
+once as the delivery contact on the seller's dispatch slip ("· 0771234567").
 
 `live_only` marks steps that need Gemini (free text the keyword parser cannot read, photos, voice).
 Offline those steps are skipped; their scenario stops there. Placeholders: {crop} is a crop with no
@@ -41,10 +46,10 @@ TA_ORDER = "நாளைக்கு 5 கிலோ வெங்காயம்,
 
 
 def say(who, text, *, expect=(), any=(), absent=(ERROR,), lang=None, inbox=None, peer=None, grab=None,
-        file=None, live_only=False, note=""):
+        file=None, live_only=False, note="", quiet=(), peer_max=None):
     return {"who": who, "say": text, "expect": list(expect), "any": list(any), "absent": list(absent),
             "lang": lang, "inbox": inbox, "peer": peer, "grab": grab or {}, "file": file,
-            "live_only": live_only, "note": note}
+            "live_only": live_only, "note": note, "quiet": list(quiet), "peer_max": peer_max}
 
 
 def api(method, path, *, status=200, json=None, data=None, contains=(), note="", headers=None):
@@ -206,10 +211,12 @@ SCENARIOS: list[dict] = [
         *deal_setup(),
         api("GET", "/api/t/{code}", contains=["status"], note="public tracking page data"),
         say("farmer", "koduthuten train ku", expect=[HANDED], absent=[ERROR, HELLO, CHECK_HARVEST],
-            peer=("buyer", r"handed over|භාර දුන්|ஒப்படை")),
+            peer=("buyer", r"handed over|භාර දුන්|ஒப்படை"), quiet=[r"Booked|Loaded"], peer_max=1,
+            note="one message each: no 'Booked: bring your carrot' after it is handed over"),
         say("farmer", "2000", any=[r"2,?000", r"cost|වියදම|செலவு"], absent=[ERROR, CHECK_ORDER, CHECK_HARVEST],
             note="a bare amount right after the COST ask is the cost"),
-        say("buyer", "RECEIVED", expect=[RECEIVED], peer=("farmer", r"received|ලැබුණා|பெற்")),
+        say("buyer", "RECEIVED", expect=[RECEIVED], peer=("farmer", r"received|ලැබුණා|பெற்"),
+            quiet=[r"On the way|Arrived|Delivered"], peer_max=1),
         say("farmer", "TRACK", expect=[r"GV-"]),
         say("buyer", "TRACK", expect=[r"GV-"]),
     ]},
@@ -246,9 +253,10 @@ SCENARIOS: list[dict] = [
         say("farmer", "YES", expect=[PLACED_FARMER]),
         say("buyer", "need {crop} 150kg on {day3}, deliver to Colombo", expect=[CHECK_ORDER]),
         say("buyer", "YES", expect=[PLACED_BUYER], inbox=OFFER),
-        say("buyer", "YES 100kg", expect=[r"100"], absent=[ERROR, CONFIRMED],
-            note="a part-accept must not confirm without the farmer"),
-        say("farmer", "YES", any=[CONFIRMED, WAITING_OTHER, r"100"]),
+        say("buyer", "YES 100kg", expect=[r"100"], absent=[ERROR, CONFIRMED], quiet=[r"\b50 kg"],
+            note="a part-accept must not confirm without the farmer, nor offer them the rest again"),
+        say("farmer", "YES", any=[CONFIRMED], absent=[ERROR, r"\b50 kg", WAITING_OTHER],
+            note="the farmer's YES confirms the 100 kg they were shown, and nothing else"),
         say("buyer", "CANCEL", note="clean-up: withdraw the 50 kg still open, if the site allows it"),
         say("farmer", "CANCEL"),
     ]},
