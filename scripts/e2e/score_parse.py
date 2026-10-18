@@ -8,7 +8,8 @@ fresh test number, and the `parsed` result is compared with the expected answer.
 Fields: intent, role, language, items (every crop with the right kg, nothing extra), when (date),
 location. A sample is fully right when every field it states is right. A field set to null in
 parse_set.json is not scored for that sample (romanised text has no single "right" language, chat
-has no role, and a buyer who names no town gets Colombo by design). A reply answered without a parse ("hi", "thanks") counts as intent chat with no items.
+has no role, and a buyer who names no town gets Colombo by design). A message the chat answers from its word lists before Gemini ("hi", "where is my order?") is
+scored on the intent its reply shows (status or chat), with language not scored.
 Nothing is placed: no sample is ever followed by YES.
 """
 from __future__ import annotations
@@ -39,8 +40,19 @@ def expected_date(spec: str | None, today: date) -> str | None:
     return (today + timedelta(days=(i - today.weekday()) % 7 or 7)).isoformat()
 
 
-def score(sample: dict, parsed: dict | None, today: date) -> dict:
-    p = parsed or {"intent": "chat", "role": None, "language": None, "items": [], "when": None, "location": None}
+def _status_reply(reply: str) -> bool:
+    from app import convo  # the STATUS answer's own opening lines, in every language
+    return any(reply.startswith(v) for k in ("st_head", "st_none") for v in convo.T[k].values())
+
+
+def score(sample: dict, parsed: dict | None, today: date, reply: str = "") -> dict:
+    if parsed is None:
+        # Answered by the chat's own word lists before Gemini ("hi", "where is my order?"): judge the
+        # intent by the reply it got, and leave language unscored, since nothing was parsed.
+        intent = "status" if _status_reply(reply) else "chat"
+        p = {"intent": intent, "role": None, "language": sample["lang"], "items": [], "when": None, "location": None}
+    else:
+        p = parsed
     got_items = {i["crop"]: float(i["qty_kg"] or 0) for i in p.get("items") or []}
     if sample["role"] == "reporter":  # a price report: the crops matter, qty is always 0
         got_items = {c: 0.0 for c in got_items}
@@ -95,13 +107,14 @@ def main(argv=None) -> int:
         try:
             r = t.http.post("/intake", data=data, files=files)
             parsed = r.json().get("parsed") if r.status_code == 200 else None
+            reply = r.json().get("reply") or "" if r.status_code == 200 else ""
             err = None if r.status_code == 200 else f"HTTP {r.status_code}"
         except Exception as e:  # noqa: BLE001
-            parsed, err = None, f"{type(e).__name__}: {e}"
+            parsed, reply, err = None, "", f"{type(e).__name__}: {e}"
         if t.live:
             import time
             time.sleep(a.gap)
-        res = score(s, parsed, today) if not err else {f: {"ok": False, "want": "?", "got": err} for f in FIELDS}
+        res = score(s, parsed, today, reply) if not err else {f: {"ok": False, "want": "?", "got": err} for f in FIELDS}
         for f, v in res.items():
             per_field[f][0] += v["ok"]; per_field[f][1] += 1
         whole = all(v["ok"] for v in res.values())
