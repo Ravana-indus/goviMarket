@@ -42,12 +42,19 @@ def arrival(lane: Lane, ship_on: date) -> datetime:
 
 
 def pick_lane(lanes: list[Lane], *, origin: str, dest: str, kg: float,
-              ship_on: date, needed_by: date) -> Optional[Lane]:
-    """Cheapest lane on this route that fits the load and lands by 08:00 on `needed_by`."""
+              ship_on: date, needed_by: date,
+              booked_cap: dict[tuple, float] | None = None) -> Optional[Lane]:
+    """Cheapest lane on this route that fits the load, has departure capacity, and lands by 08:00 on `needed_by`."""
     deadline = datetime(needed_by.year, needed_by.month, needed_by.day, 8, 0)
-    ok = [l for l in lanes
-          if _norm(l.origin) == _norm(origin) and _norm(l.dest) == _norm(dest)
-          and l.max_kg >= kg and arrival(l, ship_on) <= deadline]
+    ok = []
+    for l in lanes:
+        if _norm(l.origin) != _norm(origin) or _norm(l.dest) != _norm(dest):
+            continue
+        used = (booked_cap or {}).get((_norm(l.origin), _norm(l.dest), l.mode, l.departs, ship_on), 0.0)
+        if (l.max_kg - used) < kg:
+            continue
+        if arrival(l, ship_on) <= deadline:
+            ok.append(l)
     return min(ok, key=lambda l: lane_cost(l, kg), default=None)
 
 

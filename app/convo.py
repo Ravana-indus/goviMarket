@@ -325,10 +325,13 @@ def _missing(p: ParsedMessage, lang: str) -> tuple[str, str] | None:
 
 
 def _split_traded(p: ParsedMessage) -> list[str]:
-    """Drop crops Govi has no price for (nobody could be matched); return their names."""
+    """Drop crops Govi has no complete price for (nobody could be matched); return their names."""
     prices = store.prices()
-    gone = [i.crop for i in p.items if i.crop not in prices]
-    p.items = [i for i in p.items if i.crop in prices]
+    def valid_price(c: str) -> bool:
+        p_info = prices.get(c)
+        return bool(p_info and p_info.get("collector") and p_info.get("retail"))
+    gone = [i.crop for i in p.items if not valid_price(i.crop)]
+    p.items = [i for i in p.items if valid_price(i.crop)]
     return gone
 
 
@@ -440,6 +443,10 @@ def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type:
                 return Turn(billing.line(sender, lang), state=c["state"])
         if w in vocab.YES or w in vocab.NO or w in vocab.CANCEL:
             return _answer(c, sender, "yes" if w in vocab.YES else "cancel" if w in vocab.CANCEL else "no", lang, today)
+        if deals.asked_at(sender):
+            ans = deals.answer(sender, text, lang=lang)
+            if ans:
+                return Turn(ans, plan=True)
         if w in vocab.STATUS:
             return Turn(status(sender, c, lang), state=c["state"])
         if w in vocab.HELLO or w in vocab.THANKS:
@@ -599,8 +606,18 @@ def _answer(c: dict, sender: str, word: str, lang: str, today: date) -> Turn:
     asks = []
     if c["state"] != "idle" and c.get("asked_at"):
         asks.append((c["asked_at"], "own"))
-    elif word == "cancel" and (c.get("last") or {}).get("what") == "placed":
-        return _cancel_placed(c, c["last"], lang)  # "cancel" means the order, not just one offer on it
+    elif word == "cancel":
+        # ponytail: "cancel" withdraws the placed order, never silently declines match offers
+        last = c.get("last") or {}
+        if last.get("what") == "placed":
+            return _cancel_placed(c, last, lang)
+        user_orders = [d for d in store.DB.all("orders") if d.get("phone") == sender]
+        user_listings = [d for d in store.DB.all("listings") if d.get("phone") == sender]
+        if user_orders or user_listings:
+            all_ids = {d["id"] for d in user_orders} | {d["id"] for d in user_listings}
+            ref = (user_orders or user_listings)[0]["id"][:6].upper()
+            return _cancel_placed(c, {"ids": list(all_ids), "ref": ref}, lang)
+        return _nothing_waiting(c, sender, word, lang)
     if (a := deals.asked_at(sender)):
         asks.append((a, "match"))
     if (a := reroute.asked_at(sender)):

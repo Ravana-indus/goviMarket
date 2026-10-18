@@ -139,11 +139,13 @@ def record(parsed: ParsedMessage, *, default_date: date, sender: str = "",
         rid = uuid.uuid4().hex[:8]
         if parsed.role == "farmer" and parsed.location:
             doc = Listing(id=rid, phone=sender or None, lang=parsed.language, farmer=who, location=parsed.location, crop=item.crop,
-                          qty_kg=item.qty_kg, ready_on=when, remaining_kg=item.qty_kg)
+                          qty_kg=item.qty_kg, ready_on=when, remaining_kg=item.qty_kg,
+                          grade=item.grade, price_lkr_per_kg=item.price_lkr_per_kg, created_at=now)
             DB.put("listings", rid, doc.model_dump(mode="json"))
         elif parsed.role == "buyer":
             doc = Order(id=rid, phone=sender or None, lang=parsed.language, buyer=who, location=parsed.location or default_buyer_location,
-                        crop=item.crop, qty_kg=item.qty_kg, needed_by=when, remaining_kg=item.qty_kg)
+                        crop=item.crop, qty_kg=item.qty_kg, needed_by=when, remaining_kg=item.qty_kg,
+                        grade=item.grade, price_lkr_per_kg=item.price_lkr_per_kg, created_at=now)
             DB.put("orders", rid, doc.model_dump(mode="json"))
         elif parsed.role == "reporter" and item.price_lkr_per_kg and item.price_kind:
             DB.put("prices", rid, {"crop": item.crop, "kind": item.price_kind,
@@ -175,7 +177,17 @@ def put_match(m: Match) -> None:
 
 
 def get(kind: str, rid: str) -> dict | None:
-    return next((d for d in DB.all(kind) if d["id"] == rid), None)
+    return DB.one(kind, rid)
+
+
+def adjust_remaining(kind: str, rid: str, delta: float) -> float:
+    """Atomic clamp on remaining_kg: prevents negative inventory."""
+    doc = get(kind, rid)
+    if doc:
+        doc["remaining_kg"] = max(0.0, round(float(doc.get("remaining_kg", 0.0)) + delta, 2))
+        put(kind, doc)
+        return doc["remaining_kg"]
+    return 0.0
 
 
 def put(kind: str, doc: dict) -> None:

@@ -20,6 +20,7 @@ from .schemas import Match, Shipment
 
 BACKUP_MARKET = {"colombo": "Peliyagoda wholesale market", "kandy": "Kandy wholesale market"}
 CAN_MISS = ("booked", "loaded")
+CAN_FAIL = ("booked", "loaded", "in_transit")
 
 
 def _now() -> str:
@@ -40,8 +41,8 @@ def missed(sid: str, send=None, reason: str = "missed the departure") -> dict:
     x = next((s for s in store.shipments() if s.id == sid), None)
     if x is None:
         raise KeyError(sid)
-    if x.status not in CAN_MISS:
-        raise ValueError(f"only a booked or loaded shipment can miss its departure (this one is {x.status})")
+    if x.status not in CAN_FAIL:
+        raise ValueError(f"only an active shipment can miss or fail (this one is {x.status})")
     loads = [m for m in store.matches() if m.id in x.match_ids and m.status == "confirmed"]
     deadline = min(m.needed_by for m in loads)
     old = f"{_mode(x.lane)} at {x.lane.departs}"
@@ -83,10 +84,8 @@ def missed(sid: str, send=None, reason: str = "missed the departure") -> dict:
         for m in loads:
             m.status, m.note, m.shipment_id = "cancelled", f"stranded: {old} missed", None
             store.put_match(m)
-            for kind, rid in (("listings", m.listing_id), ("orders", m.order_id)):
-                doc = store.get(kind, rid)
-                doc["remaining_kg"] += m.qty_kg
-                store.put(kind, doc)
+            store.adjust_remaining("listings", m.listing_id, m.qty_kg)
+            store.adjust_remaining("orders", m.order_id, m.qty_kg)
             short[m.order_id] = short.get(m.order_id, 0) + m.qty_kg
             l = store.get("listings", m.listing_id) or {}
             _tell(send, l.get("phone"), l.get("lang"), "Tell the farmer their load could not travel in time and is back on offer.",
@@ -121,8 +120,7 @@ def missed(sid: str, send=None, reason: str = "missed the departure") -> dict:
                       buyer_pays_lkr_per_kg=src.buyer_pays_lkr_per_kg, collector_pays_lkr_per_kg=src.collector_pays_lkr_per_kg,
                       market_retail_lkr_per_kg=src.market_retail_lkr_per_kg, note="rescue: backup buy")
             store.put_match(b)
-            o["remaining_kg"] -= kg
-            store.put("orders", o)
+            store.adjust_remaining("orders", oid, -kg)
             gap = max(wholesale - src.buyer_pays_lkr_per_kg, 0) * kg + DEST_PICKUP_LKR
             rescue["extra_cost_lkr"] += round(gap)
             backups.append(b)
@@ -148,3 +146,47 @@ def missed(sid: str, send=None, reason: str = "missed the departure") -> dict:
     x.rescue = rescue
     store.put_shipment(x)
     return rescue
+
+
+def decline_rescue_match(m: Match, send=None) -> Match:
+    """If a proposed replacement farmer declines, immediately cover with a wholesale backup buy."""
+    from . import deals
+    send = send or deals._send
+    prices = store.prices()
+    p = prices.get(m.crop, {})
+    wholesale = p.get("wholesale") or round(p.get("retail", m.buyer_pays_lkr_per_kg) * 0.8)
+    o = store.get("orders", m.order_id) or {}
+    market = BACKUP_MARKET.get(_norm(o.get("location", "")), f"{o.get('location', '')} wholesale market")
+    b = Match(id=uuid.uuid4().hex[:8], status="confirmed", farmer_ok=True, buyer_ok=True, listing_id="backup",
+              order_id=m.order_id, farmer=market, buyer=o.get("buyer", m.buyer), crop=m.crop, qty_kg=m.qty_kg, lane=None,
+              needed_by=m.needed_by, transport_lkr_per_kg=0, farmer_gets_lkr_per_kg=wholesale,
+              buyer_pays_lkr_per_kg=m.buyer_pays_lkr_per_kg, collector_pays_lkr_per_kg=m.collector_pays_lkr_per_kg,
+              market_retail_lkr_per_kg=m.market_retail_lkr_per_kg, note="rescue: backup buy")
+    store.put_match(b)
+    store.adjust_remaining("orders", m.order_id, -m.qty_kg)
+    _tell(send, o.get("phone"), o.get("lang"),
+          "Tell the buyer their replacement was covered from the wholesale market.",
+          dict(buyer=o.get("buyer"), crop=m.crop, kg=round(m.qty_kg), market=market),
+          f"Update: your {round(m.qty_kg)} kg {m.crop} will be supplied directly from {market}. Arriving on time at agreed price.",
+          b.id)
+    return b
+
+
+def watchdog(now: datetime | None = None, send=None) -> list[str]:
+    """Scan shipments in CAN_MISS where departure time passed; trigger automatic rescue."""
+    now_dt = now or datetime.now(timezone.utc)
+    rescued = []
+    for s in store.shipments():
+        if s.status in CAN_MISS and s.schedule.get("in_transit"):
+            try:
+                dept_dt = datetime.fromisoformat(s.schedule["in_transit"])
+                if dept_dt.tzinfo is None and now_dt.tzinfo is not None:
+                    dept_dt = dept_dt.replace(tzinfo=timezone.utc)
+                elif dept_dt.tzinfo is not None and now_dt.tzinfo is None:
+                    now_dt = now_dt.replace(tzinfo=timezone.utc)
+                if dept_dt < now_dt:
+                    missed(s.id, send=send, reason="departure time passed without confirmation")
+                    rescued.append(s.id)
+            except Exception:
+                pass
+    return rescued

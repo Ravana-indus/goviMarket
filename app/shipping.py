@@ -121,6 +121,29 @@ def advance(sid: str, send) -> Shipment:
     return x
 
 
+def advance_to(ref_or_id: str, target: str, send, note: str = "") -> Shipment:
+    """Advance a shipment to a specific target status, notifying parties along the way."""
+    s = next((x for x in store.shipments() if x.id == ref_or_id or (x.ref and x.ref.upper() == ref_or_id.upper())), None)
+    if not s:
+        raise KeyError(ref_or_id)
+    if target in ("missed", "failed"):
+        from . import rescue
+        rescue.missed(s.id, send=send, reason=note or "carrier reported failure")
+        return next(x for x in store.shipments() if x.id == s.id)
+    if target not in STEPS:
+        raise ValueError(f"unknown status: {target}")
+    curr_idx = STEPS.index(s.status) if s.status in STEPS else 0
+    targ_idx = STEPS.index(target)
+    if targ_idx <= curr_idx:
+        return s
+    for _ in range(targ_idx - curr_idx):
+        s = advance(s.id, send)
+    if note and s.events:
+        s.events[-1]["note"] = note
+        store.put_shipment(s)
+    return s
+
+
 def departure(lane: Lane, ship_on) -> datetime:
     hh, mm = (int(v) for v in lane.departs.split(":"))
     return datetime(ship_on.year, ship_on.month, ship_on.day, hh, mm)

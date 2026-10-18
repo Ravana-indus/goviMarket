@@ -226,7 +226,8 @@ def asked_at(phone: str) -> str | None:
 def answer(phone: str, text: str, send, today: date | None = None) -> str | None:
     """YES or NO to a proposed swap. Returns the reply, or None if this phone has no swap waiting."""
     from .deals import NO, YES
-    word = text.strip().lower().rstrip("!.")
+    from . import vocab
+    word = vocab.norm(text)
     if word not in YES | NO or not phone:
         return None
     for s in sorted(_pending(), key=lambda s: s["at"]):
@@ -279,10 +280,8 @@ def execute(s: dict, send, today: date | None = None) -> bool:
         return False
     for m in old:
         if m.status == "confirmed":  # give the kg back; the new deals take them again
-            for kind, rid in (("listings", m.listing_id), ("orders", m.order_id)):
-                doc = store.get(kind, rid)
-                doc["remaining_kg"] += s["kg"]
-                store.put(kind, doc)
+            store.adjust_remaining("listings", m.listing_id, s["kg"])
+            store.adjust_remaining("orders", m.order_id, s["kg"])
         left = m.qty_kg - s["kg"]
         if left <= 1e-6:
             m.status, m.note, m.shipment_id = "cancelled", "rerouted", None

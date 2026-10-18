@@ -23,7 +23,11 @@ def split(price: dict, transport_lkr_per_kg: float) -> dict:
     `price` has `collector` (what the village collector pays the farmer today) and
     `retail` (what a Colombo buyer pays today)."""
     collector, retail = price["collector"], price["retail"]
-    buyer_pays = round(retail - BUYER_DISCOUNT_SHARE * (retail - collector), 1)
+    # ponytail: clamp against market inversion so buyer_pays never exceeds retail
+    if retail <= collector:
+        buyer_pays = round(float(retail), 1)
+    else:
+        buyer_pays = round(retail - BUYER_DISCOUNT_SHARE * (retail - collector), 1)
     farmer_gets = round(buyer_pays * (1 - GOVI_FEE) - transport_lkr_per_kg, 1)
     return {
         "buyer_pays": buyer_pays,

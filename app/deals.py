@@ -3,17 +3,21 @@ from __future__ import annotations
 
 import logging
 import os
+import re
+import threading
 import uuid
+from collections import defaultdict
+from datetime import date, datetime, timedelta, timezone
 
 from . import accounts, agent, messages, shipping, store, telegram, vocab, whatsapp
-from .lanes import load_lanes
+from .lanes import _norm, load_lanes
 from .matcher import bundle, impact, match, why_unmatched
 from .pricing import split
 
 log = logging.getLogger("govi")
 LANES = load_lanes()
 YES = vocab.YES
-NO = vocab.NO | vocab.CANCEL
+NO = vocab.NO
 SAY = {  # Sinhala and Tamil need a native speaker's read before the demo video.
     "both": {"en": "Confirmed by both sides. {kg} kg {crop}.", "si": "දෙපාර්ශවයම තහවුරු කළා. {crop} කිලෝ {kg}.",
              "ta": "இரு தரப்பும் உறுதிசெய்தனர். {crop} {kg} கிலோ."},
@@ -28,9 +32,9 @@ SAY = {  # Sinhala and Tamil need a native speaker's read before the demo video.
     "off": {"en": "The offer for {kg} kg {crop} is off: the other side withdrew. We will look for another match.",
             "si": "{crop} කිලෝ {kg} සඳහා වූ ගැළපීම අවලංගුයි: අනෙක් පාර්ශවය ඉවත් විය. වෙනත් ගැළපීමක් සොයනවා.",
             "ta": "{crop} {kg} கிலோ பொருத்தம் ரத்து: மறுதரப்பு விலகியது. வேறு பொருத்தம் தேடுவோம்."},
-    "many": {"en": "Reply YES to accept all {n}, or NO to decline all.",
-             "si": "සියල්ල ({n}) පිළිගැනීමට YES, සියල්ල ප්‍රතික්ෂේප කිරීමට NO ලෙස පිළිතුරු දෙන්න.",
-             "ta": "அனைத்தையும் ({n}) ஏற்க YES, அனைத்தையும் நிராகரிக்க NO என பதில் அனுப்பவும்."},
+    "many": {"en": "Reply YES to accept all {n}, NO to decline all, or e.g. YES 1 or NO 2 to pick.",
+             "si": "සියල්ල ({n}) පිළිගැනීමට YES, ප්‍රතික්ෂේප කිරීමට NO, හෝ තෝරාගැනීමට YES 1 / NO 2 ලෙස පිළිතුරු දෙන්න.",
+             "ta": "அனைத்தையும் ({n}) ஏற்க YES, நிராகரிக்க NO, அல்லது தெரிவுசெய்ய YES 1 / NO 2 என பதில் அனுப்பவும்."},
 }
 
 
@@ -54,71 +58,122 @@ def _send(to: str | None, body: str, match_id: str, buttons: list | None = None)
     telegram.send_to_phone(to, body, keyboard=buttons)
 
 
-def plan(extra_blocked: set[tuple[str, str]] = frozenset()) -> dict:
+_plan_lock = threading.Lock()
+
+
+def plan(extra_blocked: set[tuple[str, str]] = frozenset(), today: date | None = None) -> dict:
     """Propose matches for stock not already held by a pending or confirmed match, and notify."""
-    held = [m for m in store.matches() if m.status == "proposed"]
-    listings, orders = store.listings(), store.orders()
-    for m in held:  # confirmed matches already reduced remaining_kg when they were confirmed
-        for x in listings:
-            if x.id == m.listing_id:
-                x.remaining_kg -= m.qty_kg
-        for x in orders:
-            if x.id == m.order_id:
-                x.remaining_kg -= m.qty_kg
-    prices = store.prices()
-    blocked = {(m.listing_id, m.order_id) for m in store.matches() if m.status in ("declined", "cancelled")} | set(extra_blocked)
-    fresh, surplus = match(listings, orders, LANES, prices, blocked)
-    by_id = {x.id: x for x in listings} | {x.id: x for x in orders}
-    for m in fresh:
-        m.id = uuid.uuid4().hex[:8]
-        store.put_match(m)
-    live = [m for m in store.matches() if m.status not in ("declined", "cancelled")]
-    # Shipments already booked are locked; only loads still being planned get re-bundled.
-    frozen = [x for x in store.shipments() if x.status != "planned"]
-    for x in store.shipments():
-        if x.status == "planned":
-            store.delete_shipment(x.id)
-    frozen_ids = {mid for x in frozen for mid in x.match_ids}
-    movable = [m for m in live if m.id not in frozen_ids]
-    for m in movable:  # every run starts from each load's own cheapest lane, then re-bundles
-        m.lane = m.solo_lane or m.lane
-        m.transport_lkr_per_kg = m.solo_transport_lkr_per_kg or m.transport_lkr_per_kg
-        m.shipment_id = None
-        m.farmer_gets_lkr_per_kg = split(prices[m.crop], m.transport_lkr_per_kg)["farmer_gets"] \
-            if m.crop in prices else m.farmer_gets_lkr_per_kg
-    shipments = bundle(movable, LANES, prices)
-    for x in shipments:
-        x.schedule = shipping.schedule(x.lane, x.ship_on)
-        store.put_shipment(x)
-    for m in movable:
-        store.put_match(m)
-    shipments = frozen + shipments
-    fresh_ids = {m.id for m in fresh}
-    sizes = {x.id: len(x.farmers) for x in shipments}
-    # One message per person per run: a buyer whose five-item order found five farmers gets one
-    # list and one YES, not five messages that each want their own YES.
-    todo: dict[tuple, list] = {}
-    for m in live:
-        if m.id in fresh_ids:
-            l, o = by_id[m.listing_id], by_id[m.order_id]
-            todo.setdefault((l.phone, "farmer", accounts.reply_lang(l.phone, l.lang)), []).append(m)
-            todo.setdefault((o.phone, "buyer", accounts.reply_lang(o.phone, o.lang)), []).append(m)
-    for (phone, party, lang), ms in todo.items():
-        if len(ms) == 1 or not phone:
-            for m in ms:
-                _send(phone, agent.explain(m, party=party, lang=lang, prices=prices,
-                                           shared_with=sizes.get(m.shipment_id, 1) - 1 if party == "farmer" else 0), m.id)
-        else:
-            _send(phone, _several(ms, party, lang), ",".join(m.id for m in ms))
-    out = {"matches": [m.model_dump(mode="json") for m in live],
-           "shipments": [x.model_dump(mode="json") for x in shipments],
-           "surplus": [l.model_dump(mode="json") for l in surplus],
-           "impact": {**impact(live), "surplus_kg": sum(l.remaining_kg for l in surplus),
-                      "confirmed": sum(m.status == "confirmed" for m in live)}}
-    store.save_plan(out)
-    from . import reroute
-    reroute.scan(_send)  # a better route can show up after a deal is agreed
-    return out
+    with _plan_lock:  # ponytail: process lock ensures no overlapping plans race on inventory
+        now = datetime.now(timezone.utc)
+        from . import rescue
+        rescue.watchdog(now=now, send=_send)
+        # ponytail: release stale proposed matches past their TTL and send reminder/expiry notices
+        for m in store.matches():
+            if m.status == "proposed" and m.expires_at:
+                try:
+                    exp_dt = datetime.fromisoformat(m.expires_at)
+                    if exp_dt <= now:
+                        m.status = "expired"
+                        store.put_match(m)
+                        l = store.get("listings", m.listing_id) or {}
+                        o = store.get("orders", m.order_id) or {}
+                        if not m.farmer_ok:
+                            _send(l.get("phone"), f"Offer for {m.qty_kg:.0f} kg {m.crop} expired. Produce is back on offer for other buyers.", m.id)
+                        if not m.buyer_ok:
+                            _send(o.get("phone"), f"Offer for {m.qty_kg:.0f} kg {m.crop} expired. Order is back on offer for other farmers.", m.id)
+                    elif not m.reminded and exp_dt - now <= timedelta(hours=1):
+                        m.reminded = True
+                        store.put_match(m)
+                        l = store.get("listings", m.listing_id) or {}
+                        o = store.get("orders", m.order_id) or {}
+                        if not m.farmer_ok:
+                            _send(l.get("phone"), f"Reminder: offer for {m.qty_kg:.0f} kg {m.crop} expires soon. Reply YES to accept or NO to pass.", m.id)
+                        if not m.buyer_ok:
+                            _send(o.get("phone"), f"Reminder: offer for {m.qty_kg:.0f} kg {m.crop} expires soon. Reply YES to accept or NO to pass.", m.id)
+                except Exception:
+                    pass
+
+        held = [m for m in store.matches() if m.status == "proposed"]
+        listings, orders = store.listings(), store.orders()
+        for m in held:  # confirmed matches already reduced remaining_kg when they were confirmed
+            for x in listings:
+                if x.id == m.listing_id:
+                    x.remaining_kg = max(0.0, x.remaining_kg - m.qty_kg)
+            for x in orders:
+                if x.id == m.order_id:
+                    x.remaining_kg = max(0.0, x.remaining_kg - m.qty_kg)
+        prices = store.prices()
+        # ponytail: rerouted matches do not permanently block the pair from ever trading again
+        blocked = {(m.listing_id, m.order_id) for m in store.matches()
+                   if m.status == "declined" or (m.status == "cancelled" and m.note != "rerouted")} | set(extra_blocked)
+
+        # Track aggregate departure capacity booked by non-planned shipments
+        booked_cap: dict[tuple, float] = defaultdict(float)
+        for s in store.shipments():
+            if s.status != "planned" and s.lane and s.ship_on:
+                k = (_norm(s.lane.origin), _norm(s.lane.dest), s.lane.mode, s.lane.departs, s.ship_on)
+                booked_cap[k] += s.total_kg
+
+        match_cap = defaultdict(float, booked_cap)
+        fresh, surplus = match(listings, orders, LANES, prices, blocked, today=today, booked_cap=match_cap)
+        by_id = {x.id: x for x in listings} | {x.id: x for x in orders}
+        ttl_hours = float(os.getenv("OFFER_TTL_HOURS", "4"))
+        for m in fresh:
+            m.id = uuid.uuid4().hex[:8]
+            m.created_at = now.isoformat()
+            m.expires_at = (now + timedelta(hours=ttl_hours)).isoformat()
+            store.put_match(m)
+        live = [m for m in store.matches() if m.status not in ("declined", "cancelled", "expired")]
+        # Shipments already booked are locked; only loads still being planned get re-bundled.
+        frozen = [x for x in store.shipments() if x.status != "planned"]
+        prev_ids = {tuple(sorted(x.match_ids)): x.id for x in store.shipments() if x.status == "planned"}
+        for x in store.shipments():
+            if x.status == "planned":
+                store.delete_shipment(x.id)
+        frozen_ids = {mid for x in frozen for mid in x.match_ids}
+        movable = [m for m in live if m.id not in frozen_ids]
+        for m in movable:  # every run starts from each load's own cheapest lane, then re-bundles
+            m.lane = m.solo_lane or m.lane
+            m.transport_lkr_per_kg = m.solo_transport_lkr_per_kg or m.transport_lkr_per_kg
+            m.shipment_id = None
+            # ponytail: confirmed matches are binding contracts; never silently reprice them
+            if m.status != "confirmed":
+                m.farmer_gets_lkr_per_kg = split(prices[m.crop], m.transport_lkr_per_kg)["farmer_gets"] \
+                    if m.crop in prices else m.farmer_gets_lkr_per_kg
+        bundle_cap = defaultdict(float, booked_cap)
+        shipments = bundle(movable, LANES, prices, booked_cap=bundle_cap, prev_ids=prev_ids)
+        for x in shipments:
+            x.schedule = shipping.schedule(x.lane, x.ship_on)
+            store.put_shipment(x)
+        for m in movable:
+            store.put_match(m)
+        shipments = frozen + shipments
+        fresh_ids = {m.id for m in fresh}
+        sizes = {x.id: len(x.farmers) for x in shipments}
+        # One message per person per run: a buyer whose five-item order found five farmers gets one
+        # list and one YES, not five messages that each want their own YES.
+        todo: dict[tuple, list] = {}
+        for m in live:
+            if m.id in fresh_ids:
+                l, o = by_id[m.listing_id], by_id[m.order_id]
+                todo.setdefault((l.phone, "farmer", accounts.reply_lang(l.phone, l.lang)), []).append(m)
+                todo.setdefault((o.phone, "buyer", accounts.reply_lang(o.phone, o.lang)), []).append(m)
+        for (phone, party, lang), ms in todo.items():
+            if len(ms) == 1 or not phone:
+                for m in ms:
+                    _send(phone, agent.explain(m, party=party, lang=lang, prices=prices,
+                                               shared_with=sizes.get(m.shipment_id, 1) - 1 if party == "farmer" else 0), m.id)
+            else:
+                _send(phone, _several(ms, party, lang), ",".join(m.id for m in ms))
+        out = {"matches": [m.model_dump(mode="json") for m in live],
+               "shipments": [x.model_dump(mode="json") for x in shipments],
+               "surplus": [l.model_dump(mode="json") for l in surplus],
+               "impact": {**impact(live, shipments), "surplus_kg": sum(l.remaining_kg for l in surplus),
+                          "confirmed": sum(m.status == "confirmed" for m in live)}}
+        store.save_plan(out)
+        from . import reroute
+        reroute.scan(_send)  # a better route can show up after a deal is agreed
+        return out
 
 
 def unmatched() -> dict[str, str]:
@@ -137,10 +192,8 @@ def confirm(m, notify: bool = True) -> None:
     seller the dispatch slip (tracking code and delivery address) and the buyer the tracking code."""
     m.farmer_ok = m.buyer_ok = True
     m.status = "confirmed"
-    for kind, rid in (("listings", m.listing_id), ("orders", m.order_id)):
-        doc = store.get(kind, rid)
-        doc["remaining_kg"] -= m.qty_kg
-        store.put(kind, doc)
+    store.adjust_remaining("listings", m.listing_id, -m.qty_kg)
+    store.adjust_remaining("orders", m.order_id, -m.qty_kg)
     store.put_match(m)
     if notify:
         from . import dispatch
@@ -150,15 +203,15 @@ def confirm(m, notify: bool = True) -> None:
 def _several(ms: list, party: str, lang: str) -> str:
     """Several matches for one person in one message, numbers from code."""
     rows = []
-    for m in ms:
+    for idx, m in enumerate(ms, 1):
         lane = f"{m.lane.mode.replace('_', ' ')} {m.lane.departs}" if m.lane else "local pickup"
-        crop = vocab.crop_name(m.crop, "en")
-        rows.append(f"• {crop} {m.qty_kg:.0f} kg to {m.buyer}: you get Rs {m.farmer_gets_lkr_per_kg:.0f}/kg, send by {lane}"
+        crop = vocab.crop_name(m.crop, lang)
+        rows.append(f"{idx}. {crop} {m.qty_kg:.0f} kg to {m.buyer}: you get Rs {m.farmer_gets_lkr_per_kg:.0f}/kg, send by {lane}"
                     if party == "farmer" else
-                    f"• {crop} {m.qty_kg:.0f} kg from {m.farmer}: Rs {m.buyer_pays_lkr_per_kg:.0f}/kg "
+                    f"{idx}. {crop} {m.qty_kg:.0f} kg from {m.farmer}: Rs {m.buyer_pays_lkr_per_kg:.0f}/kg "
                     f"(retail Rs {m.market_retail_lkr_per_kg:.0f}), comes by {lane}")
     head = f"{'Buyers' if party == 'farmer' else 'Farmers'} found for {len(ms)} of your items:"
-    fallback = "\n".join([head, *rows, _say("many", "en", n=len(ms))])
+    fallback = "\n".join([head, *rows, _say("many", lang, n=len(ms))])
     if lang == "en":
         return fallback
     return messages.write("several match offers for one person; list each one, then say how to accept or decline all",
@@ -186,24 +239,79 @@ def asked_at(phone: str) -> str | None:
     if not mine:
         return None
     ats = [o["at"] for o in store.sent() if o["to"] == phone and set((o.get("match_id") or "").split(",")) & mine]
-    return max(ats) if ats else "0"  # an offer we never managed to send still counts, just as the oldest
+    return max(ats) if ats else datetime.min.replace(tzinfo=timezone.utc).isoformat()
+
+
+def _parse_selection(text: str, total: int) -> dict[int, bool] | None:
+    norm_text = vocab.norm(text)
+    if norm_text in YES:
+        return {i: True for i in range(1, total + 1)}
+    if norm_text in NO:
+        return {i: False for i in range(1, total + 1)}
+    actions = {}
+    for part in re.finditer(r"(?:\b|^)(yes|ok|sure|confirm|ow|hari|ஆம்|சரி|no|epa|නෑ|නැහැ|இல்லை|வேண்டாம்)\b([0-9,\s#]+)", text, re.IGNORECASE):
+        kw = vocab.norm(part.group(1))
+        is_yes = kw in YES
+        nums = [int(n) for n in re.findall(r"\b\d+\b", part.group(2))]
+        for n in nums:
+            if 1 <= n <= total:
+                actions[n] = is_yes
+    if not actions:
+        for part in re.finditer(r"(?:#?\b)(\d+)\s*(yes|ok|sure|confirm|ow|hari|ஆம்|சரி|no|epa|නෑ|නැහැ|இல்லை|வேண்டாம்)\b", text, re.IGNORECASE):
+            n = int(part.group(1))
+            kw = vocab.norm(part.group(2))
+            is_yes = kw in YES
+            if 1 <= n <= total:
+                actions[n] = is_yes
+    return actions if actions else None
+
+
+def _parse_partial_qty(text: str, total: int) -> tuple[int, float] | None:
+    m = re.search(r"\b(yes|ok|sure|confirm|ow|hari)\b(?:\s*#?(\d+))?\s+(\d+(?:\.\d+)?)\s*(?:kg|kilo|kgs|kilos|කිලෝ|கிலோ)\b", text, re.I)
+    if m:
+        item = int(m.group(2)) if m.group(2) else (1 if total == 1 else None)
+        qty = float(m.group(3))
+        if item is not None and 1 <= item <= total:
+            return item, qty
+    return None
 
 
 def answer(phone: str, text: str, lang: str | None = None) -> str | None:
-    """YES or NO to every match offer waiting on this number (one message offered them together).
-    Returns the reply, or None if this is not a YES/NO or nothing is waiting."""
-    word = vocab.norm(text)
-    if word not in YES | NO:
-        return None
+    """YES, NO, selective pick (e.g. YES 1, NO 2), or partial accept (e.g. YES 50kg) to match offers.
+    Returns the reply, or None if this is not an answer or nothing is waiting."""
     pending = _mine(phone)
     if not pending:
         return None
+    partial = _parse_partial_qty(text, len(pending))
+    if partial:
+        idx, partial_kg = partial
+        m, side, own_lang = pending[idx - 1]
+        if 0 < partial_kg <= m.qty_kg:
+            m.qty_kg = partial_kg
+            lang_ = lang or own_lang
+            setattr(m, f"{side}_ok", True)
+            if m.farmer_ok and m.buyer_ok:
+                confirm(m)
+                other = store.get("orders" if side == "farmer" else "listings",
+                                  m.order_id if side == "farmer" else m.listing_id)
+                _send(other.get("phone"), _say("agreed", other.get("lang"), m), m.id)
+            store.put_match(m)
+            return _say("both" if m.status == "confirmed" else "wait", lang_, m)
+    actions = _parse_selection(text, len(pending))
+    if not actions:
+        return None
     lines = []
-    for m, side, own_lang in pending:
+    for idx, (m, side, own_lang) in enumerate(pending, 1):
+        if idx not in actions:
+            continue
+        yes = actions[idx]
         lang_ = lang or own_lang
-        if word in NO:
+        if not yes:
             m.status = "declined"
             store.put_match(m)
+            if m.note.startswith("rescue:"):
+                from . import rescue
+                rescue.decline_rescue_match(m)
             lines.append(_say("declined", lang_, m))
             continue
         setattr(m, f"{side}_ok", True)
@@ -216,7 +324,7 @@ def answer(phone: str, text: str, lang: str | None = None) -> str | None:
             dispatch.send_details(m, _send)
         store.put_match(m)
         lines.append(_say("both" if m.status == "confirmed" else "wait", lang_, m))
-    return "\n".join(lines)
+    return "\n".join(lines) if lines else None
 
 
 def withdraw(ids: set[str]) -> int:
@@ -236,3 +344,22 @@ def withdraw(ids: set[str]) -> int:
 
 def advance_shipment(sid: str):
     return shipping.advance(sid, _send)
+
+
+def cancel_shipment(sid: str, reason: str = "operator cancelled"):
+    """Operator marks a shipment cancelled, frees its matches."""
+    s = next((x for x in store.shipments() if x.id == sid), None)
+    if not s:
+        raise KeyError(sid)
+    s.status = "cancelled"
+    s.events.append({"status": "cancelled", "at": datetime.now(timezone.utc).isoformat(), "note": reason})
+    store.put_shipment(s)
+    withdraw(set(s.match_ids))
+    return s
+
+
+def reload_lanes() -> list[Lane]:
+    """Reload carrier lanes from disk without server restart."""
+    global LANES
+    LANES = load_lanes()
+    return LANES

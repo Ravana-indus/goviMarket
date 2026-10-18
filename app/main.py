@@ -14,6 +14,12 @@ import uuid
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
+from zoneinfo import ZoneInfo
+
+SL_TZ = ZoneInfo("Asia/Colombo")
+
+def _today() -> date:
+    return datetime.now(SL_TZ).date()
 
 from fastapi import BackgroundTasks, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse, RedirectResponse, Response
@@ -86,7 +92,7 @@ def handle(*, text: Optional[str], media: Optional[bytes], mime_type: Optional[s
             deliver(turn.reply)
     if turn.plan and auto_plan:
         with _plan_lock:
-            deals.plan()  # match straight away; each side gets its YES/NO offer
+            deals.plan(today=today)  # match straight away; each side gets its YES/NO offer
     return {"parsed": turn.parsed, "created": turn.created, "needs_clarification": turn.needs,
             "reply": turn.reply, "state": turn.state}
 
@@ -433,6 +439,12 @@ def shipment_missed(sid: str, reason: str = "missed the departure"):
         raise HTTPException(409, str(e))
 
 
+@app.post("/rescue/watchdog")
+def rescue_watchdog():
+    """Scan shipments whose departure passed without departure confirmation and auto-rescue."""
+    return {"rescued": rescue.watchdog()}
+
+
 @app.post("/surplus/sweep")
 def surplus_sweep(today: Optional[date] = None):
     """Tell every farmer whose harvest is nearly ready and still unsold, with numbered options."""
@@ -463,6 +475,59 @@ def advance_shipment(sid: str):
         raise HTTPException(404, "no such shipment")
     except ValueError as e:
         raise HTTPException(409, str(e))
+
+
+@app.post("/shipments/{sid}/cancel")
+def cancel_shipment(sid: str, reason: str = "operator cancelled"):
+    """Cancel a shipment, freeing or re-sourcing its items."""
+    try:
+        return deals.cancel_shipment(sid, reason)
+    except KeyError:
+        raise HTTPException(404, "no such shipment")
+
+
+@app.post("/api/lanes/reload")
+def lanes_reload():
+    """Reload carrier lane schedules and rates from disk without server restart."""
+    return {"lanes": len(deals.reload_lanes())}
+
+
+class CarrierUpdate(BaseModel):
+    ref: Optional[str] = None
+    shipment_id: Optional[str] = None
+    status: str
+    note: str = ""
+
+
+@app.post("/webhook/carrier")
+def carrier_webhook(update: CarrierUpdate):
+    """Receive tracking status update from 3PL carrier (SL Post, Railway, or shared lorry)."""
+    target_id = update.ref or update.shipment_id
+    if not target_id:
+        raise HTTPException(400, "Provide ref or shipment_id")
+    try:
+        s = shipping.advance_to(target_id, update.status, deals._send, note=update.note)
+        return {"ok": True, "shipment_id": s.id, "status": s.status, "ref": s.ref}
+    except KeyError:
+        raise HTTPException(404, f"no shipment found for {target_id}")
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+def _cron_worker():
+    import time
+    while True:
+        time.sleep(int(os.getenv("CRON_INTERVAL_SEC", "900")))
+        try:
+            rescue.watchdog()
+            if os.getenv("AUTO_SWEEP") == "1":
+                surplus.sweep()
+        except Exception:
+            log.exception("background cron cycle failed")
+
+
+if os.getenv("ENABLE_BACKGROUND_CRON") == "1":
+    threading.Thread(target=_cron_worker, daemon=True, name="govi-cron").start()
 
 
 @app.post("/demo/advance-all")

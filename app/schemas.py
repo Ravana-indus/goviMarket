@@ -53,6 +53,9 @@ class Listing(BaseModel):
     qty_kg: float
     ready_on: date
     remaining_kg: float
+    grade: Optional[str] = None
+    price_lkr_per_kg: Optional[float] = None  # farmer's ask floor
+    created_at: Optional[str] = None
 
 
 class Order(BaseModel):
@@ -66,6 +69,9 @@ class Order(BaseModel):
     needed_by: date
     remaining_kg: float
     address: str = ""  # street address for the dispatch slip; empty means the account's, else the town
+    grade: Optional[str] = None
+    price_lkr_per_kg: Optional[float] = None  # buyer's bid cap
+    created_at: Optional[str] = None
 
 
 class Lane(BaseModel):
@@ -86,7 +92,7 @@ class Lane(BaseModel):
 
 class Match(BaseModel):
     id: str = ""
-    status: Literal["proposed", "confirmed", "declined", "cancelled"] = "proposed"
+    status: Literal["proposed", "confirmed", "declined", "cancelled", "expired"] = "proposed"
     farmer_ok: bool = False
     buyer_ok: bool = False
     listing_id: str
@@ -111,6 +117,9 @@ class Match(BaseModel):
     shipping_reported_at: Optional[str] = None
     dropped_at: Optional[str] = None  # the seller said the load is handed over
     received_at: Optional[str] = None  # the buyer said it arrived
+    created_at: Optional[str] = None
+    expires_at: Optional[str] = None
+    reminded: bool = False
 
 
 class Shipment(BaseModel):

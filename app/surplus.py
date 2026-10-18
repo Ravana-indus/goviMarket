@@ -109,9 +109,8 @@ def accept(oid: str, n: int) -> dict:
     o["status"], o["choice"] = "accepted", pick
     if pick["kind"] == "processor":  # cold storage keeps it on offer for buyers
         doc = store.get("listings", o["listing_id"])
-        moved = min(o["kg"], doc["remaining_kg"])
-        doc["remaining_kg"] -= moved
-        store.put("listings", doc)
+        moved = min(o["kg"], doc["remaining_kg"]) if doc else o["kg"]
+        store.adjust_remaining("listings", o["listing_id"], -moved)
         o["rescued_kg"] = moved
     store.DB.put("offers", oid, o)
     return o
