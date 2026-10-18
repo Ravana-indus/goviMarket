@@ -8,7 +8,7 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime, timedelta, timezone
 
-from . import accounts, store, vocab
+from . import accounts, store, vocab, who
 from .lanes import _norm, arrival, lane_cost
 from .schemas import Lane, Shipment
 
@@ -95,8 +95,9 @@ def _notify(x: Shipment, status: str, send) -> None:
             if status in table:
                 lang = _lang(doc)
                 from .dispatch import MODE
-                send(doc.get("phone"), table[status][lang].format(**{**facts, "crop": vocab.crop_name(m.crop, lang),
-                                                                     "mode": MODE.get(x.lane.mode, {}).get(lang, facts["mode"])}), mid)
+                send(doc.get("phone"), who.tidy(table[status][lang].format(**{
+                    **facts, **who.both(m, lang), "crop": vocab.crop_name(m.crop, lang),
+                    "mode": MODE.get(x.lane.mode, {}).get(lang, facts["mode"])})), mid)
 
 
 def advance(sid: str, send) -> Shipment:

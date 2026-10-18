@@ -105,6 +105,7 @@ def test_selective_match_acceptance():
                collector_pays_lkr_per_kg=150, market_retail_lkr_per_kg=250)
     store.put_match(m1)
     store.put_match(m2)
+    store.outbox("94773333333", "Buyers found for 2 of your items: ...", "M1,M2")  # the offers he was shown
 
     # Sunil says "YES 1 NO 2"
     reply = deals.answer("94773333333", "YES 1 NO 2")
@@ -183,6 +184,7 @@ def test_partial_quantity_acceptance():
               farmer_gets_lkr_per_kg=120, buyer_pays_lkr_per_kg=150,
               collector_pays_lkr_per_kg=100, market_retail_lkr_per_kg=180)
     store.put_match(m)
+    store.outbox("94776666661", "Buyer found: Hotel wants 100 kg carrot.", "M_PARTIAL")
 
     # Sunil accepts only 40kg instead of full 100kg
     reply = deals.answer("94776666661", "YES 40kg")

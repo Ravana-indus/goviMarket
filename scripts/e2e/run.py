@@ -240,6 +240,21 @@ def run_scenario(t: Target, sc: dict, base_vars: dict, ledger: dict) -> dict:
             peer_msgs, _ = t.inbox_since(actors[st["peer"][0]], peer_n)
             if not any(re.search(st["peer"][1], m, re.I) for m in peer_msgs):
                 fails.append(f"nothing sent to {st['peer'][0]} matching /{st['peer'][1]}/")
+        for pat in st.get("quiet", []):
+            if any(re.search(pat, m, re.I) for m in new):
+                fails.append(f"{st['who']} was also sent /{pat[:40]}/")
+        if st.get("peer_max") is not None and len(peer_msgs) > st["peer_max"]:
+            fails.append(f"{st['peer'][0]} got {len(peer_msgs)} messages, wanted at most {st['peer_max']}")
+        others = [n for k, n in actors.items() if k != st["who"]]
+        for m in [reply] + new:
+            leak = [n for n in others if n in m.replace("· " + n, "") or ("0" + n[2:]) in m.replace("· 0" + n[2:], "")]
+            if leak:
+                fails.append(f"{st['who']} was shown another actor's number ({leak[0]})")
+                break
+        for m in peer_msgs:
+            if phone in m.replace("· " + phone, "") or ("0" + phone[2:]) in m.replace("· 0" + phone[2:], ""):
+                fails.append(f"{st['peer'][0]} was shown {st['who']}'s number")
+                break
         for name, pat in st["grab"].items():
             m = re.search(pat, "\n".join([reply] + new + peer_msgs), re.I)
             if m:

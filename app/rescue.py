@@ -14,7 +14,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timedelta, timezone
 
-from . import deals, messages, shipping, store
+from . import deals, messages, shipping, store, who
 from .lanes import DEST_PICKUP_LKR, _norm, lane_cost
 from .schemas import Match, Shipment
 from zoneinfo import ZoneInfo
@@ -74,12 +74,12 @@ def missed(sid: str, send=None, reason: str = "missed the departure") -> dict:
         for m in loads:
             l, o = store.get("listings", m.listing_id) or {}, store.get("orders", m.order_id) or {}
             facts = dict(crop=m.crop, kg=round(m.qty_kg), missed=old, new_transport=_mode(lane), departs=lane.departs,
-                         drop_off=lane.pickup or x.origin, arrives=arrive, buyer=m.buyer, farmer=m.farmer, ref=new.ref)
+                         drop_off=lane.pickup or x.origin, arrives=arrive, **who.both(m), ref=new.ref)
             _tell(send, l.get("phone"), l.get("lang"), "Tell the farmer their load moves to a later transport; their price stays the same.",
                   facts, f"The {old} was missed. Your {facts['kg']} kg {m.crop} now goes by {facts['new_transport']} at "
                          f"{lane.departs} from {facts['drop_off']}. Your price stays the same. Ref {new.ref}.", m.id)
             _tell(send, o.get("phone"), o.get("lang"), "Tell the buyer the load changed transport but still arrives on time.",
-                  facts, f"Update: your {facts['kg']} kg {m.crop} from {m.farmer} moved to {facts['new_transport']} at "
+                  facts, f"Update: your {facts['kg']} kg {m.crop} from {facts['farmer']} moved to {facts['new_transport']} at "
                          f"{lane.departs}. It still arrives about {arrive}.", m.id)
     else:
         rescue["action"] = "resourced"
@@ -137,9 +137,9 @@ def missed(sid: str, send=None, reason: str = "missed the departure") -> dict:
             o = store.get("orders", oid) or {}
             mine = [m for m in found + backups if m.order_id == oid]
             facts = dict(missed=old, buyer=o.get("buyer"), crop=mine[0].crop if mine else "",
-                         replacements=[{"from": m.farmer, "kg": round(m.qty_kg), "how": m.note} for m in mine],
+                         replacements=[{"from": who.farmer(m), "kg": round(m.qty_kg), "how": m.note} for m in mine],
                          price_unchanged=True)
-            lines = "; ".join(f"{round(m.qty_kg)} kg from {m.farmer}" for m in mine)
+            lines = "; ".join(f"{round(m.qty_kg)} kg from {who.farmer(m)}" for m in mine)
             _tell(send, o.get("phone"), o.get("lang"),
                   "Tell the buyer the original transport was missed and how their order is still covered at the same price.",
                   facts, f"The {old} carrying your order was missed. You are still covered: {lines}. "

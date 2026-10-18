@@ -10,7 +10,7 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
-from . import accounts, agent, messages, shipping, store, telegram, vocab, whatsapp
+from . import accounts, agent, messages, shipping, store, telegram, vocab, whatsapp, who
 from .lanes import _norm, load_lanes
 from .matcher import bundle, impact, match, why_unmatched
 from .pricing import split
@@ -29,8 +29,6 @@ SAY = {  # Sinhala and Tamil need a native speaker's read before the demo video.
     "declined": {"en": "Declined: {kg} kg {crop}. We will look for another match.",
                  "si": "ප්‍රතික්ෂේප කළා: {crop} කිලෝ {kg}. වෙනත් ගැළපීමක් සොයනවා.",
                  "ta": "நிராகரிக்கப்பட்டது: {crop} {kg} கிலோ. வேறு பொருத்தம் தேடுவோம்."},
-    "agreed": {"en": "Confirmed: {kg} kg {crop}, {farmer} → {buyer}.", "si": "තහවුරුයි: {crop} කිලෝ {kg}, {farmer} → {buyer}.",
-               "ta": "உறுதி: {crop} {kg} கிலோ, {farmer} → {buyer}."},
     "off": {"en": "The offer for {kg} kg {crop} is off: the other side withdrew. We will look for another match.",
             "si": "{crop} කිලෝ {kg} සඳහා වූ ගැළපීම අවලංගුයි: අනෙක් පාර්ශවය ඉවත් විය. වෙනත් ගැළපීමක් සොයනවා.",
             "ta": "{crop} {kg} கிலோ பொருத்தம் ரத்து: மறுதரப்பு விலகியது. வேறு பொருத்தம் தேடுவோம்."},
@@ -52,8 +50,8 @@ SAY = {  # Sinhala and Tamil need a native speaker's read before the demo video.
 def _say(key: str, lang: str | None, m=None, **kw) -> str:
     lang = lang if lang in ("si", "ta", "en") else "en"
     if m is not None:
-        kw = {"kg": f"{m.qty_kg:.0f}", "crop": vocab.crop_name(m.crop, lang), "farmer": m.farmer, "buyer": m.buyer, **kw}
-    return SAY[key][lang].format(**kw)
+        kw = {"kg": f"{m.qty_kg:.0f}", "crop": vocab.crop_name(m.crop, lang), **who.both(m, lang), **kw}
+    return who.tidy(SAY[key][lang].format(**kw))
 
 
 def _send(to: str | None, body: str, match_id: str, buttons: list | None = None) -> None:
@@ -119,8 +117,11 @@ def plan(extra_blocked: set[tuple[str, str]] = frozenset(), today: date | None =
                     x.remaining_kg = max(0.0, x.remaining_kg - m.qty_kg)
         prices = store.prices()
         # ponytail: rerouted matches do not permanently block the pair from ever trading again
+        # A pair where one side took only part of an offer ("YES 100kg" of 150) is not offered the
+        # rest again: they just said how much they want from each other.
         blocked = {(m.listing_id, m.order_id) for m in store.matches()
-                   if m.status == "declined" or (m.status == "cancelled" and m.note != "rerouted")} | set(extra_blocked)
+                   if m.status == "declined" or (m.status == "cancelled" and m.note != "rerouted")
+                   or (m.part_of_kg and m.status in ("proposed", "confirmed"))} | set(extra_blocked)
 
         # Track aggregate departure capacity booked by non-planned shipments
         booked_cap: dict[tuple, float] = defaultdict(float)
@@ -235,9 +236,9 @@ def _several(ms: list, party: str, lang: str) -> str:
     for idx, m in enumerate(ms, 1):
         lane = f"{m.lane.mode.replace('_', ' ')} {m.lane.departs}" if m.lane else "local pickup"
         crop = vocab.crop_name(m.crop, lang)
-        rows.append(f"{idx}. {crop} {m.qty_kg:.0f} kg to {m.buyer}: you get Rs {m.farmer_gets_lkr_per_kg:.0f}/kg, send by {lane}"
+        rows.append(f"{idx}. {crop} {m.qty_kg:.0f} kg to {who.buyer(m, lang)}: you get Rs {m.farmer_gets_lkr_per_kg:.0f}/kg, send by {lane}"
                     if party == "farmer" else
-                    f"{idx}. {crop} {m.qty_kg:.0f} kg from {m.farmer}: Rs {m.buyer_pays_lkr_per_kg:.0f}/kg "
+                    f"{idx}. {crop} {m.qty_kg:.0f} kg from {who.farmer(m, lang)}: Rs {m.buyer_pays_lkr_per_kg:.0f}/kg "
                     f"(retail Rs {m.market_retail_lkr_per_kg:.0f}), comes by {lane}")
     head = f"{'Buyers' if party == 'farmer' else 'Farmers'} found for {len(ms)} of your items:"
     fallback = "\n".join([head, *rows, _say("many", lang, n=len(ms))])
@@ -260,6 +261,16 @@ def _mine(phone: str) -> list[tuple]:
         elif o and o.get("phone") == phone and not m.buyer_ok:
             out.append((m, "buyer", accounts.reply_lang(phone, o.get("lang"))))
     return out
+
+
+def _offer_msgs(phone: str) -> list[tuple[str, list[str]]]:
+    """Every offer this number was shown, oldest first: (when, match ids in that one message).
+    A list Govi gave as a reply (see answer) counts too; it is not in the outbox."""
+    out = [(o["at"], o["match_id"].split(",")) for o in store.sent() if o["to"] == phone and o.get("match_id")]
+    shown = store.DB.one("shown", phone)
+    if shown:
+        out.append((shown["at"], shown["ids"]))
+    return sorted(out, key=lambda r: r[0])
 
 
 def asked_at(phone: str) -> str | None:
@@ -309,9 +320,8 @@ def _numbered(phone: str, pending: list[tuple]) -> list[tuple]:
     """Waiting offers in the order the newest numbered message showed them, so "YES 1" means that
     message's 1; offers it did not list follow after."""
     by_id = {m.id: row for row in pending for m in [row[0]]}
-    for o in reversed(store.sent()):
-        ids = (o.get("match_id") or "").split(",")
-        if o["to"] == phone and len(ids) > 1 and set(ids) & set(by_id):
+    for _, ids in reversed(_offer_msgs(phone)):
+        if len(ids) > 1 and set(ids) & set(by_id):
             first = [by_id[i] for i in ids if i in by_id]
             return first + [row for row in pending if row[0].id not in ids]
     return pending
@@ -355,6 +365,21 @@ def answer(phone: str, text: str, lang: str | None = None) -> str | None:
             live.append((m, side, own_lang))
     if not live:
         return _say("expired", lang or pending[0][2], pending[0][0])
+    # YES only ever answers offers this number was actually sent.
+    msgs = _offer_msgs(phone)
+    seen = {i for _, ids in msgs for i in ids}
+    live = [row for row in live if row[0].id in seen]
+    if not live:
+        return None
+    if vocab.norm(text) in YES and len(live) > 1:
+        # A bare YES accepts every waiting offer only if they came in one message. Offers that came
+        # one by one get listed together first, so the next YES (or YES 1) is about what they read.
+        ids = {row[0].id for row in live}
+        last = next(set(i) for _, i in reversed(msgs) if ids & set(i))
+        if not ids <= last:
+            rows = _numbered(phone, live)
+            store.DB.put("shown", phone, {"at": now.isoformat(), "ids": [r[0].id for r in rows]})
+            return _several([r[0] for r in rows], rows[0][1], lang or rows[0][2])
     pending = _numbered(phone, live)
     partial = _parse_partial_qty(text, len(pending))
     if partial and partial[1] != pending[partial[0] - 1][0].qty_kg:  # "YES 100kg" on a 100 kg offer is a plain YES
@@ -363,12 +388,14 @@ def answer(phone: str, text: str, lang: str | None = None) -> str | None:
         lang_ = lang or own_lang
         if not 0 < partial_kg < m.qty_kg:
             return _say("too_much", lang_, m)
+        offered_kg = m.qty_kg
         if not _reprice(m, partial_kg):
             return _say("too_small", lang_, m, part=f"{partial_kg:.0f}")
         # The other side agreed to the full amount, not this one: ask them again.
         other_side = "buyer" if side == "farmer" else "farmer"
         setattr(m, f"{side}_ok", True)
         setattr(m, f"{other_side}_ok", False)
+        m.part_of_kg = m.part_of_kg or offered_kg
         store.put_match(m)
         other = store.get("orders" if side == "farmer" else "listings",
                           m.order_id if side == "farmer" else m.listing_id) or {}
@@ -397,10 +424,11 @@ def answer(phone: str, text: str, lang: str | None = None) -> str | None:
         if m.farmer_ok and m.buyer_ok:
             confirm(m, notify=False)
             other = store.get("orders" if side == "farmer" else "listings",
-                              m.order_id if side == "farmer" else m.listing_id)
-            _send(other.get("phone"), _say("agreed", accounts.reply_lang(other.get("phone"), other.get("lang")), m), m.id)
+                              m.order_id if side == "farmer" else m.listing_id) or {}
             from . import dispatch
-            dispatch.send_details(m, _send)
+            head = {other["phone"]: _say("both", accounts.reply_lang(other["phone"], other.get("lang")), m)} \
+                if other.get("phone") else {}
+            dispatch.send_details(m, _send, head=head)
         store.put_match(m)
         lines.append(_say("both" if m.status == "confirmed" else "wait", lang_, m))
     return "\n".join(lines) if lines else None

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import os
 
-from . import ai
+from . import ai, who
 from .lanes import load_lanes
 from .pricing import split
 from .schemas import Lang, Match
@@ -37,7 +37,7 @@ farmer with little schooling understands. Use the given match facts and your too
 invent a number. For a farmer: who buys, how many kg, Rs/kg they get AFTER transport versus the collector
 price, that transport (Rs/kg) is already taken off, whether the load is shared with
 neighbours to cut the cost, and which bus, train or lorry to load and when. For a buyer: who grows it, kg, Rs/kg versus the retail price,
-and when it arrives. If a transport source is "ESTIMATE", say the time is approximate.
+and when it arrives. Name people only as the facts name them; never write a phone number. If a transport source is "ESTIMATE", say the time is approximate.
 End with: reply YES to confirm or NO to decline (in {lang}, keep the words YES and NO in English too)."""
 
 
@@ -53,15 +53,16 @@ def _template(m: Match, party: str, lang: Lang, shared_with: int = 0) -> str:
         body = (f"Supplier found: {m.farmer} has {m.qty_kg:.0f} kg {m.crop} for you.\n"
                 f"You pay Rs {m.buyer_pays_lkr_per_kg:.0f}/kg (retail Rs {m.market_retail_lkr_per_kg:.0f}).\n"
                 f"Comes by {lane}.")
-    return body + "\nReply YES to confirm or NO to decline."
+    return who.tidy(body + "\nReply YES to confirm or NO to decline.")
 
 
 def explain(m: Match, *, party: str, lang: Lang, prices: dict[str, dict], client=None,
             shared_with: int = 0) -> str:
     """Message for `party` ('farmer' or 'buyer') about match `m`.
 
-    `shared_with` is how many other farmers' loads ride in the same shipment."""
-    from . import ai
+    `shared_with` is how many other farmers' loads ride in the same shipment. The other side is
+    named by who.py (a name or "a farmer in <town>"), so no phone number reaches Gemini or the message."""
+    m = who.shown(m, lang)
     if client is None and not ai.enabled():
         return _template(m, party, lang, shared_with)
     from google import genai
