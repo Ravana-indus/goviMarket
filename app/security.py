@@ -17,9 +17,9 @@ from fastapi import Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 COOKIE = "govi_admin"
-ADMIN_PREFIXES = ("/admin", "/state", "/demo/", "/shipments/", "/surplus/", "/api/offers", "/api/plan", "/api/swaps", "/jobs/")
+ADMIN_PREFIXES = ("/admin", "/state", "/demo/", "/shipments/", "/surplus/", "/api/offers", "/api/plan", "/api/swaps", "/jobs/", "/api/lane-costs", "/api/subscriptions")
 ADMIN_EXACT = {("POST", "/plan")}
-LIMITED = {"/intake", "/api/orders", "/api/listings", "/api/agent/prices", "/login",
+LIMITED = {"/intake", "/api/shipping-cost", "/api/orders", "/api/listings", "/api/agent/prices", "/login",
            "/api/auth/start", "/api/auth/verify"}
 RATE = int(os.getenv("RATE_LIMIT_PER_MIN", "30"))
 _hits: dict[str, deque] = defaultdict(deque)

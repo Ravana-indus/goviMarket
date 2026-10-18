@@ -22,7 +22,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from . import accounts, ai, convo, deals, dispatch, parser, portal, replies, reporters, reroute, rescue, security, shipping, store, surplus, telegram, vocab, whatsapp
+from . import accounts, ai, convo, deals, dispatch, parser, portal, replies, reporters, reroute, rescue, security, shipping, store, surplus, telegram, tracking, vocab, whatsapp
 from .pricing import split
 from .schemas import Listing
 
@@ -44,6 +44,10 @@ async def learn_site(request: Request, call_next):
         dispatch.SITE = f"https://{host}"
     return await call_next(request)
 logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
+try:
+    tracking.apply()  # lane rates from the shipping costs sellers have reported
+except Exception:
+    logging.getLogger("govi").exception("could not load reported shipping costs")
 
 MAX_UPLOAD = 10 * 1024 * 1024  # WhatsApp media is at most ~16 MB; photos and voice notes are far smaller
 MAX_TEXT = 2000
@@ -531,7 +535,8 @@ def track(request: Request, phone: Optional[str] = None):
     Needs a phone sign-in; the console can look up any number with ?phone=."""
     phone = portal.whose(request, phone)
     ships = {x.id: x.model_dump(mode="json") for x in store.shipments()}
-    live = [m.model_dump(mode="json") for m in store.matches() if m.status != "declined"]
+    live = [{**m.model_dump(mode="json"), "code": dispatch.code(m) if m.status == "confirmed" else ""}
+            for m in store.matches() if m.status != "declined"]
     def status(rid, key):
         ms = [{**m, "shipment": ships.get(m["shipment_id"])} for m in live if m[key] == rid]
         return {"matched_kg": sum(m["qty_kg"] for m in ms), "matches": ms}
@@ -539,6 +544,46 @@ def track(request: Request, phone: Optional[str] = None):
                          for l in store.listings() if l.phone == phone],
             "orders": [{**o.model_dump(mode="json"), **status(o.id, "order_id")}
                        for o in store.orders() if o.phone == phone]}
+
+
+@app.get("/t/{code}")
+def track_page(code: str):
+    """Public tracking page for a code on the bags: no phone numbers or addresses shown."""
+    return FileResponse(WEB / "track.html")
+
+
+@app.get("/api/t/{code}")
+def track_code(code: str):
+    out = tracking.public(code)
+    if not out:
+        raise HTTPException(404, "No shipment has that tracking code.")
+    return out
+
+
+class CostIn(BaseModel):
+    code: str = Field(max_length=20)
+    lkr: float = Field(gt=0, le=tracking.MAX_LKR)
+
+
+@app.post("/api/shipping-cost")
+def shipping_cost(x: CostIn, request: Request):
+    """The seller (signed in) or the console records what a shipment really cost to send."""
+    m = dispatch.find(x.code)
+    if not m or not m.lane:
+        raise HTTPException(404, "No shipment has that tracking code.")
+    u = accounts.current(request)
+    if not security.is_admin(request) or not security.admin_token():
+        if not u or not tracking.can_report(u["phone"], m):
+            raise HTTPException(403, "Only the seller of this load can report its shipping cost.")
+    m, lane = tracking.report(m, x.lkr, phone=(u or {}).get("phone", "console"))
+    return {"code": dispatch.code(m), "shipping_paid_lkr": m.shipping_paid_lkr,
+            "lane": {"origin": lane.origin, "dest": lane.dest, "mode": lane.mode, "lkr_per_kg": lane.lkr_per_kg,
+                     "source": lane.source}}
+
+
+@app.get("/api/lane-costs")
+def lane_costs():
+    return tracking.costs()
 
 
 DEMO_MESSAGES = [

@@ -14,7 +14,7 @@ const T = {
     waiting: "Waiting for a match", matched: "Matched", to: "to", from: "from", you_get: "You get", per_kg: "/kg",
     none: "Nothing found for this number yet.", note: "Prices update every morning from market reporters.",
     selling: "Selling", ordering: "Ordering", sent: "Sending…",
-    s_booked: "Booked", s_loaded: "Loaded", s_in_transit: "On the way", s_arrived: "Arrived", s_delivered: "Delivered", ref: "Ref", dropoff: "Drop-off", eta: "Arrives",
+    s_booked: "Booked", s_loaded: "Loaded", s_in_transit: "On the way", s_arrived: "Arrived", s_delivered: "Delivered", ref: "Ref", dropoff: "Drop-off", eta: "Arrives", code: "Tracking code", track_it: "Track", cost_q: "Shipping cost you paid (Rs)", cost_save: "Save", cost_saved: "Shipping cost saved: Rs {n}. Thank you, this keeps transport prices up to date.",
     before_transport: "before transport", transport_off: "Transport already taken off", shared: "shared with neighbours",
     signin: "Sign in", signout: "Sign out", posting_as: "Posting as {n} · {p}", t_need: "Sign in with your mobile number to see your harvests and orders, including the ones you sent on WhatsApp.",
     greet_am: "Good morning", greet_pm: "Good afternoon", greet_eve: "Good evening", sell_h: "Sell your harvest", sell_sub: "We find the buyer and the bus or train.", speak: "Speak your harvest", other: "Send a photo or type it", prices_at: "prices at 06:00",
@@ -36,7 +36,7 @@ const T = {
     waiting: "ගැළපීමක් බලාපොරොත්තුවෙන්", matched: "ගැළපුණා", to: "වෙත", from: "වෙතින්", you_get: "ඔබට ලැබෙන්නේ", per_kg: "/කිලෝ",
     none: "මෙම අංකයට තවම කිසිවක් නැත.", note: "වෙළඳපොළ වාර්තාකරුවන්ගෙන් සෑම උදෑසනකම මිල යාවත්කාලීන වේ.",
     selling: "විකිණීම", ordering: "ඇණවුම", sent: "යවමින්…",
-    s_booked: "වෙන් කළා", s_loaded: "පැටෙව්වා", s_in_transit: "යමින්", s_arrived: "ළඟා විය", s_delivered: "භාර දුන්නා", ref: "අංකය", dropoff: "භාර දෙන තැන", eta: "ලැබෙන වේලාව",
+    s_booked: "වෙන් කළා", s_loaded: "පැටෙව්වා", s_in_transit: "යමින්", s_arrived: "ළඟා විය", s_delivered: "භාර දුන්නා", ref: "අංකය", dropoff: "භාර දෙන තැන", eta: "ලැබෙන වේලාව", code: "ලුහුබැඳීමේ අංකය", track_it: "ලුහුබඳින්න", cost_q: "ඔබ ගෙවූ ප්‍රවාහන ගාස්තුව (රු.)", cost_save: "සුරකින්න", cost_saved: "ප්‍රවාහන ගාස්තුව සුරැකුණා: රු. {n}. ස්තූතියි, මෙයින් ප්‍රවාහන මිල යාවත්කාලීන වේ.",
     before_transport: "ප්‍රවාහනයට පෙර", transport_off: "ප්‍රවාහන වියදම දැනටමත් අඩු කර ඇත", shared: "අසල්වැසියන් සමඟ බෙදාගත්",
     signin: "පිවිසෙන්න", signout: "ඉවත් වන්න", posting_as: "{n} ලෙස දමයි · {p}", t_need: "ඔබේ අස්වැන්න සහ ඇණවුම් බැලීමට, WhatsApp හරහා එවූ ඒවා ද ඇතුළුව, ඔබේ ජංගම අංකයෙන් පිවිසෙන්න.",
     greet_am: "සුබ උදෑසනක්", greet_pm: "සුබ දහවලක්", greet_eve: "සුභ සන්ධ්‍යාවක්", sell_h: "ඔබේ අස්වැන්න විකුණන්න", sell_sub: "ගැනුම්කරුත් බස් හෝ දුම්රියත් අපි සොයා දෙන්නෙමු.", speak: "කතා කරලා කියන්න", other: "ඡායාරූපයක් එවන්න, නැතහොත් ටයිප් කරන්න", prices_at: "උදේ 06:00 මිල",
@@ -58,7 +58,7 @@ const T = {
     waiting: "பொருத்தத்திற்காகக் காத்திருக்கிறது", matched: "பொருந்தியது", to: "க்கு", from: "இடமிருந்து", you_get: "உங்களுக்குக் கிடைப்பது", per_kg: "/கிலோ",
     none: "இந்த எண்ணுக்கு இன்னும் எதுவும் இல்லை.", note: "சந்தை நிருபர்களிடமிருந்து ஒவ்வொரு காலையும் விலை புதுப்பிக்கப்படுகிறது.",
     selling: "விற்பனை", ordering: "ஆர்டர்", sent: "அனுப்புகிறது…",
-    s_booked: "பதிவு", s_loaded: "ஏற்றப்பட்டது", s_in_transit: "வழியில்", s_arrived: "வந்தடைந்தது", s_delivered: "வழங்கப்பட்டது", ref: "எண்", dropoff: "ஒப்படைக்கும் இடம்", eta: "வந்தடையும் நேரம்",
+    s_booked: "பதிவு", s_loaded: "ஏற்றப்பட்டது", s_in_transit: "வழியில்", s_arrived: "வந்தடைந்தது", s_delivered: "வழங்கப்பட்டது", ref: "எண்", dropoff: "ஒப்படைக்கும் இடம்", eta: "வந்தடையும் நேரம்", code: "கண்காணிப்பு எண்", track_it: "கண்காணி", cost_q: "நீங்கள் செலுத்திய போக்குவரத்து கட்டணம் (ரூ.)", cost_save: "சேமி", cost_saved: "போக்குவரத்து கட்டணம் சேமிக்கப்பட்டது: ரூ. {n}. நன்றி, இது போக்குவரத்து விலைகளை புதுப்பிக்கிறது.",
     before_transport: "போக்குவரத்துக்கு முன்", transport_off: "போக்குவரத்து செலவு ஏற்கனவே கழிக்கப்பட்டது", shared: "அயலவர்களுடன் பகிர்ந்தது",
     signin: "உள்நுழை", signout: "வெளியேறு", posting_as: "{n} ஆகப் பதிவிடுகிறது · {p}", t_need: "உங்கள் அறுவடைகளையும் ஆர்டர்களையும் (WhatsApp இல் அனுப்பியவை உட்பட) பார்க்க உங்கள் மொபைல் எண்ணுடன் உள்நுழையுங்கள்.",
     greet_am: "காலை வணக்கம்", greet_pm: "மதிய வணக்கம்", greet_eve: "மாலை வணக்கம்", sell_h: "உங்கள் அறுவடையை விற்கவும்", sell_sub: "வாங்குபவரையும் பேருந்து அல்லது ரயிலையும் நாங்கள் கண்டுபிடிப்போம்.", speak: "பேசிச் சொல்லுங்கள்", other: "புகைப்படம் அனுப்புங்கள் அல்லது தட்டச்சு செய்யுங்கள்", prices_at: "காலை 06:00 விலை",
@@ -337,13 +337,26 @@ async function loadTrack() {
     }
     const first = x.matches.find((m) => m.shipment);
     const lines = x.matches.map((m) => `${m.shipment ? stepsHtml(m.shipment, kind) : ""}<p class="sub">${m.lane ? MODE[m.lane.mode] || "🚚" : "📍"} <b>${Math.round(m.qty_kg)} kg</b> ${kind === "listing" ? t("to") + " " + esc(m.buyer) : t("from") + " " + esc(m.farmer)}${m.lane ? ` · ${esc(m.lane.origin)} ${m.lane.departs}` : ""}</p>
-      <p class="sub">${kind === "listing" ? t("you_get") + " <b>" + rs(m.farmer_gets_lkr_per_kg) : "<b>" + rs(m.buyer_pays_lkr_per_kg)}${t("per_kg")}</b>${kind === "listing" ? ` · ${t("transport_off")}: ${rs(m.transport_lkr_per_kg)}${t("per_kg")}${m.transport_lkr_per_kg < m.solo_transport_lkr_per_kg ? " · " + t("shared") : ""}` : ""}</p>`).join("");
+      <p class="sub">${kind === "listing" ? t("you_get") + " <b>" + rs(m.farmer_gets_lkr_per_kg) : "<b>" + rs(m.buyer_pays_lkr_per_kg)}${t("per_kg")}</b>${kind === "listing" ? ` · ${t("transport_off")}: ${rs(m.transport_lkr_per_kg)}${t("per_kg")}${m.transport_lkr_per_kg < m.solo_transport_lkr_per_kg ? " · " + t("shared") : ""}` : ""}</p>
+      ${m.code ? `<p class="sub">${t("code")}: <b>${esc(m.code)}</b> · <a href="/t/${encodeURIComponent(m.code)}" target="_blank" rel="noopener">${t("track_it")} →</a></p>` : ""}
+      ${m.code && m.lane && kind === "listing" ? (m.shipping_paid_lkr
+        ? `<p class="sub">${esc(fill(t("cost_saved"), { n: n0(m.shipping_paid_lkr) }))}</p>`
+        : `<form class="costf" data-code="${esc(m.code)}"><label class="sub">${t("cost_q")}<input type="number" min="1" step="1" inputmode="numeric" required></label><button class="cta outline">${t("cost_save")}</button></form>`) : ""}`).join("");
     return `<div class="load"><div class="top"><span class="ttl">${title}</span><span class="chip info">${first ? t("s_" + first.shipment.status) : t("matched")}</span></div>
       <p class="sub">${kind === "listing" ? t("selling") : t("ordering")} · ${esc(x.location)} · ${day(x.ready_on || x.needed_by)}</p>
       ${lines}${kind === "listing" ? `<div class="paynote"><span class="ic i-wallet"></span><span>${t("pay_note")}</span></div>` : ""}</div>`;
   };
   const html = d.listings.map((x) => card(x, "listing")).join("") + d.orders.map((x) => card(x, "order")).join("");
   $("mine").innerHTML = html || `<div class="empty">${t("none")}</div>`;
+  // After a shipment, the seller types what it really cost: Govi's lane price follows.
+  $("mine").querySelectorAll(".costf").forEach((f) => (f.onsubmit = async (e) => {
+    e.preventDefault();
+    const lkr = +f.querySelector("input").value;
+    if (!(lkr > 0)) return;
+    f.querySelector("button").disabled = true;
+    const r = await fetch("/api/shipping-cost", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: f.dataset.code, lkr }) });
+    if (r.ok) loadTrack(); else { f.querySelector("button").disabled = false; f.insertAdjacentHTML("beforeend", `<p class="sub">${t("err")}</p>`); }
+  }));
 }
 $("tgo").onclick = signIn;
 

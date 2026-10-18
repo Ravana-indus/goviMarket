@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
-from . import accounts, ai, deals, demo_parser, parser, replies, reroute, store, surplus, vocab
+from . import accounts, ai, deals, demo_parser, parser, replies, reroute, store, surplus, tracking, vocab
 from .schemas import Item, ParsedMessage
 
 log = logging.getLogger("govi.convo")
@@ -422,6 +422,10 @@ def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type:
 
     if text and not media:
         w = vocab.norm(text)
+        if sender.isdigit():  # TRACK [code] and COST [code] 1200 (a seller's shipping cost)
+            r = tracking.chat_track(sender, text, lang) or tracking.chat_cost(sender, text, lang)
+            if r:
+                return Turn(r, state=c["state"])
         if w in vocab.YES or w in vocab.NO or w in vocab.CANCEL:
             return _answer(c, sender, "yes" if w in vocab.YES else "cancel" if w in vocab.CANCEL else "no", lang, today)
         if w in vocab.STATUS:

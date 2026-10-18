@@ -12,8 +12,14 @@ from .schemas import Lane
 DATA = Path(__file__).resolve().parent.parent / "data"
 
 
+_SHARED: dict[Path, list[Lane]] = {}
+
+
 def load_lanes(path: Path = DATA / "lanes.json") -> list[Lane]:
-    return [Lane(**row) for row in json.loads(path.read_text())]
+    """One shared list per file, so a rate updated from seller reports reaches every module."""
+    if path not in _SHARED:
+        _SHARED[path] = [Lane(**row) for row in json.loads(path.read_text())]
+    return _SHARED[path]
 
 
 def _norm(place: str) -> str:

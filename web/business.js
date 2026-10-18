@@ -143,7 +143,7 @@ async function loadOrders() {
     const status = !ms.length ? "Finding farmers" : ms.every((m) => m.status === "confirmed") ? "Confirmed" : "Waiting for farmer YES";
     const ships = ms.filter((m) => m.shipment).map((m) => {
       const at = STEPS.indexOf(m.shipment.status);
-      return `<div class="small muted">${kg(m.qty_kg)} from ${esc(m.farmer)} (${esc(m.shipment.origin)}) · ${esc(m.shipment.ref || "not booked yet")}</div>
+      return `<div class="small muted">${kg(m.qty_kg)} from ${esc(m.farmer)} (${esc(m.shipment.origin)}) · ${esc(m.shipment.ref || "not booked yet")}${m.code ? ` · tracking <a href="/t/${encodeURIComponent(m.code)}" target="_blank" rel="noopener"><b>${esc(m.code)}</b></a>` : ""}</div>
         <div class="track">${STEPS.map((s, i) => `<span class="${i <= at ? "on" : ""}">${STEP_NAME[s]}</span>`).join("")}</div>`;
     }).join("");
     return `<div class="card ord"><div class="row"><span class="title" style="display:flex;gap:10px;align-items:center">${GOVI.icon(o.crop, 36)}${esc(cname(o.crop))} · ${kg(o.qty_kg)}</span>

@@ -42,7 +42,7 @@ function renderPlan(plan) {
     + (resc.length ? ` · ${resc.length} missed, all rescued · Govi covered ${rs(i.rescue_cost_lkr || 0)}` : "");
   $("shipments").innerHTML = ships.length ? ships.map((x) => {
     const loads = plan.matches.filter((m) => x.match_ids.includes(m.id));
-    const bars = loads.map((m) => `<span style="flex:${m.qty_kg}" title="${esc(m.farmer)} → ${esc(m.buyer)}: ${kg(m.qty_kg)} ${esc(m.crop)}">${esc(m.farmer)} ${Math.round(m.qty_kg)}</span>`).join("");
+    const bars = loads.map((m) => `<span style="flex:${m.qty_kg}" title="${esc(m.farmer)} → ${esc(m.buyer)}: ${kg(m.qty_kg)} ${esc(m.crop)}${m.status === "confirmed" ? " · GV-" + m.id.toUpperCase() : ""}${m.shipping_paid_lkr ? " · seller paid " + rs(m.shipping_paid_lkr) : ""}">${esc(m.farmer)} ${Math.round(m.qty_kg)}${m.shipping_paid_lkr ? " · " + rs(m.shipping_paid_lkr) : ""}</span>`).join("");
     const waiting = loads.filter((m) => m.status !== "confirmed");
     const at = STEPS.indexOf(x.status);
     const steps = STEPS.slice(1).map((st, i) => {
@@ -248,9 +248,18 @@ function renderAttention(s, plan) {
   $("inbox-mini").innerHTML = $("inbox").innerHTML;
 }
 
+async function loadLaneCosts() {
+  const rows = (await api("/api/lane-costs")).filter((r) => r.reports);
+  $("lane-costs").innerHTML = rows.length ? `<table><thead><tr><th>Route</th><th>Mode</th><th>Estimate</th><th>Now</th><th>Reports</th><th>Latest</th></tr></thead><tbody>${rows.map((r) => `<tr>
+    <td>${esc(r.origin)} → ${esc(r.dest)} ${esc(r.departs)}</td><td>${MODE[r.mode] || esc(r.mode)}</td><td>Rs ${r.estimate_lkr_per_kg}/kg</td>
+    <td><b>Rs ${r.now_lkr_per_kg}/kg</b></td><td>${r.reports}</td>
+    <td>${r.latest ? `${rs(r.latest.lkr)} for ${kg(r.latest.kg)} · ${esc(r.latest.code)} · ${fmtDate(r.latest.at.slice(0, 10))}` : ""}</td></tr>`).join("")}</tbody></table>`
+    : `<div class="empty">No seller has reported a shipping cost yet. Every agreed deal's dispatch slip asks for one.</div>`;
+}
+
 async function refresh() {
   const [s, plan] = await Promise.all([api("/state"), api("/api/plan")]);
-  renderState(s, plan); renderPlan(plan); await loadReports(); renderAttention(s, plan);
+  renderState(s, plan); renderPlan(plan); await loadReports(); renderAttention(s, plan); await loadLaneCosts();
   window.renderAnalytics?.(s, plan);
   $("plan-note").textContent = plan.matches.length ? "from last matching run" : "";
 }
