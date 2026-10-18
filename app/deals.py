@@ -5,7 +5,7 @@ import logging
 import os
 import uuid
 
-from . import agent, messages, shipping, store, telegram, vocab, whatsapp
+from . import accounts, agent, messages, shipping, store, telegram, vocab, whatsapp
 from .lanes import load_lanes
 from .matcher import bundle, impact, match, why_unmatched
 from .pricing import split
@@ -41,7 +41,8 @@ def _say(key: str, lang: str | None, m=None, **kw) -> str:
     return SAY[key][lang].format(**kw)
 
 
-def _send(to: str | None, body: str, match_id: str) -> None:
+def _send(to: str | None, body: str, match_id: str, buttons: list | None = None) -> None:
+    """`buttons`: one-tap replies shown under the message on Telegram (rows of labels)."""
     if not to:
         return
     store.outbox(to, body, match_id)
@@ -50,7 +51,7 @@ def _send(to: str | None, body: str, match_id: str) -> None:
             whatsapp.send_text(to, body)
         except Exception:
             log.exception("whatsapp send failed")
-    telegram.send_to_phone(to, body)
+    telegram.send_to_phone(to, body, keyboard=buttons)
 
 
 def plan(extra_blocked: set[tuple[str, str]] = frozenset()) -> dict:
@@ -100,8 +101,8 @@ def plan(extra_blocked: set[tuple[str, str]] = frozenset()) -> dict:
     for m in live:
         if m.id in fresh_ids:
             l, o = by_id[m.listing_id], by_id[m.order_id]
-            todo.setdefault((l.phone, "farmer", l.lang), []).append(m)
-            todo.setdefault((o.phone, "buyer", o.lang), []).append(m)
+            todo.setdefault((l.phone, "farmer", accounts.reply_lang(l.phone, l.lang)), []).append(m)
+            todo.setdefault((o.phone, "buyer", accounts.reply_lang(o.phone, o.lang)), []).append(m)
     for (phone, party, lang), ms in todo.items():
         if len(ms) == 1 or not phone:
             for m in ms:
@@ -173,9 +174,9 @@ def _mine(phone: str) -> list[tuple]:
             continue
         l, o = store.get("listings", m.listing_id), store.get("orders", m.order_id)
         if l and l.get("phone") == phone and not m.farmer_ok:
-            out.append((m, "farmer", l.get("lang")))
+            out.append((m, "farmer", accounts.reply_lang(phone, l.get("lang"))))
         elif o and o.get("phone") == phone and not m.buyer_ok:
-            out.append((m, "buyer", o.get("lang")))
+            out.append((m, "buyer", accounts.reply_lang(phone, o.get("lang"))))
     return out
 
 
@@ -210,7 +211,7 @@ def answer(phone: str, text: str, lang: str | None = None) -> str | None:
             confirm(m, notify=False)
             other = store.get("orders" if side == "farmer" else "listings",
                               m.order_id if side == "farmer" else m.listing_id)
-            _send(other.get("phone"), _say("agreed", other.get("lang"), m), m.id)
+            _send(other.get("phone"), _say("agreed", accounts.reply_lang(other.get("phone"), other.get("lang")), m), m.id)
             from . import dispatch
             dispatch.send_details(m, _send)
         store.put_match(m)
@@ -228,7 +229,7 @@ def withdraw(ids: set[str]) -> int:
         store.put_match(m)
         other = store.get("orders", m.order_id) if m.listing_id in ids else store.get("listings", m.listing_id)
         if other:
-            _send(other.get("phone"), _say("off", other.get("lang"), m), m.id)
+            _send(other.get("phone"), _say("off", accounts.reply_lang(other.get("phone"), other.get("lang")), m), m.id)
         n += 1
     return n
 

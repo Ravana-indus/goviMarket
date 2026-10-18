@@ -34,6 +34,11 @@ SAY = {
     "cost": {"en": "After you hand it over, reply COST and what you paid to send it (for example: COST 1200), so Govi's transport prices stay up to date.",
              "si": "භාර දුන් පසු, යැවීමට ගෙවූ මුදල COST ලෙස එවන්න (උදා: COST 1200), එවිට Govi ප්‍රවාහන මිල යාවත්කාලීනව තබා ගත හැක.",
              "ta": "ஒப்படைத்த பின், அனுப்ப செலுத்திய தொகையை COST என அனுப்பவும் (உதா: COST 1200), இதனால் Govi போக்குவரத்து விலைகள் புதுப்பித்த நிலையில் இருக்கும்."},
+    "drop_ask": {"en": "When you have handed it over, reply DROPPED (or YES).",
+                 "si": "භාර දුන් පසු DROPPED (හෝ YES) ලෙස පිළිතුරු දෙන්න.",
+                 "ta": "ஒப்படைத்ததும் DROPPED (அல்லது YES) என பதில் அனுப்பவும்."},
+    "recv_ask": {"en": "When it reaches you, reply RECEIVED.", "si": "ඔබට ලැබුණු විට RECEIVED ලෙස පිළිතුරු දෙන්න.",
+                 "ta": "உங்களுக்கு வந்ததும் RECEIVED என பதில் அனுப்பவும்."},
     "buyer": {"en": "Your {kg} kg {crop} from {farmer} has tracking code {code}. Check it on the bags when it arrives.",
               "si": "{farmer} ගෙන් ඔබේ {crop} කිලෝ {kg} සඳහා ලුහුබැඳීමේ අංකය {code}. ලැබුණු විට මලු මත එය පරීක්ෂා කරන්න.",
               "ta": "{farmer} இடமிருந்து உங்கள் {crop} {kg} கிலோவின் கண்காணிப்பு எண் {code}. வந்ததும் பைகளில் சரிபார்க்கவும்."},
@@ -46,8 +51,7 @@ def say(key: str, lang: str, **kw) -> str:
 
 
 def lang_of(doc: dict) -> str:
-    lang = accounts.chosen_lang(doc.get("phone")) or doc.get("lang")
-    return lang if lang in ("si", "ta", "en") else "en"
+    return accounts.reply_lang(doc.get("phone"), doc.get("lang"))
 
 
 def code(m: Match) -> str:
@@ -88,7 +92,7 @@ def slip(m: Match, lang: str) -> str:
         day = (m.ship_on or m.needed_by)
         lines.append(say("local", lang, town=o.get("location") or "", day=day.strftime("%a %d/%m") if day else ""))
     lines.append(say("link", lang, url=url(m)) if url(m) else say("track_cmd", lang))
-    lines.append(say("cost", lang))
+    lines += [say("drop_ask", lang), say("cost", lang)] if m.lane else []
     return "\n".join(lines)
 
 
@@ -96,8 +100,9 @@ def send_details(m: Match, send) -> None:
     """Both sides said YES: the seller gets the dispatch slip, the buyer the tracking code."""
     l, o = store.get("listings", m.listing_id) or {}, store.get("orders", m.order_id) or {}
     if l.get("phone"):
-        send(l["phone"], slip(m, lang_of(l)), m.id)
+        send(l["phone"], slip(m, lang_of(l)), m.id, buttons=[["✅ DROPPED", "TRACK"]] if m.lane else None)
     if o.get("phone"):
         lang = lang_of(o)
         line = say("buyer", lang, kg=f"{m.qty_kg:.0f}", crop=vocab.crop_name(m.crop, lang), farmer=m.farmer, code=code(m))
-        send(o["phone"], "\n".join([line, say("link", lang, url=url(m)) if url(m) else say("track_cmd", lang)]), m.id)
+        send(o["phone"], "\n".join([line, say("link", lang, url=url(m)) if url(m) else say("track_cmd", lang),
+                                     say("recv_ask", lang)]), m.id, buttons=[["📦 RECEIVED", "TRACK"]])

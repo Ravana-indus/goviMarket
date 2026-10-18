@@ -109,6 +109,8 @@ class Match(BaseModel):
     note: str = ""  # e.g. "rescue: backup buy" when a missed shipment was covered
     shipping_paid_lkr: Optional[float] = None  # what the seller reported paying to send it
     shipping_reported_at: Optional[str] = None
+    dropped_at: Optional[str] = None  # the seller said the load is handed over
+    received_at: Optional[str] = None  # the buyer said it arrived
 
 
 class Shipment(BaseModel):
