@@ -31,7 +31,7 @@ NOTHING = r"Nothing is waiting|බලාපොරොත්තුවෙන් ක
 HELLO = r"Hello from Govi|Govi-யிலிருந்து வணக்கம்|Govi වෙතින්|ආයුබෝවන්|வணக்கம்"
 OFFER = r"\bYES\b"
 WAITING_OTHER = r"Waiting for the other side|අනෙක් පාර්ශවය|மறுதரப்பு"
-CONFIRMED = r"Confirmed by both|දෙපාර්ශවයම|இரு தரப்பும்|GV-[0-9a-f]+"
+CONFIRMED = r"Confirmed by both|දෙපාර්ශවයම|இரு தரப்பும்|GV-[0-9A-Fa-f]+"
 HANDED = r"handed over|භාර දුන්|ஒப்படைக்கப்பட்டது"
 RECEIVED = r"marked received|ලැබුණු බව|பெறப்பட்டதாக|received"
 STATUS_OPEN = r"tomato|තක්කාලි|தக்காளி"
@@ -62,8 +62,8 @@ def deal_setup(farmer_text="{crop} 150kg ready tomorrow, Nuwara Eliya",
         say("buyer", "YES", expect=[PLACED_BUYER], inbox=OFFER, peer=("farmer", OFFER),
             note="placing the order runs the matcher; both sides should get a YES/NO offer"),
         say("buyer", "YES", expect=[WAITING_OTHER]),
-        say("farmer", "YES", any=[CONFIRMED], inbox=r"Dispatch slip|DROPPED", peer=("buyer", r"GV-[0-9a-f]+"),
-            grab={"code": r"(GV-[0-9a-f]+)"}),
+        say("farmer", "YES", any=[CONFIRMED], inbox=r"Dispatch slip|DROPPED", peer=("buyer", r"GV-[0-9A-Fa-f]+"),
+            grab={"code": r"(GV-[0-9A-Fa-f]+)"}),
     ]
 
 

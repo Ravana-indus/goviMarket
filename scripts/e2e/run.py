@@ -45,7 +45,7 @@ def script_of(text: str) -> str:
     """Mostly Sinhala, Tamil or Latin letters."""
     si = len(re.findall(r"[඀-෿]", text or ""))
     ta = len(re.findall(r"[஀-௿]", text or ""))
-    la = len(re.findall(r"[A-Za-z]", re.sub(r"\b(YES|NO|STATUS|EDIT|CANCEL|COST|TRACK|DROPPED|RECEIVED|GV-[0-9a-f]+|Govi|Rs|kg)\b", "", text or "")))
+    la = len(re.findall(r"[A-Za-z]", re.sub(r"\b(YES|NO|STATUS|EDIT|CANCEL|COST|TRACK|DROPPED|RECEIVED|GV-[0-9A-Fa-f]+|Govi|Rs|kg)\b", "", text or "")))
     best = max(("si", si), ("ta", ta), ("en", la * 0.35), key=lambda x: x[1])
     return best[0] if best[1] else "?"
 
@@ -246,8 +246,8 @@ def run_scenario(t: Target, sc: dict, base_vars: dict, ledger: dict) -> dict:
                 v[name] = m.group(1) if m.groups() else m.group(0)
             else:
                 fails.append(f"could not find {name}")
-        if any(re.search(r"GV-[0-9a-f]+", x) for x in [reply] + new):
-            ledger.setdefault("codes", set()).update(re.findall(r"GV-[0-9a-f]+", "\n".join([reply] + new)))
+        if any(re.search(r"GV-[0-9A-Fa-f]+", x) for x in [reply] + new):
+            ledger.setdefault("codes", set()).update(re.findall(r"GV-[0-9A-Fa-f]+", "\n".join([reply] + new)))
         log.append({"n": i, "kind": "say", "who": st["who"], "line": text if text is not None else f"[{st['file']}]",
                     "reply": reply, "also": new, "peer": (st["peer"][0], peer_msgs) if st.get("peer") else None,
                     "fails": fails, "took": took, "note": st.get("note", "")})
@@ -302,7 +302,8 @@ def report(results: list[dict], t: Target, health: dict, base_vars: dict, ledger
               f"Tracking codes created: {', '.join(sorted(ledger.get('codes', []))) or 'none'}", "",
               "Portal records: " + ("; ".join(ledger.get("portal", [])) or "none"), "",
               "Orders and listings from passing chat scenarios were withdrawn with CANCEL where the scenario ends with it; "
-              "confirmed test deals (D1-D3, D5, D6, A4) cannot be cancelled from chat and stay until removed in the console.",
+              "confirmed test deals (D1-D3, D5, D6, A4) cannot be cancelled from chat and stay until removed in the console. "
+              "D1 and D2 also send COST reports (Rs 2,000 and Rs 1,500 for 150 kg), which feed that lane's freight rate.",
               "", "## All transcripts", ""]
     for r in results:
         lines += [f"<details><summary>{r['id']} {r['name']}: {'pass' if r['ok'] else 'FAIL'}</summary>", "", "```", transcript(r), "```",
