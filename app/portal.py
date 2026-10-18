@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
@@ -87,8 +88,9 @@ def _place(o: OrderIn) -> dict:
         raise HTTPException(400, "Enter a valid WhatsApp number.")
     if not (o.business or "").strip():
         raise HTTPException(400, "Enter your business name.")
-    if not date.today() <= o.needed_by <= date.today() + timedelta(days=60):
-        raise HTTPException(400, "Delivery date must be between today and 60 days ahead.")
+    today = datetime.now(ZoneInfo("Asia/Colombo")).date()
+    if not today + timedelta(days=1) <= o.needed_by <= today + timedelta(days=60):
+        raise HTTPException(400, "Delivery date must be between tomorrow and 60 days ahead.")
     o = o.model_copy(update={"phone": phone, "location": vocab.town(o.location) or "Colombo",
                              "items": [Line(crop=vocab.crop(l.crop), qty_kg=l.qty_kg) for l in o.items]})
     known = store.prices()

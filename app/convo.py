@@ -89,6 +89,9 @@ T = {
     "nothing": {"en": "Nothing is waiting for your answer right now. To buy or sell, send the crop and kg (for example: tomato 10kg tomorrow).",
                 "si": "දැනට ඔබේ පිළිතුර බලාපොරොත්තුවෙන් කිසිවක් නැහැ. ගන්න හෝ විකුණන්න, බෝගය සහ කිලෝ ගණන එවන්න (උදා: තක්කාලි කිලෝ 10 හෙට).",
                 "ta": "இப்போது உங்கள் பதிலுக்காக எதுவும் காத்திருக்கவில்லை. வாங்க அல்லது விற்க, பயிரும் கிலோவும் அனுப்பவும் (உதா: தக்காளி 10 கிலோ நாளை)."},
+    "agents_only": {"en": "Thanks. Market prices on Govi come from our market agents, so this was not added to the board.",
+                    "si": "ස්තූතියි. Govi හි වෙළඳපොළ මිල ලැබෙන්නේ අපගේ වෙළඳපොළ නියෝජිතයන්ගෙන්, එබැවින් මෙය මිල පුවරුවට එක් නොකළා.",
+                    "ta": "நன்றி. Govi இல் சந்தை விலைகள் எங்கள் சந்தை முகவர்களிடமிருந்து வருகின்றன, எனவே இது விலைப் பலகையில் சேர்க்கப்படவில்லை."},
     "done": {"en": "That is already done (ref {ref}). Nothing else is waiting for a YES. To change it, send EDIT; to withdraw it, send CANCEL.",
              "si": "එය දැනටමත් සිදු කර ඇත (අංකය {ref}). තවත් YES එකක් බලාපොරොත්තු වන දෙයක් නැහැ. වෙනස් කිරීමට EDIT, ඉවත් කිරීමට CANCEL එවන්න.",
              "ta": "அது ஏற்கனவே முடிந்தது (எண் {ref}). வேறு எதுவும் YES-க்காக காத்திருக்கவில்லை. மாற்ற EDIT, திரும்பப் பெற CANCEL அனுப்பவும்."},
@@ -487,7 +490,19 @@ def step(*, sender: str, text: Optional[str], media: Optional[bytes], mime_type:
     if parsed.intent == "status":
         return Turn(status(sender, c, lang), state=c["state"])
     if parsed.role == "reporter" and parsed.items and not _pending(c):
+        role = (known or {}).get("role") or accounts.DEMO_PEOPLE.get(sender, {}).get("role")
+        if sender.isdigit() and role != "agent":
+            # Prices move every farmer's offer, so only Govi's market agents can set them from chat.
+            return Turn(t("agents_only", lang), parsed=parsed, state=c["state"])
+        before = store.prices()
         created = store.record(parsed, default_date=today, sender=sender)
+        from .reporters import _check
+        for rid in created:  # same checks as the agent app: no future dates, big jumps wait for the console
+            row = store.DB.one("prices", rid)
+            if row:
+                row["date"] = min(row["date"], today.isoformat())
+                row["flagged"] = _check(before.get(row["crop"], {}).get(row["kind"]), row["lkr_per_kg"])
+                store.DB.put("prices", rid, row)
         return Turn(replies.build(parsed, store.prices()), parsed=parsed, created=created)
 
     pending = _pending(c)
@@ -611,12 +626,13 @@ def _answer(c: dict, sender: str, word: str, lang: str, today: date) -> Turn:
         last = c.get("last") or {}
         if last.get("what") == "placed":
             return _cancel_placed(c, last, lang)
-        user_orders = [d for d in store.DB.all("orders") if d.get("phone") == sender]
-        user_listings = [d for d in store.DB.all("listings") if d.get("phone") == sender]
-        if user_orders or user_listings:
-            all_ids = {d["id"] for d in user_orders} | {d["id"] for d in user_listings}
-            ref = (user_orders or user_listings)[0]["id"][:6].upper()
-            return _cancel_placed(c, {"ids": list(all_ids), "ref": ref}, lang)
+        # Only the newest open item: one "stop" must never wipe every order this number ever placed.
+        agreed = {i for m in store.matches() if m.status == "confirmed" for i in (m.listing_id, m.order_id)}
+        mine = [d for kind in ("orders", "listings") for d in store.DB.all(kind)
+                if d.get("phone") == sender and d["id"] not in agreed]
+        if mine:
+            newest = max(mine, key=lambda d: d.get("created_at") or "")
+            return _cancel_placed(c, {"ids": [newest["id"]], "ref": newest["id"][:6].upper()}, lang)
         return _nothing_waiting(c, sender, word, lang)
     if (a := deals.asked_at(sender)):
         asks.append((a, "match"))

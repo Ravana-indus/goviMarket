@@ -180,5 +180,7 @@ function loadAll() { loadCatalogue(); loadOutlook(); }
 
 const d = new Date(); d.setDate(d.getDate() + 2);
 $("needed").value = d.toISOString().slice(0, 10);
+const tmr = new Date(); tmr.setDate(tmr.getDate() + 1);
+$("needed").min = tmr.toISOString().slice(0, 10);  // the server refuses today: no transport could make it
 renderWho();
 GOVI.auth.me().then((u) => (u ? signIn(u) : showSignin(true)));

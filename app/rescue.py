@@ -12,11 +12,14 @@ Gemini only words the messages (app/messages.py)."""
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from . import deals, messages, shipping, store
 from .lanes import DEST_PICKUP_LKR, _norm, lane_cost
 from .schemas import Match, Shipment
+from zoneinfo import ZoneInfo
+
+SL_TZ = ZoneInfo("Asia/Colombo")
 
 BACKUP_MARKET = {"colombo": "Peliyagoda wholesale market", "kandy": "Kandy wholesale market"}
 CAN_MISS = ("booked", "loaded")
@@ -181,10 +184,10 @@ def watchdog(now: datetime | None = None, send=None) -> list[str]:
             try:
                 dept_dt = datetime.fromisoformat(s.schedule["in_transit"])
                 if dept_dt.tzinfo is None and now_dt.tzinfo is not None:
-                    dept_dt = dept_dt.replace(tzinfo=timezone.utc)
+                    dept_dt = dept_dt.replace(tzinfo=SL_TZ)  # schedules are Sri Lanka local times
                 elif dept_dt.tzinfo is not None and now_dt.tzinfo is None:
                     now_dt = now_dt.replace(tzinfo=timezone.utc)
-                if dept_dt < now_dt:
+                if now_dt - timedelta(hours=24) < dept_dt < now_dt:  # older rows are stale data, not a live miss
                     missed(s.id, send=send, reason="departure time passed without confirmation")
                     rescued.append(s.id)
             except Exception:

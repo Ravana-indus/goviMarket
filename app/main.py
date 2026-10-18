@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import json
 import logging
 import shutil
@@ -500,8 +501,14 @@ class CarrierUpdate(BaseModel):
 
 
 @app.post("/webhook/carrier")
-def carrier_webhook(update: CarrierUpdate):
-    """Receive tracking status update from 3PL carrier (SL Post, Railway, or shared lorry)."""
+def carrier_webhook(update: CarrierUpdate, request: Request):
+    """Receive tracking status update from 3PL carrier (SL Post, Railway, or shared lorry).
+    Needs the X-Carrier-Secret header (CARRIER_WEBHOOK_SECRET), or the console when none is set:
+    a "missed" here cancels deals and buys backup stock."""
+    secret = os.getenv("CARRIER_WEBHOOK_SECRET", "")
+    given = request.headers.get("x-carrier-secret", "")
+    if not (secret and hmac.compare_digest(given.encode(), secret.encode())) and not security.is_admin(request):
+        raise HTTPException(401, "Carrier secret needed.")
     target_id = update.ref or update.shipment_id
     if not target_id:
         raise HTTPException(400, "Provide ref or shipment_id")

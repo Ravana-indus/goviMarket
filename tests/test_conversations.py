@@ -426,9 +426,14 @@ def test_web_form_places_at_once(g):
 
 def test_price_agents_report_without_a_yes(g):
     from app.schemas import Item
-    kamal = Phone("94771000041", g)
     p = P(role="reporter", loc="Dambulla", items={})
     p.items = [Item(crop="carrot", qty_kg=0, grade=None, price_lkr_per_kg=150, price_kind="collector")]
+    before = store.prices()["carrot"]["collector"]
+    stranger = Phone("94771000042", g)  # not an agent: the board must not move
+    assert "agents" in stranger.say("Dambulla carrot collector 150", p)
+    assert store.prices()["carrot"]["collector"] == before
+    store.DB.put("users", "94771000041", {"phone": "94771000041", "name": "Kamal", "role": "agent"})
+    kamal = Phone("94771000041", g)
     kamal.say("Dambulla carrot collector 150", p)
     assert store.prices()["carrot"]["collector"] == 150
 
