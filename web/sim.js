@@ -59,7 +59,8 @@ function pick(phone) {
   ls.set("sim_phone", me.phone);
   $("h-lang").value = langs[me.phone] || "";
   $("h-av").textContent = me.name[0]; $("h-name").textContent = me.name; $("h-num").textContent = "+" + me.phone;
-  $("chips").innerHTML = [...QUICK, ...me.tries].map((t, i) => `<button data-i="${i}" title="${esc(t)}">${esc(t.length > 34 ? t.slice(0, 32) + "…" : t)}</button>`).join("");
+  $("chips").innerHTML = [...QUICK, ...me.tries].map((t, i) => (i === QUICK.length ? `<span class="sep"></span>` : "")
+    + `<button data-i="${i}" title="${esc(t)}"${i >= QUICK.length ? ` class="try"` : ""}>${esc(t)}</button>`).join("");
   const all = [...QUICK, ...me.tries];
   $("chips").querySelectorAll("button").forEach((b) => (b.onclick = () => { const t = all[b.dataset.i]; QUICK.includes(t) ? send(t) : ($("text").value = t, $("text").focus()); }));
   lastCount = -1; failNote = ""; renderPeople(); load(true);

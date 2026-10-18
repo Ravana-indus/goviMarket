@@ -295,9 +295,9 @@ $("sweep").onclick = (e) => busy(e.target, async () => { await api("/surplus/swe
 $("advance-all").onclick = (e) => busy(e.target, async () => { await api("/demo/advance-all", { method: "POST" }); await refresh(); });
 $("clear").onclick = (e) => {
   if (!confirm("Delete every listing, order, deal, shipment and chat? Accounts stay.")) return;
-  busy(e.target, async () => { await api("/demo/clear", { method: "POST" }); await refresh(); });
+  busy(e.currentTarget, async () => { await api("/demo/clear", { method: "POST" }); await refresh(); });
 };
-$("seed").onclick = (e) => busy(e.target, async () => { await api("/demo/seed", { method: "POST" }); await refresh(); await loadForecast(); });
+$("seed").onclick = (e) => busy(e.currentTarget, async () => { await api("/demo/seed", { method: "POST" }); await refresh(); await loadForecast(); });
 $("sim-send").onclick = (e) => busy(e.target, async () => {
   const fd = new FormData();
   const text = $("sim-text").value.trim(), file = $("sim-file").files[0];
