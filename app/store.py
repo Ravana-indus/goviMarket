@@ -19,7 +19,7 @@ class Backend(Protocol):
 
 
 # Accounts survive the demo reset, so "Load demo morning" does not sign everybody out.
-KEEP = {"users", "sessions", "otp"}
+KEEP = {"users", "sessions", "otp", "telegram", "telegram_phone"}  # chat links survive the demo reset
 
 
 class Memory:

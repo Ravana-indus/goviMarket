@@ -22,7 +22,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from . import accounts, ai, convo, deals, parser, portal, replies, reporters, reroute, rescue, security, shipping, store, surplus, vocab, whatsapp
+from . import accounts, ai, convo, deals, parser, portal, replies, reporters, reroute, rescue, security, shipping, store, surplus, telegram, vocab, whatsapp
 from .pricing import split
 from .schemas import Listing
 
@@ -60,7 +60,7 @@ def handle(*, text: Optional[str], media: Optional[bytes], mime_type: Optional[s
     whole order and wait for YES before anything is stored; the web form places it at once.
     `deliver` sends the reply (real WhatsApp) before matching runs, so it arrives before any offers."""
     if confirm_first is None:
-        confirm_first = via in ("sim", "whatsapp")
+        confirm_first = via in ("sim", "whatsapp", "telegram")
     with _locks[sender]:  # two messages from one phone at once must not race on its pending order
         if sender.isdigit():
             _chat(sender, "in", text or "", via, (mime_type or "").split("/")[0] or None)
@@ -85,6 +85,7 @@ def healthz():
             "auth": accounts.provider(), "demo_logins": len(accounts.demo_numbers()),
             "whatsapp": bool(os.getenv("WHATSAPP_TOKEN")),
             "whatsapp_number": os.getenv("WHATSAPP_DISPLAY_NUMBER", ""),
+            "telegram": telegram.enabled(),
             "gemini_last_error": ai.last_error or None}
 
 
@@ -321,6 +322,73 @@ async def whatsapp_inbound(request: Request, background: BackgroundTasks):
     for msg in whatsapp.unpack(await request.json()):
         background.add_task(_process_whatsapp, msg)  # ack Meta fast; Gemini can take seconds
     return {"ok": True}
+
+
+def _process_telegram(msg: telegram.Inbound) -> None:
+    if msg.id:  # Telegram re-sends an update it thinks we missed
+        if store.DB.one("seen", f"tg{msg.id}"):
+            return
+        store.DB.put("seen", f"tg{msg.id}", {"at": datetime.now(timezone.utc).isoformat()})
+    chat = msg.chat_id
+    send = lambda body: telegram.send_text(chat, body)  # noqa: E731
+    phone = telegram.phone_for(chat)
+    if msg.contact:
+        telegram.link(chat, msg.contact)
+        send(telegram.WELCOME.format(phone=msg.contact))
+        held = (store.DB.one("telegram_pending", chat) or {})
+        if not held.get("text") and not held.get("file_id"):
+            return
+        store.DB.delete("telegram_pending", chat)
+        phone, msg = msg.contact, telegram.Inbound(chat, held.get("text"), held.get("file_id"), held.get("mime_type"))
+    elif not phone:
+        if (msg.text or msg.file_id) and not (msg.text or "").startswith("/"):
+            store.DB.put("telegram_pending", chat, {"text": msg.text, "file_id": msg.file_id, "mime_type": msg.mime_type})
+        telegram.send_text(chat, telegram.ASK_PHONE, ask_phone=True)
+        return
+    elif (msg.text or "").startswith("/"):  # /start, /help
+        send(telegram.WELCOME.format(phone=phone))
+        return
+    if not msg.text and not msg.file_id:
+        send("Send a message, a photo or a voice note.")
+        return
+    try:
+        media = telegram.fetch_media(msg.file_id) if msg.file_id else None
+        handle(text=(msg.text or "").strip()[:MAX_TEXT] or None, media=media, mime_type=msg.mime_type,
+               sender=phone, today=date.today(), via="telegram", deliver=send)
+    except Exception:
+        log.exception("telegram message failed")
+        try:
+            lang = convo.load(phone).get("lang") or "en"
+            send(convo.t("unread_audio" if (msg.mime_type or "").startswith("audio") else "unread_image", lang)
+                 if msg.file_id else "Sorry, we could not read that. Please try again.")
+        except Exception:
+            log.exception("telegram apology failed")
+
+
+@app.post("/webhook/telegram")
+def telegram_inbound(update: dict, request: Request):
+    """Runs before it answers: Telegram waits for the reply, so this works with request-based CPU."""
+    if not telegram.verify(request.headers.get("x-telegram-bot-api-secret-token")):
+        raise HTTPException(403)
+    msg = telegram.unpack(update)
+    if msg:
+        _process_telegram(msg)
+    return {"ok": True}
+
+
+@app.post("/admin/telegram/setup")
+def telegram_setup(request: Request, url: Optional[str] = None):
+    """Point the bot at this service. deploy.sh calls it after each deploy when the token is set."""
+    if not telegram.enabled():
+        raise HTTPException(400, "TELEGRAM_BOT_TOKEN is not set on this service.")
+    url = url or f"https://{request.headers.get('host')}"
+    try:
+        telegram.set_webhook(url.rstrip("/") + "/webhook/telegram")
+        me = telegram._call("getMe")
+    except Exception:
+        log.exception("telegram setup failed")
+        raise HTTPException(502, "Telegram refused the webhook; check the bot token.")
+    return {"ok": True, "bot": "@" + me.get("username", "")}
 
 
 @app.post("/plan")
