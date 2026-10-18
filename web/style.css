@@ -86,9 +86,36 @@ button, .btn { transition: background-color .15s, border-color .15s, transform .
 .acct span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .acct svg { width: 18px; height: 18px; flex: none; }
 
-/* transport rates editor (lanes.js), agent page and console */
-.lane-row { padding: 12px 14px; border-bottom: 1px solid var(--line); }
-.lane-fs { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin: 8px 0 6px; }
-.lane-f { display: flex; flex-direction: column; font-size: 12px; gap: 2px; }
-.lane-f input { width: 100%; padding: 8px; font-size: 16px; border: 1px solid var(--line); border-radius: 8px; }
-.lane-acts { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+/* transport rates editor (lanes.js), agent page and console: a table on wide screens, one card per route on phones */
+.lanes-t { container-type: inline-size; }
+.lane-head, .lane-row { display: grid; grid-template-columns: minmax(200px, 1fr) repeat(4, minmax(78px, 104px)) 190px; gap: 10px; align-items: center; padding: 10px 16px; }
+.lane-head { font-size: 12px; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--line); padding-top: 12px; padding-bottom: 8px; }
+.lane-head span:not(:first-child) { text-align: right; }
+.lane-row { border-bottom: 1px solid var(--line); }
+.lane-row:last-child { border-bottom: 0; }
+.lane-row.dirty { background: color-mix(in srgb, var(--sun-soft) 55%, transparent); }
+.lane-h { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 3px; min-width: 0; }
+.lane-h b { font-weight: 650; }
+.lane-mode { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.lane-src { flex-basis: 100%; font-size: 12px; color: var(--muted); }
+.lane-src .chip { font-size: 11px; padding: 1px 7px; }
+.lane-f { display: block; min-width: 0; }
+.lane-f > span { display: none; }
+.lane-f input { width: 100%; padding: 7px 9px; font-size: 15px; text-align: right; font-variant-numeric: tabular-nums; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+.lane-f input.changed { border-color: var(--sun); background: var(--surface); }
+.lane-na { text-align: right; font-size: 13px; color: var(--muted); padding-right: 10px; }
+.lane-acts { display: flex; gap: 6px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+.lane-acts .btn { white-space: nowrap; }
+.lane-msg { flex-basis: 100%; text-align: right; color: var(--clay); }
+.lane-msg:empty { display: none; }
+@container (max-width: 760px) {
+  .lane-head { display: none; }
+  .lane-row { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 14px 16px; }
+  .lane-h, .lane-acts { grid-column: 1 / -1; }
+  .lane-f > span { display: block; font-size: 11px; font-weight: 600; color: var(--muted); margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lane-f input { font-size: 16px; padding: 9px 8px; text-align: left; }
+  .lane-na { align-self: end; text-align: left; padding: 0 0 10px; }
+  .lane-acts { justify-content: stretch; }
+  .lane-acts .btn { flex: 1; min-height: 42px; font-size: 14px; }
+  .lane-msg { text-align: left; }
+}

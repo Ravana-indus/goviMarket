@@ -25,7 +25,7 @@ async function api(path, opts) {
 function showSignin(show) {
   $("signin").hidden = !show;
   document.querySelectorAll(".pane").forEach((p) => (p.style.display = show ? "none" : ""));
-  $("tabs").style.visibility = show ? "hidden" : "";
+  $("tabs").classList.toggle("off", show);
 }
 function signIn(u) {
   if (!u) return;
