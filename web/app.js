@@ -105,7 +105,7 @@ function welcome() {
 }
 document.querySelectorAll("[data-pick]").forEach((b) => (b.onclick = () => {
   lang = b.dataset.pick; try { localStorage.setItem("lang", lang); } catch {}
-  $("welcome").hidden = true; applyLang();
+  $("welcome").hidden = true; applyLang(); saveLang();
 }));
 
 // ---- tabs and the sell screen's own steps
@@ -168,7 +168,7 @@ function renderAccount() {
 }
 async function signIn() {
   const u = await GOVI.auth.open({ lang, role: "farmer" });
-  if (u) { account = u; renderAccount(); if ($("track").classList.contains("on")) loadTrack(); }
+  if (u) { account = u; useAccountLang(u); renderAccount(); if ($("track").classList.contains("on")) loadTrack(); }
   return u;
 }
 $("acct").onclick = (e) => { e.stopPropagation(); if (account) $("acct-menu").hidden = !$("acct-menu").hidden; else signIn(); };
@@ -224,9 +224,17 @@ function renderPrices() {
   });
 }
 
+// The picked language is also the chat language: replies to a photo, voice note or message in
+// any other language still come back in this one (saved on the account when signed in).
+function saveLang() {
+  if (account && account.lang !== lang) {
+    fetch("/api/me", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lang }) })
+      .then((r) => r.ok && r.json()).then((u) => { if (u) account = u; }).catch(() => {});
+  }
+}
 document.querySelectorAll("#langs button").forEach((b) => (b.onclick = () => {
   lang = b.dataset.l; try { localStorage.setItem("lang", lang); } catch {}
-  applyLang();
+  applyLang(); saveLang();
 }));
 
 // ---- send a note, photo or voice note: same pipeline as WhatsApp
@@ -237,6 +245,7 @@ async function sendIntake(text, file) {
   if (text) fd.append("text", "[harvest] " + text);
   if (file) fd.append("file", file, file.name || "voice." + (file.type.includes("mp4") ? "m4a" : file.type.includes("ogg") ? "ogg" : "webm"));
   fd.append("sender", phone());
+  fd.append("lang", lang);
   try {
     const r = await fetch("/intake", { method: "POST", body: fd });
     const out = await r.json().catch(() => ({}));
@@ -348,4 +357,6 @@ welcome();
 sellView("start");
 applyLang();
 loadPrices();
-GOVI.auth.me().then((u) => { account = u; renderAccount(); if ($("track").classList.contains("on")) loadTrack(); });
+// A signed-in account brings its own language (it may have been changed from WhatsApp).
+const useAccountLang = (u) => { if (u && ["si", "ta", "en"].includes(u.lang) && u.lang !== lang) { lang = u.lang; try { localStorage.setItem("lang", lang); } catch {} applyLang(); } };
+GOVI.auth.me().then((u) => { account = u; useAccountLang(u); renderAccount(); if ($("track").classList.contains("on")) loadTrack(); });

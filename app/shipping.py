@@ -8,7 +8,7 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime, timedelta, timezone
 
-from . import store
+from . import accounts, store, vocab
 from .lanes import _norm, arrival, lane_cost
 from .schemas import Lane, Shipment
 
@@ -35,11 +35,21 @@ FARMER = {
     },
 }
 BUYER = {
-    "booked": "Booked: {kg} kg {crop} from {farmer} comes by {mode}, arriving about {arrive}. Ref {ref}.",
-    "loaded": "Loaded: your {crop} from {farmer} is on the {mode} leaving {origin} at {departs}.",
-    "in_transit": "On the way: {kg} kg {crop}, arriving about {arrive}.",
-    "arrived": "Arrived in {dest}. Delivering to you shortly.",
-    "delivered": "Delivered: {kg} kg {crop} from {farmer}. Reply OK if everything is fine.",
+    "booked": {"en": "Booked: {kg} kg {crop} from {farmer} comes by {mode}, arriving about {arrive}. Ref {ref}.",
+               "si": "වෙන් කළා: {farmer} ගෙන් {crop} කිලෝ {kg} {mode} මගින් එයි, {arrive} පමණ ළඟා වේ. අංකය {ref}.",
+               "ta": "பதிவு செய்யப்பட்டது: {farmer} இடமிருந்து {crop} {kg} கிலோ {mode} மூலம் வருகிறது, சுமார் {arrive} வந்து சேரும். எண் {ref}."},
+    "loaded": {"en": "Loaded: your {crop} from {farmer} is on the {mode} leaving {origin} at {departs}.",
+               "si": "පැටෙව්වා: {farmer} ගෙන් ඔබේ {crop} {departs} ට {origin} සිට පිටත් වන {mode} තුළ ඇත.",
+               "ta": "ஏற்றப்பட்டது: {farmer} இடமிருந்து உங்கள் {crop} {departs} மணிக்கு {origin} இலிருந்து புறப்படும் {mode} இல் உள்ளது."},
+    "in_transit": {"en": "On the way: {kg} kg {crop}, arriving about {arrive}.",
+                   "si": "එමින් පවතී: {crop} කිලෝ {kg}, {arrive} පමණ ළඟා වේ.",
+                   "ta": "வழியில்: {crop} {kg} கிலோ, சுமார் {arrive} வந்து சேரும்."},
+    "arrived": {"en": "Arrived in {dest}. Delivering to you shortly.",
+                "si": "{dest} වෙත ළඟා විය. ඉක්මනින් ඔබට භාර දෙනවා.",
+                "ta": "{dest} வந்து சேர்ந்தது. விரைவில் உங்களிடம் வழங்கப்படும்."},
+    "delivered": {"en": "Delivered: {kg} kg {crop} from {farmer}. Reply OK if everything is fine.",
+                  "si": "භාර දුන්නා: {farmer} ගෙන් {crop} කිලෝ {kg}. සියල්ල හරි නම් OK ලෙස පිළිතුරු දෙන්න.",
+                  "ta": "வழங்கப்பட்டது: {farmer} இடமிருந்து {crop} {kg} கிலோ. எல்லாம் சரி என்றால் OK என பதில் அனுப்பவும்."},
 }
 
 
@@ -61,6 +71,12 @@ def booking_ref(x: Shipment) -> str:
     return f"{REF_PREFIX.get(x.lane.mode, 'GOV')}-{n}"
 
 
+def _lang(doc: dict) -> str:
+    """The language the person picked, else the one they wrote their order in."""
+    lang = accounts.chosen_lang(doc.get("phone")) or doc.get("lang")
+    return lang if lang in ("si", "ta", "en") else "en"
+
+
 def _fmt(iso: str) -> str:
     return datetime.fromisoformat(iso).strftime("%a %H:%M")
 
@@ -76,10 +92,10 @@ def _notify(x: Shipment, status: str, send) -> None:
                      dest=x.dest, mode=MODE_NAME.get(x.lane.mode, x.lane.mode), departs=x.lane.departs,
                      arrive=_fmt(x.schedule["arrived"]), pickup=x.lane.pickup or x.origin, load=load, ref=x.ref,
                      amount=f"{round(m.farmer_gets_lkr_per_kg * m.qty_kg):,}")
-        if status in FARMER:
-            send(l.get("phone"), FARMER[status][l.get("lang", "en")].format(**facts), mid)
-        if status in BUYER:
-            send(o.get("phone"), BUYER[status].format(**facts), mid)
+        for doc, table in ((l, FARMER), (o, BUYER)):
+            if status in table:
+                lang = _lang(doc)
+                send(doc.get("phone"), table[status][lang].format(**{**facts, "crop": vocab.crop_name(m.crop, lang)}), mid)
 
 
 def advance(sid: str, send) -> Shipment:

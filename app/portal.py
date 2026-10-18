@@ -59,7 +59,7 @@ def _create(o: OrderIn) -> list[str]:
     ids = []
     for line in o.items:
         rid = uuid.uuid4().hex[:8]
-        store.put("orders", Order(id=rid, phone=o.phone, lang="en", buyer=o.business, location=o.location,
+        store.put("orders", Order(id=rid, phone=o.phone, lang=accounts.chosen_lang(o.phone) or "en", buyer=o.business, location=o.location,
                                   crop=line.crop, qty_kg=line.qty_kg, needed_by=o.needed_by,
                                   remaining_kg=line.qty_kg).model_dump(mode="json"))
         ids.append(rid)

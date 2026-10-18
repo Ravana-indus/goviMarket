@@ -46,9 +46,18 @@ function renderPeople() {
   };
 }
 
+// Reply language per number: once picked, Govi answers in it whatever language is sent.
+let langs = ls.get("sim_lang", {}), langCleared = {};
+$("h-lang").onchange = () => {
+  const v = $("h-lang").value;
+  if (v) langs[me.phone] = v; else { delete langs[me.phone]; langCleared[me.phone] = true; }
+  ls.set("sim_lang", langs);
+};
+
 function pick(phone) {
   me = people.find((p) => p.phone === phone) || me;
   ls.set("sim_phone", me.phone);
+  $("h-lang").value = langs[me.phone] || "";
   $("h-av").textContent = me.name[0]; $("h-name").textContent = me.name; $("h-num").textContent = "+" + me.phone;
   $("chips").innerHTML = [...QUICK, ...me.tries].map((t, i) => `<button data-i="${i}" title="${esc(t)}">${esc(t.length > 34 ? t.slice(0, 32) + "…" : t)}</button>`).join("");
   const all = [...QUICK, ...me.tries];
@@ -143,6 +152,8 @@ async function send(textArg) {
     (local[me.phone] ||= []).push({ at: new Date().toISOString(), url: pending.url, kind: pending.kind });
   }
   fd.append("sender", me.phone); fd.append("via", "sim");
+  if (langs[me.phone]) fd.append("lang", langs[me.phone]);
+  else if (langCleared[me.phone]) { fd.append("lang", "auto"); delete langCleared[me.phone]; }
   $("text").value = ""; pending = null; $("file").value = ""; showPreview();
   waiting = true; failNote = ""; $("send").disabled = true;
   setTimeout(() => load(true), 150);

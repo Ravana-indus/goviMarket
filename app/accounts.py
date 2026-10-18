@@ -120,6 +120,29 @@ def link(phone: str, *, name: str | None, role: str | None, via: str) -> dict | 
     return u
 
 
+def chosen_lang(phone: str | None) -> str | None:
+    """The language this person picked (app header, settings, signup or a LANGUAGE message).
+    Every reply and message to them is in it, whatever language they write or speak in."""
+    lang = (user(phone) or {}).get("lang")
+    return lang if lang in LANGS else None
+
+
+def set_lang(phone: str, lang: str | None, via: str = "chat") -> None:
+    """Pick (or with None clear) this number's language, and move their open listings and orders
+    to it, so offers, shipment updates and reminders follow the choice too."""
+    if not phone.isdigit():
+        return
+    lang = lang if lang in LANGS else ""
+    u = user(phone) or link(phone, name=None, role=None, via=via)
+    if u.get("lang") != lang:
+        store.DB.put("users", phone, {**u, "lang": lang})
+    if lang:
+        for kind in ("listings", "orders"):
+            for doc in store.DB.all(kind):
+                if doc.get("phone") == phone and doc.get("lang") != lang:
+                    store.DB.put(kind, doc["id"], {**doc, "lang": lang})
+
+
 # ---- sessions
 
 def _session_doc(request: Request) -> dict | None:
@@ -327,5 +350,7 @@ def update_me(x: ProfileIn, request: Request):
         data["location"] = vocab.town(data["location"])
     u = {**u, **data}
     store.DB.put("users", u["phone"], u)
+    if data.get("lang"):
+        set_lang(u["phone"], data["lang"], via="web")
     request.state.user = u
     return public(u)

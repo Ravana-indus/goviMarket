@@ -55,7 +55,7 @@ _plan_lock = threading.Lock()
 
 def handle(*, text: Optional[str], media: Optional[bytes], mime_type: Optional[str],
            sender: str, today: date, via: str = "web", auto_plan: bool = True,
-           confirm_first: Optional[bool] = None, deliver=None) -> dict:
+           confirm_first: Optional[bool] = None, deliver=None, lang: Optional[str] = None) -> dict:
     """One pipeline for every channel. Chat channels (WhatsApp, the simulator) show the sender the
     whole order and wait for YES before anything is stored; the web form places it at once.
     `deliver` sends the reply (real WhatsApp) before matching runs, so it arrives before any offers."""
@@ -65,7 +65,7 @@ def handle(*, text: Optional[str], media: Optional[bytes], mime_type: Optional[s
         if sender.isdigit():
             _chat(sender, "in", text or "", via, (mime_type or "").split("/")[0] or None)
         turn = convo.step(sender=sender, text=text, media=media, mime_type=mime_type, today=today,
-                          confirm_first=confirm_first, via=via)
+                          confirm_first=confirm_first, via=via, lang=lang)
         if sender.isdigit():
             _chat(sender, "out", turn.reply, via)
         if deliver:
@@ -259,8 +259,10 @@ def daily_job(today: Optional[date] = None):
 
 @app.post("/intake")
 async def intake(text: Optional[str] = Form(None), file: Optional[UploadFile] = File(None),
-                 sender: str = Form("web"), via: str = Form("web"), today: Optional[date] = Form(None)):
-    """Web portal and WhatsApp simulator: photo, voice note or text."""
+                 sender: str = Form("web"), via: str = Form("web"), today: Optional[date] = Form(None),
+                 lang: Optional[str] = Form(None)):
+    """Web portal and WhatsApp simulator: photo, voice note or text. `lang` is the language picked
+    on that screen; replies come back in it whatever language the message is in."""
     text = (text or "").strip() or None
     if text and len(text) > MAX_TEXT:
         raise HTTPException(400, f"Message is too long (max {MAX_TEXT} characters).")
@@ -279,7 +281,8 @@ async def intake(text: Optional[str] = Form(None), file: Optional[UploadFile] = 
         raise HTTPException(400, "Pick a phone number for the simulator.")
     try:
         return handle(text=text, media=media, mime_type=mime, sender=phone,
-                      today=today or date.today(), via="sim" if via == "sim" else "web")
+                      today=today or date.today(), via="sim" if via == "sim" else "web",
+                      lang=lang if lang in ("si", "ta", "en", "auto") else None)
     except Exception:
         log.exception("intake failed")
         raise HTTPException(502, "We could not read that message just now. Please try again.")
